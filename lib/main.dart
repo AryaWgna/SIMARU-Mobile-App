@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'auth/login.dart';
-import 'home_screen.dart';
+import 'views/dashboard/home_screen.dart';
 
 void main() {
   runApp(MyApp());

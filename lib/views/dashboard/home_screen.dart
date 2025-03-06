@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'controllers/auth_controller.dart';
+import '../../controllers/auth_controller.dart';
 import 'dart:ui';
 
 class HomeScreen extends StatefulWidget {
