@@ -1,6 +1,20 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
 
+void main() {
+  runApp(MyApp());
+}
+
+class MyApp extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      debugShowCheckedModeBanner: false,
+      home: LoginScreen(),
+    );
+  }
+}
+
 class LoginScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
@@ -13,7 +27,9 @@ class LoginScreen extends StatelessWidget {
           Positioned.fill(
             child: ImageFiltered(
               imageFilter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-              child: Container(color: Colors.white),
+              child: Container(
+                color: Colors.white,
+              ),
             ),
           ),
           _buildBlurCircle(-50, 100, 200, Color(0xFFACC3EF)),
@@ -51,23 +67,27 @@ class LoginScreen extends StatelessWidget {
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Text(
-                    'Welcome,',
-                    style: TextStyle(
-                      fontSize: 22,
-                      fontWeight: FontWeight.w600,
-                      color: Color(0xFF203268),
-                    ),
-                    textAlign: TextAlign.center,
-                  ),
-                  Text(
-                    'Please Login First!',
-                    style: TextStyle(
-                      fontSize: 22,
-                      fontWeight: FontWeight.w600,
-                      color: Color(0xFF203268),
-                    ),
-                    textAlign: TextAlign.center,
+                  Column(
+                    children: [
+                      Text(
+                        'Welcome,',
+                        style: TextStyle(
+                          fontSize: 22,
+                          fontWeight: FontWeight.w600,
+                          color: Color(0xFF203268),
+                        ),
+                        textAlign: TextAlign.center,
+                      ),
+                      Text(
+                        'Please Login First!',
+                        style: TextStyle(
+                          fontSize: 22,
+                          fontWeight: FontWeight.w600,
+                          color: Color(0xFF203268),
+                        ),
+                        textAlign: TextAlign.center,
+                      ),
+                    ],
                   ),
                   SizedBox(height: 10),
                   Container(
@@ -122,9 +142,7 @@ class LoginScreen extends StatelessWidget {
                         ),
                         SizedBox(height: 15),
                         ElevatedButton(
-                          onPressed: () {
-                            Navigator.pushReplacementNamed(context, '/home');
-                          },
+                          onPressed: () {},
                           style: ElevatedButton.styleFrom(
                             backgroundColor: Color(0xFF203268),
                             minimumSize: Size(double.infinity, 40),
@@ -178,9 +196,12 @@ class LoginScreen extends StatelessWidget {
         ),
         child: BackdropFilter(
           filter: ImageFilter.blur(sigmaX: 15, sigmaY: 15),
-          child: Container(color: Colors.transparent),
+          child: Container(
+            color: Colors.transparent,
+          ),
         ),
       ),
     );
   }
 }
+
