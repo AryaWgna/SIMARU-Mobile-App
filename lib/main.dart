@@ -7,15 +7,20 @@ void main() {
 }
 
 class MyApp extends StatelessWidget {
+  const MyApp({super.key});
+
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
       debugShowCheckedModeBanner: false,
       initialRoute: '/',
       routes: {
-        '/': (context) => LoginScreen(),
-        '/home': (context) => HomeScreen(),
+        '/': (context) => const LoginScreen(),
+        '/home': (context) => const HomeScreen(),
       },
+      theme: ThemeData(
+        fontFamily: 'Inter',
+      ),
     );
   }
 }
