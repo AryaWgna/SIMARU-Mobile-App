@@ -32,6 +32,8 @@ dependencies:
     sdk: flutter
   http: ^1.1.0
   flutter_secure_storage: ^9.0.0
+  google_fonts: ^6.2.1
+  flutter_svg: ^2.0.17
 
 dev_dependencies:
   flutter_test:
