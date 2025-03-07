@@ -104,8 +104,8 @@ class _LoginScreenState extends State<LoginScreen> {
                         ),
                       );
                     },
-                    child: Column(
-                      children: const [
+                    child: const Column(
+                      children: [
                         Text(
                           'Welcome,',
                           style: TextStyle(
