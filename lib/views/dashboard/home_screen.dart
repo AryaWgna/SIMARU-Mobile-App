@@ -84,6 +84,7 @@ class _HomeScreenState extends State<HomeScreen> {
         borderRadius: BorderRadius.circular(8),
       ),
       child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
           Container(
             padding: EdgeInsets.all(8),
@@ -93,9 +94,8 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
             child: Icon(icon, color: iconColor, size: 24),
           ),
-          SizedBox(width: 16),
           Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+            crossAxisAlignment: CrossAxisAlignment.end,
             children: [
               Text(
                 value,

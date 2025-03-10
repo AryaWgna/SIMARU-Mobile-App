@@ -78,6 +78,7 @@ class HistoryScreen extends StatelessWidget {
                 children: [
                   Text(
                     assetId,
+                    textAlign: TextAlign.left,
                     style: const TextStyle(
                       fontFamily: 'Inter',
                       fontSize: 12,
@@ -88,6 +89,7 @@ class HistoryScreen extends StatelessWidget {
                   const SizedBox(height: 8),
                   Flexible(
                     child: RichText(
+                      textAlign: TextAlign.left,
                       overflow: TextOverflow.ellipsis,
                       maxLines: 2,
                       text: TextSpan(

@@ -3,6 +3,7 @@ import '../pages/profile.dart';
 import '../dashboard/home_screen.dart';
 import '../procurement/procurement_screen.dart';
 import '../history/history_screen.dart';
+import '../qr_scanner/qr_scanner_screen.dart';
 
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
@@ -74,22 +75,30 @@ class _DashboardScreenState extends State<DashboardScreen> {
         backgroundColor: Colors.white,
         onTap: _onItemTapped,
       ),
-      floatingActionButton: Container(
+      floatingActionButton: SizedBox(
         width: 84,
         height: 84,
-        margin: const EdgeInsets.only(top: 30),
-        decoration: BoxDecoration(
-          color: const Color(0xFF203268),
-          border: Border.all(
-            color: const Color(0xFF25B1FF),
-            width: 6,
+        child: FloatingActionButton(
+          elevation: 0,
+          backgroundColor: const Color(0xFF203268),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(42),
+            side: const BorderSide(
+              color: Color(0xFF25B1FF),
+              width: 6,
+            ),
           ),
-          borderRadius: BorderRadius.circular(50),
-        ),
-        child: const Icon(
-          Icons.qr_code_scanner,
-          color: Color(0xFFACC3EF),
-          size: 24,
+          onPressed: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(builder: (context) => const QRScannerScreen()),
+            );
+          },
+          child: const Icon(
+            Icons.qr_code_scanner,
+            color: Color(0xFFACC3EF),
+            size: 24,
+          ),
         ),
       ),
       floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
