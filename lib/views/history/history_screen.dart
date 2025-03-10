@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../widgets/custom_app_bar.dart';
 
 class HistoryScreen extends StatelessWidget {
   const HistoryScreen({Key? key}) : super(key: key);
@@ -6,7 +7,7 @@ class HistoryScreen extends StatelessWidget {
   Widget _buildHistoryItem(String date, String time, String assetId,
       String fromStatus, String toStatus) {
     return Container(
-      width: 360,
+      width: double.infinity,
       height: 73,
       margin: const EdgeInsets.only(bottom: 13),
       decoration: BoxDecoration(
@@ -19,7 +20,7 @@ class HistoryScreen extends StatelessWidget {
           ),
         ],
       ),
-      child: Stack(
+      child: Row(
         children: [
           // Blue line on the left
           Container(
@@ -34,9 +35,8 @@ class HistoryScreen extends StatelessWidget {
             ),
           ),
           // Date and time
-          Positioned(
-            left: 19,
-            top: 16,
+          Padding(
+            padding: const EdgeInsets.only(left: 11, top: 16),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -63,65 +63,67 @@ class HistoryScreen extends StatelessWidget {
             ),
           ),
           // Vertical divider
-          Positioned(
-            left: 110,
-            top: 0,
-            child: Container(
-              width: 1,
-              height: 73,
-              color: const Color(0xFFCAC4D0),
-            ),
+          Container(
+            margin: const EdgeInsets.symmetric(horizontal: 16),
+            width: 1,
+            height: 73,
+            color: const Color(0xFFCAC4D0),
           ),
           // Asset info
-          Positioned(
-            left: 128,
-            top: 12,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  assetId,
-                  style: const TextStyle(
-                    fontFamily: 'Inter',
-                    fontSize: 12,
-                    fontWeight: FontWeight.w400,
-                    color: Color(0xFF757575),
-                  ),
-                ),
-                const SizedBox(height: 8),
-                RichText(
-                  text: TextSpan(
+          Expanded(
+            child: Padding(
+              padding: const EdgeInsets.only(top: 12, right: 16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    assetId,
                     style: const TextStyle(
                       fontFamily: 'Inter',
                       fontSize: 12,
                       fontWeight: FontWeight.w400,
-                      color: Colors.black,
+                      color: Color(0xFF757575),
                     ),
-                    children: [
-                      const TextSpan(text: 'You change status from '),
-                      TextSpan(
-                        text: fromStatus,
-                        style: TextStyle(
-                          color: fromStatus == 'Available'
-                              ? const Color(0xFF4CAF50)
-                              : const Color(0xFFFFA726),
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                      const TextSpan(text: ' to '),
-                      TextSpan(
-                        text: toStatus,
-                        style: TextStyle(
-                          color: toStatus == 'Available'
-                              ? const Color(0xFF4CAF50)
-                              : const Color(0xFFFFA726),
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ],
                   ),
-                ),
-              ],
+                  const SizedBox(height: 8),
+                  Flexible(
+                    child: RichText(
+                      overflow: TextOverflow.ellipsis,
+                      maxLines: 2,
+                      text: TextSpan(
+                        style: const TextStyle(
+                          fontFamily: 'Inter',
+                          fontSize: 12,
+                          fontWeight: FontWeight.w400,
+                          color: Colors.black,
+                        ),
+                        children: [
+                          const TextSpan(text: 'You change status from '),
+                          TextSpan(
+                            text: fromStatus,
+                            style: TextStyle(
+                              color: fromStatus == 'Available'
+                                  ? const Color(0xFF4CAF50)
+                                  : const Color(0xFFFFA726),
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                          const TextSpan(text: ' to '),
+                          TextSpan(
+                            text: toStatus,
+                            style: TextStyle(
+                              color: toStatus == 'Available'
+                                  ? const Color(0xFF4CAF50)
+                                  : const Color(0xFFFFA726),
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
         ],
@@ -133,36 +135,7 @@ class HistoryScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.white,
-      appBar: PreferredSize(
-        preferredSize: const Size.fromHeight(82),
-        child: Container(
-          decoration: const BoxDecoration(
-            color: Color(0xFF213268),
-            boxShadow: [
-              BoxShadow(
-                color: Color(0xFF56C5F1),
-                blurRadius: 7.3,
-                offset: Offset(0, 3),
-                spreadRadius: 3,
-              ),
-            ],
-            borderRadius: BorderRadius.only(
-              bottomLeft: Radius.circular(20),
-              bottomRight: Radius.circular(20),
-            ),
-          ),
-          child: Center(
-            child: Padding(
-              padding: const EdgeInsets.only(top: 16),
-              child: Image.asset(
-                'images/Logo_RS_UMMI_white.png',
-                width: 208.14,
-                height: 55,
-              ),
-            ),
-          ),
-        ),
-      ),
+      appBar: const CustomAppBar(),
       body: Column(
         children: [
           // Title and subtitle

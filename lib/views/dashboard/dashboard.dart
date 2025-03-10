@@ -36,7 +36,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
         items: <BottomNavigationBarItem>[
           const BottomNavigationBarItem(
             icon: Icon(Icons.home),
-            label: 'sR',
+            label: 'Home',
           ),
           const BottomNavigationBarItem(
             icon: Icon(Icons.shopping_cart),

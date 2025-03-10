@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'dart:ui';
 import '../../../controllers/auth_controller.dart';
+import '../../widgets/custom_app_bar.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -81,118 +82,81 @@ class _ProfileScreenState extends State<ProfileScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.white,
-      body: Column(
-        children: [
-          // Navbar
-          Container(
-            width: double.infinity,
-            height: 82,
-            decoration: const BoxDecoration(
-              color: Color(0xFF213268),
-              boxShadow: [
-                BoxShadow(
-                  color: Color(0xFF56C5F1),
-                  blurRadius: 7.3,
-                  offset: Offset(0, 3),
-                  spreadRadius: 3,
+      appBar: const CustomAppBar(),
+      body: SingleChildScrollView(
+        child: Container(
+          width: 440,
+          padding: const EdgeInsets.symmetric(horizontal: 12),
+          child: Column(
+            children: [
+              const SizedBox(height: 24),
+              // Profile Image
+              Container(
+                width: 150,
+                height: 150,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: const Color(0xFF213268),
+                  image: _profile?['image'] != null
+                      ? DecorationImage(
+                          image: NetworkImage(_profile!['image']),
+                          fit: BoxFit.cover,
+                        )
+                      : null,
                 ),
-              ],
-              borderRadius: BorderRadius.only(
-                bottomLeft: Radius.circular(20),
-                bottomRight: Radius.circular(20),
+                child: _profile?['image'] == null
+                    ? const Icon(Icons.person, size: 50, color: Colors.white)
+                    : null,
               ),
-            ),
-            child: Center(
-              child: Image.asset(
-                'images/Logo_RS_UMMI_white.png',
-                width: 208.14,
-                height: 55,
-                errorBuilder: (context, error, stackTrace) {
-                  return const Text('Error loading image');
-                },
-              ),
-            ),
-          ),
+              const SizedBox(height: 24),
 
-          // Profile Content
-          Expanded(
-            child: SingleChildScrollView(
-              child: Container(
-                width: 440,
-                padding: const EdgeInsets.symmetric(horizontal: 12),
-                child: Column(
-                  children: [
-                    const SizedBox(height: 24),
-                    // Profile Image
-                    Container(
-                      width: 150,
-                      height: 150,
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        color: const Color(0xFF213268),
-                        image: _profile?['image'] != null
-                            ? DecorationImage(
-                                image: NetworkImage(_profile!['image']),
-                                fit: BoxFit.cover,
-                              )
-                            : null,
-                      ),
-                      child: _profile?['image'] == null
-                          ? const Icon(Icons.person, size: 50, color: Colors.white)
-                          : null,
-                    ),
-                    const SizedBox(height: 24),
+              // Form Contact
+              _buildFormContainer([
+                _buildInputField('Nama', _profile?['name'] ?? ''),
+                _buildInputField('Email', _profile?['email'] ?? ''),
+                _buildInputField('No. Telepon', _profile?['phone'] ?? ''),
+                _buildButton('UPDATE',
+                    onPressed: () {}, color: const Color(0xFF213268)),
+              ]),
 
-                    // Form Contact
-                    _buildFormContainer([
-                      _buildInputField('Nama', _profile?['name'] ?? ''),
-                      _buildInputField('Email', _profile?['email'] ?? ''),
-                      _buildInputField('No. Telepon', _profile?['phone'] ?? ''),
-                      _buildButton('UPDATE',
-                          onPressed: () {}, color: const Color(0xFF213268)),
-                    ]),
+              const SizedBox(height: 24),
 
-                    const SizedBox(height: 24),
-
-                    // Reset Password Text
-                    const Text(
-                      'Reset Password',
-                      style: TextStyle(
-                        color: Color(0xFF213268),
-                        fontSize: 16,
-                        fontFamily: 'Inter',
-                        fontWeight: FontWeight.w400,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-
-                    // Password Form
-                    _buildFormContainer([
-                      _buildInputField('Password Lama', '', isPassword: true),
-                      _buildInputField('Password Baru', '', isPassword: true),
-                      _buildButton('Ubah Password',
-                          onPressed: () {}, color: const Color(0xFF213268)),
-                    ]),
-
-                    const SizedBox(height: 24),
-
-                    // Logout Form
-                    _buildFormContainer([
-                      _buildButton(
-                        'Logout',
-                        onPressed: _logout,
-                        color: const Color(0xFFFF0004),
-                        icon: Icons.logout,
-                      ),
-                    ]),
-
-                    const SizedBox(height: 24),
-                  ],
+              // Reset Password Text
+              const Text(
+                'Reset Password',
+                style: TextStyle(
+                  color: Color(0xFF213268),
+                  fontSize: 16,
+                  fontFamily: 'Inter',
+                  fontWeight: FontWeight.w400,
                 ),
               ),
-            ),
+              const SizedBox(height: 8),
+
+              // Password Form
+              _buildFormContainer([
+                _buildInputField('Password Lama', '', isPassword: true),
+                _buildInputField('Password Baru', '', isPassword: true),
+                _buildButton('Ubah Password',
+                    onPressed: () {}, color: const Color(0xFF213268)),
+              ]),
+
+              const SizedBox(height: 24),
+
+              // Logout Form
+              _buildFormContainer([
+                _buildButton(
+                  'Logout',
+                  onPressed: _logout,
+                  color: const Color(0xFFFF0004),
+                  icon: Icons.logout,
+                ),
+              ]),
+
+              const SizedBox(height: 24),
+            ],
           ),
-        ],
+        ),
       ),
     );
   }
@@ -219,7 +183,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-  Widget _buildInputField(String label, String value, {bool isPassword = false}) {
+  Widget _buildInputField(String label, String value,
+      {bool isPassword = false}) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -308,4 +273,3 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 }
-
