@@ -1,6 +1,7 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import '../controllers/auth_controller.dart';
+import '../views/auth/forget_password_screen.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -194,7 +195,15 @@ class _LoginScreenState extends State<LoginScreen> {
                         MouseRegion(
                           cursor: SystemMouseCursors.click,
                           child: TextButton(
-                            onPressed: () {},
+                            onPressed: () {
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (context) =>
+                                      const ForgetPasswordScreen(),
+                                ),
+                              );
+                            },
                             style: TextButton.styleFrom(
                               padding: const EdgeInsets.symmetric(vertical: 8),
                             ),
@@ -287,4 +296,3 @@ class _LoginScreenState extends State<LoginScreen> {
     );
   }
 }
-
