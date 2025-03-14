@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import '../pages/profile.dart';
-import '../dashboard/home_screen.dart';
-import '../procurement/procurement_screen.dart';
-import '../history/history_screen.dart';
-import '../qr_scanner/qr_scanner_screen.dart';
+import '../pages/home_screen.dart';
+import '../pages/procurement_screen.dart';
+import '../pages/history_screen.dart';
+import '../pages/qr_scanner_screen.dart';
 
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
@@ -34,47 +34,35 @@ class _DashboardScreenState extends State<DashboardScreen> {
     return Scaffold(
       body: _screens[_selectedIndex],
       bottomNavigationBar: BottomNavigationBar(
-        items: <BottomNavigationBarItem>[
-          const BottomNavigationBarItem(
+        currentIndex: _selectedIndex,
+        onTap: _onItemTapped,
+        type: BottomNavigationBarType.fixed,
+        selectedItemColor: const Color(0xFF213268),
+        unselectedItemColor: Colors.grey,
+        items: const [
+          BottomNavigationBarItem(
             icon: Icon(Icons.home),
             label: 'Home',
           ),
-          const BottomNavigationBarItem(
-            icon: Icon(Icons.shopping_cart),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.inventory),
             label: 'Procurement',
           ),
           BottomNavigationBarItem(
-            icon: Container(
-              padding: const EdgeInsets.all(12),
-              decoration: const BoxDecoration(
-                color: Color(0xFF1A237E),
-                shape: BoxShape.circle,
-              ),
-              child: const Icon(Icons.qr_code_scanner, color: Colors.white),
-            ),
+            icon: Icon(Icons.qr_code_scanner, color: Colors.transparent),
             label: '',
           ),
-          const BottomNavigationBarItem(
+          BottomNavigationBarItem(
             icon: Icon(Icons.history),
             label: 'History',
           ),
-          const BottomNavigationBarItem(
+          BottomNavigationBarItem(
             icon: Icon(Icons.person),
             label: 'Profile',
           ),
         ],
-        currentIndex: _selectedIndex,
-        type: BottomNavigationBarType.fixed,
-        selectedItemColor: const Color(0xFF1A237E),
-        unselectedItemColor: Colors.grey[600],
-        showSelectedLabels: true,
-        showUnselectedLabels: true,
-        selectedFontSize: 12,
-        unselectedFontSize: 12,
-        elevation: 0,
-        backgroundColor: Colors.white,
-        onTap: _onItemTapped,
       ),
+      floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
       floatingActionButton: SizedBox(
         width: 84,
         height: 84,
@@ -101,7 +89,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
           ),
         ),
       ),
-      floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
     );
   }
 }

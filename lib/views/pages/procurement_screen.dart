@@ -1,27 +1,43 @@
 import 'package:flutter/material.dart';
 import '../../widgets/custom_app_bar.dart';
 
-class ProcurementScreen extends StatelessWidget {
+class ProcurementScreen extends StatefulWidget {
   const ProcurementScreen({Key? key}) : super(key: key);
 
-  Widget _buildTabButton(String text, bool isSelected) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      decoration: BoxDecoration(
-        color: isSelected ? const Color(0xFF213268) : Colors.white,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(
-          color: const Color(0xFF213268),
-          width: 1,
+  @override
+  State<ProcurementScreen> createState() => _ProcurementScreenState();
+}
+
+class _ProcurementScreenState extends State<ProcurementScreen> {
+  int _selectedTabIndex = 0;
+
+  void _onTabSelected(int index) {
+    setState(() {
+      _selectedTabIndex = index;
+    });
+  }
+
+  Widget _buildTabButton(String text, bool isSelected, int index) {
+    return GestureDetector(
+      onTap: () => _onTabSelected(index),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        decoration: BoxDecoration(
+          color: isSelected ? const Color(0xFF213268) : Colors.white,
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(
+            color: const Color(0xFF213268),
+            width: 1,
+          ),
         ),
-      ),
-      child: Text(
-        text,
-        style: TextStyle(
-          fontFamily: 'Inter',
-          fontSize: 14,
-          fontWeight: FontWeight.w500,
-          color: isSelected ? Colors.white : const Color(0xFF213268),
+        child: Text(
+          text,
+          style: TextStyle(
+            fontFamily: 'Inter',
+            fontSize: 14,
+            fontWeight: FontWeight.w500,
+            color: isSelected ? Colors.white : const Color(0xFF213268),
+          ),
         ),
       ),
     );
@@ -172,14 +188,18 @@ class ProcurementScreen extends StatelessWidget {
       body: Column(
         children: [
           // Tab buttons
-          Padding(
+          SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
             padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
             child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
               children: [
-                _buildTabButton('Request', true),
-                _buildTabButton('Comparison', false),
-                _buildTabButton('Purchase Order', false),
+                _buildTabButton('Request', _selectedTabIndex == 0, 0),
+                const SizedBox(width: 8),
+                _buildTabButton('Quotation', _selectedTabIndex == 1, 1),
+                const SizedBox(width: 8),
+                _buildTabButton('Purchase Order', _selectedTabIndex == 2, 2),
+                const SizedBox(width: 8),
+                _buildTabButton('Receipt', _selectedTabIndex == 3, 3),
               ],
             ),
           ),
@@ -188,46 +208,95 @@ class ProcurementScreen extends StatelessWidget {
             child: ListView(
               padding: const EdgeInsets.all(16),
               children: [
-                _buildProcurementItem(
-                  title: 'Title',
-                  status: 'Submitted',
-                  statusIcon: Icons.check_circle_outline,
-                  statusIconColor: const Color(0xFF757575),
-                  priority: 'High',
-                  priorityColor: Colors.red,
-                  quantity: '1',
-                  requestDate: '06/03/2025',
-                ),
-                _buildProcurementItem(
-                  title: 'Title',
-                  status: 'Under Review',
-                  statusIcon: Icons.access_time,
-                  statusIconColor: const Color(0xFFDAAE0F),
-                  priority: 'Medium',
-                  priorityColor: const Color(0xFFF16A1B),
-                  quantity: '1',
-                  requestDate: '06/03/2025',
-                ),
-                _buildProcurementItem(
-                  title: 'Title',
-                  status: 'Approved',
-                  statusIcon: Icons.check_circle,
-                  statusIconColor: const Color(0xFF659B09),
-                  priority: 'Low',
-                  priorityColor: const Color(0xFF659B09),
-                  quantity: '1',
-                  requestDate: '06/03/2025',
-                ),
-                _buildProcurementItem(
-                  title: 'Title',
-                  status: 'Rejected',
-                  statusIcon: Icons.cancel_outlined,
-                  statusIconColor: Colors.red,
-                  priority: 'High',
-                  priorityColor: Colors.red,
-                  quantity: '1',
-                  requestDate: '06/03/2025',
-                ),
+                if (_selectedTabIndex == 0) ...[
+                  // Request Tab
+                  _buildProcurementItem(
+                    title: 'Title',
+                    status: 'Submitted',
+                    statusIcon: Icons.check_circle_outline,
+                    statusIconColor: const Color(0xFF757575),
+                    priority: 'High',
+                    priorityColor: Colors.red,
+                    quantity: '1',
+                    requestDate: '06/03/2025',
+                  ),
+                  _buildProcurementItem(
+                    title: 'Title',
+                    status: 'Under Review',
+                    statusIcon: Icons.access_time,
+                    statusIconColor: const Color(0xFFDAAE0F),
+                    priority: 'Medium',
+                    priorityColor: const Color(0xFFF16A1B),
+                    quantity: '1',
+                    requestDate: '06/03/2025',
+                  ),
+                  _buildProcurementItem(
+                    title: 'Title',
+                    status: 'Approved',
+                    statusIcon: Icons.check_circle,
+                    statusIconColor: const Color(0xFF659B09),
+                    priority: 'Low',
+                    priorityColor: const Color(0xFF659B09),
+                    quantity: '1',
+                    requestDate: '06/03/2025',
+                  ),
+                  _buildProcurementItem(
+                    title: 'Title',
+                    status: 'Rejected',
+                    statusIcon: Icons.cancel_outlined,
+                    statusIconColor: Colors.red,
+                    priority: 'High',
+                    priorityColor: Colors.red,
+                    quantity: '1',
+                    requestDate: '06/03/2025',
+                  ),
+                ] else if (_selectedTabIndex == 1) ...[
+                  // Quotation Tab
+                  _buildProcurementItem(
+                    title: 'Title',
+                    status: 'Under Review',
+                    statusIcon: Icons.access_time,
+                    statusIconColor: const Color(0xFFDAAE0F),
+                    priority: 'Medium',
+                    priorityColor: const Color(0xFFF16A1B),
+                    quantity: '1',
+                    requestDate: '06/03/2025',
+                  ),
+                  _buildProcurementItem(
+                    title: 'Title',
+                    status: 'Under Review',
+                    statusIcon: Icons.access_time,
+                    statusIconColor: const Color(0xFFDAAE0F),
+                    priority: 'High',
+                    priorityColor: Colors.red,
+                    quantity: '2',
+                    requestDate: '05/03/2025',
+                  ),
+                ] else if (_selectedTabIndex == 2) ...[
+                  // Purchase Order Tab
+                  _buildProcurementItem(
+                    title: 'Vendor',
+                    status: 'Under Review',
+                    statusIcon: Icons.access_time,
+                    statusIconColor: const Color(0xFFDAAE0F),
+                    priority: 'High',
+                    priorityColor: Colors.red,
+                    quantity: '1',
+                    requestDate: '05/03/2025',
+                  ),
+                ] else if (_selectedTabIndex == 3) ...[
+                  // Receipt Tab
+                  _buildProcurementItem(
+                    title: 'Title',
+                    status: 'Received',
+                    statusIcon: Icons.check_circle,
+                    statusIconColor: Colors.green,
+                    priority: 'High',
+                    priorityColor: Colors.red,
+                    quantity: '1',
+                    requestDate: '06/03/2025',
+                  ),
+                ],
               ],
             ),
           ),
