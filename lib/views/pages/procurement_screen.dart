@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../widgets/custom_app_bar.dart';
+import '../procurement/procurement_form_screen.dart';
+import '../procurement/procurement_detail_screen.dart';
 
 class ProcurementScreen extends StatefulWidget {
   const ProcurementScreen({Key? key}) : super(key: key);
@@ -53,110 +55,125 @@ class _ProcurementScreenState extends State<ProcurementScreen> {
     required String quantity,
     required String requestDate,
   }) {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(10),
-        boxShadow: const [
-          BoxShadow(
-            color: Color.fromRGBO(0, 0, 0, 0.25),
-            blurRadius: 4,
-            offset: Offset(0, 4),
-            spreadRadius: 0,
-          ),
-        ],
-        border: Border.all(
-          color: Color.fromRGBO(0, 0, 0, 0.1),
-          width: 1,
-        ),
-      ),
-      child: Column(
-        children: [
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-            decoration: const BoxDecoration(
-              border: Border(
-                bottom: BorderSide(
-                  color: Color(0xFFE0E0E0),
-                  width: 1,
-                ),
-              ),
+    return GestureDetector(
+      onTap: () {
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => ProcurementDetailScreen(
+              title: title,
+              status: status,
+              priority: priority,
+              requestDate: requestDate,
             ),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text(
-                  title,
-                  style: const TextStyle(
-                    fontFamily: 'Inter',
-                    fontSize: 16,
-                    fontWeight: FontWeight.w500,
+          ),
+        );
+      },
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 16),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(10),
+          boxShadow: const [
+            BoxShadow(
+              color: Color.fromRGBO(0, 0, 0, 0.25),
+              blurRadius: 4,
+              offset: Offset(0, 4),
+              spreadRadius: 0,
+            ),
+          ],
+          border: Border.all(
+            color: Color.fromRGBO(0, 0, 0, 0.1),
+            width: 1,
+          ),
+        ),
+        child: Column(
+          children: [
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              decoration: const BoxDecoration(
+                border: Border(
+                  bottom: BorderSide(
+                    color: Color(0xFFE0E0E0),
+                    width: 1,
                   ),
                 ),
-                const Icon(
-                  Icons.delete_outline,
-                  color: Colors.red,
-                  size: 20,
-                ),
-              ],
+              ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(
+                    title,
+                    style: const TextStyle(
+                      fontFamily: 'Inter',
+                      fontSize: 16,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                  const Icon(
+                    Icons.delete_outline,
+                    color: Colors.red,
+                    size: 20,
+                  ),
+                ],
+              ),
             ),
-          ),
-          Padding(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              children: [
-                _buildInfoRow(
-                    'Status:',
-                    Row(
-                      children: [
-                        Icon(statusIcon, color: statusIconColor, size: 16),
-                        const SizedBox(width: 4),
-                        Text(
-                          status,
-                          style: const TextStyle(
-                            fontFamily: 'Inter',
-                            fontSize: 14,
+            Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                children: [
+                  _buildInfoRow(
+                      'Status:',
+                      Row(
+                        children: [
+                          Icon(statusIcon, color: statusIconColor, size: 16),
+                          const SizedBox(width: 4),
+                          Text(
+                            status,
+                            style: const TextStyle(
+                              fontFamily: 'Inter',
+                              fontSize: 14,
+                            ),
                           ),
+                        ],
+                      )),
+                  const SizedBox(height: 8),
+                  _buildInfoRow(
+                      'Priority:',
+                      Text(
+                        priority,
+                        style: TextStyle(
+                          fontFamily: 'Inter',
+                          fontSize: 14,
+                          fontWeight: FontWeight.w500,
+                          color: priorityColor,
                         ),
-                      ],
-                    )),
-                const SizedBox(height: 8),
-                _buildInfoRow(
-                    'Priority:',
-                    Text(
-                      priority,
-                      style: TextStyle(
-                        fontFamily: 'Inter',
-                        fontSize: 14,
-                        fontWeight: FontWeight.w500,
-                        color: priorityColor,
-                      ),
-                    )),
-                const SizedBox(height: 8),
-                _buildInfoRow(
-                    'Qty:',
-                    Text(
-                      quantity,
-                      style: const TextStyle(
-                        fontFamily: 'Inter',
-                        fontSize: 14,
-                      ),
-                    )),
-                const SizedBox(height: 8),
-                _buildInfoRow(
-                    'Request Date:',
-                    Text(
-                      requestDate,
-                      style: const TextStyle(
-                        fontFamily: 'Inter',
-                        fontSize: 14,
-                      ),
-                    )),
-              ],
+                      )),
+                  const SizedBox(height: 8),
+                  _buildInfoRow(
+                      'Qty:',
+                      Text(
+                        quantity,
+                        style: const TextStyle(
+                          fontFamily: 'Inter',
+                          fontSize: 14,
+                        ),
+                      )),
+                  const SizedBox(height: 8),
+                  _buildInfoRow(
+                      'Request Date:',
+                      Text(
+                        requestDate,
+                        style: const TextStyle(
+                          fontFamily: 'Inter',
+                          fontSize: 14,
+                        ),
+                      )),
+                ],
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -302,25 +319,35 @@ class _ProcurementScreenState extends State<ProcurementScreen> {
           ),
         ],
       ),
-      floatingActionButton: Container(
-        width: 56,
-        height: 56,
-        decoration: BoxDecoration(
-          color: const Color(0xFF25B1FF),
-          borderRadius: BorderRadius.circular(28),
-          boxShadow: const [
-            BoxShadow(
-              color: Color.fromRGBO(37, 177, 255, 0.25),
-              blurRadius: 8,
-              offset: Offset(0, 4),
-              spreadRadius: 0,
+      floatingActionButton: GestureDetector(
+        onTap: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => const ProcurementFormScreen(),
             ),
-          ],
-        ),
-        child: const Icon(
-          Icons.add,
-          color: Colors.white,
-          size: 24,
+          );
+        },
+        child: Container(
+          width: 56,
+          height: 56,
+          decoration: BoxDecoration(
+            color: const Color(0xFF25B1FF),
+            borderRadius: BorderRadius.circular(28),
+            boxShadow: const [
+              BoxShadow(
+                color: Color.fromRGBO(37, 177, 255, 0.25),
+                blurRadius: 8,
+                offset: Offset(0, 4),
+                spreadRadius: 0,
+              ),
+            ],
+          ),
+          child: const Icon(
+            Icons.add,
+            color: Colors.white,
+            size: 24,
+          ),
         ),
       ),
       floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,

@@ -17,12 +17,15 @@ class _ProfileScreenState extends State<ProfileScreen> {
   @override
   void initState() {
     super.initState();
-    _loadProfile();
+    // Menunda pemanggilan _loadProfile hingga widget sepenuhnya diinisialisasi
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _loadProfile();
+    });
   }
 
   Future<void> _loadProfile() async {
     try {
-      final profile = await ApiService.getProfile();
+      final profile = await ApiService.getProfile(context);
       setState(() {
         _profile = profile;
         _isLoading = false;
@@ -83,81 +86,84 @@ class _ProfileScreenState extends State<ProfileScreen> {
     return Scaffold(
       backgroundColor: Colors.white,
       appBar: const CustomAppBar(),
-      body: SingleChildScrollView(
-        child: Container(
-          width: 440,
-          padding: const EdgeInsets.symmetric(horizontal: 12),
-          child: Column(
-            children: [
-              const SizedBox(height: 24),
-              // Profile Image
-              Container(
-                width: 150,
-                height: 150,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: const Color(0xFF213268),
-                  image: _profile?['image'] != null
-                      ? DecorationImage(
-                          image: NetworkImage(_profile!['image']),
-                          fit: BoxFit.cover,
-                        )
-                      : null,
+      body: _isLoading
+          ? const Center(child: CircularProgressIndicator())
+          : SingleChildScrollView(
+              child: Container(
+                width: 440,
+                padding: const EdgeInsets.symmetric(horizontal: 12),
+                child: Column(
+                  children: [
+                    const SizedBox(height: 24),
+                    // Profile Image
+                    Container(
+                      width: 150,
+                      height: 150,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: const Color(0xFF213268),
+                        image: _profile?['image'] != null
+                            ? DecorationImage(
+                                image: NetworkImage(_profile!['image']),
+                                fit: BoxFit.cover,
+                              )
+                            : null,
+                      ),
+                      child: _profile?['image'] == null
+                          ? const Icon(Icons.person,
+                              size: 50, color: Colors.white)
+                          : null,
+                    ),
+                    const SizedBox(height: 24),
+
+                    // Form Contact
+                    _buildFormContainer([
+                      _buildInputField('Nama', _profile?['name'] ?? ''),
+                      _buildInputField('Email', _profile?['email'] ?? ''),
+                      _buildInputField('No. Telepon', _profile?['phone'] ?? ''),
+                      _buildButton('UPDATE',
+                          onPressed: () {}, color: const Color(0xFF213268)),
+                    ]),
+
+                    const SizedBox(height: 24),
+
+                    // Reset Password Text
+                    const Text(
+                      'Reset Password',
+                      style: TextStyle(
+                        color: Color(0xFF213268),
+                        fontSize: 16,
+                        fontFamily: 'Inter',
+                        fontWeight: FontWeight.w400,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+
+                    // Password Form
+                    _buildFormContainer([
+                      _buildInputField('Password Lama', '', isPassword: true),
+                      _buildInputField('Password Baru', '', isPassword: true),
+                      _buildButton('Ubah Password',
+                          onPressed: () {}, color: const Color(0xFF213268)),
+                    ]),
+
+                    const SizedBox(height: 24),
+
+                    // Logout Form
+                    _buildFormContainer([
+                      _buildButton(
+                        'Logout',
+                        onPressed: _logout,
+                        color: const Color(0xFFFF0004),
+                        icon: Icons.logout,
+                      ),
+                    ]),
+
+                    const SizedBox(height: 24),
+                  ],
                 ),
-                child: _profile?['image'] == null
-                    ? const Icon(Icons.person, size: 50, color: Colors.white)
-                    : null,
               ),
-              const SizedBox(height: 24),
-
-              // Form Contact
-              _buildFormContainer([
-                _buildInputField('Nama', _profile?['name'] ?? ''),
-                _buildInputField('Email', _profile?['email'] ?? ''),
-                _buildInputField('No. Telepon', _profile?['phone'] ?? ''),
-                _buildButton('UPDATE',
-                    onPressed: () {}, color: const Color(0xFF213268)),
-              ]),
-
-              const SizedBox(height: 24),
-
-              // Reset Password Text
-              const Text(
-                'Reset Password',
-                style: TextStyle(
-                  color: Color(0xFF213268),
-                  fontSize: 16,
-                  fontFamily: 'Inter',
-                  fontWeight: FontWeight.w400,
-                ),
-              ),
-              const SizedBox(height: 8),
-
-              // Password Form
-              _buildFormContainer([
-                _buildInputField('Password Lama', '', isPassword: true),
-                _buildInputField('Password Baru', '', isPassword: true),
-                _buildButton('Ubah Password',
-                    onPressed: () {}, color: const Color(0xFF213268)),
-              ]),
-
-              const SizedBox(height: 24),
-
-              // Logout Form
-              _buildFormContainer([
-                _buildButton(
-                  'Logout',
-                  onPressed: _logout,
-                  color: const Color(0xFFFF0004),
-                  icon: Icons.logout,
-                ),
-              ]),
-
-              const SizedBox(height: 24),
-            ],
-          ),
-        ),
-      ),
+            ),
     );
   }
 

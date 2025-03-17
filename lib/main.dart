@@ -6,8 +6,16 @@ import 'controllers/recent_activity_controller.dart';
 import 'controllers/total_asset_controller.dart';
 import 'controllers/asset_under_repair_controller.dart';
 import 'controllers/net_asset_value_controller.dart';
+import 'controllers/auth_controller.dart';
 
 void main() {
+  WidgetsFlutterBinding.ensureInitialized();
+
+  // Set up callback untuk navigasi ke halaman login
+  ApiService.navigateToLogin = (BuildContext context) {
+    Navigator.of(context).pushNamedAndRemoveUntil('/login', (route) => false);
+  };
+
   runApp(const MyApp());
 }
 

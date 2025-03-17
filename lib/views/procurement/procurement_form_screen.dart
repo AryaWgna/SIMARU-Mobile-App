@@ -1,0 +1,396 @@
+import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
+import '../../widgets/custom_app_bar.dart';
+
+class ProcurementFormScreen extends StatefulWidget {
+  const ProcurementFormScreen({Key? key}) : super(key: key);
+
+  @override
+  State<ProcurementFormScreen> createState() => _ProcurementFormScreenState();
+}
+
+class _ProcurementFormScreenState extends State<ProcurementFormScreen> {
+  final TextEditingController _titleController = TextEditingController();
+  final TextEditingController _justificationController =
+      TextEditingController();
+  String _selectedPriority = 'Select Priority';
+  final List<AssetItem> _assetItems = [AssetItem()];
+  double _grandTotal = 0.0;
+
+  @override
+  void dispose() {
+    _titleController.dispose();
+    _justificationController.dispose();
+    for (var item in _assetItems) {
+      item.dispose();
+    }
+    super.dispose();
+  }
+
+  void _addAssetItem() {
+    setState(() {
+      _assetItems.add(AssetItem());
+    });
+  }
+
+  void _calculateGrandTotal() {
+    double total = 0.0;
+    for (var item in _assetItems) {
+      if (item.costController.text.isNotEmpty) {
+        total +=
+            double.tryParse(item.costController.text.replaceAll(',', '')) ??
+                0.0;
+      }
+    }
+    setState(() {
+      _grandTotal = total;
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: Colors.white,
+      appBar: AppBar(
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back, color: Colors.white),
+          onPressed: () => Navigator.pop(context),
+        ),
+        flexibleSpace: const CustomAppBar(),
+        toolbarHeight: 82,
+      ),
+      body: Stack(
+        children: [
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+                child: Text(
+                  'Form Procurement Request',
+                  style: GoogleFonts.inter(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w600,
+                    color: const Color(0xFF213268),
+                  ),
+                ),
+              ),
+
+              Expanded(
+                child: SingleChildScrollView(
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        // REQUEST FORM Header
+                        Text(
+                          'REQUEST FORM',
+                          style: GoogleFonts.inter(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w600,
+                            color: const Color(0xFF213268),
+                          ),
+                        ),
+
+                        const SizedBox(height: 16),
+
+                        // Title Field
+                        _buildFormField(
+                          label: 'Title',
+                          controller: _titleController,
+                          hintText: 'Enter Asset Name',
+                        ),
+
+                        const SizedBox(height: 16),
+
+                        // Priority Dropdown
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Priority',
+                              style: GoogleFonts.inter(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w500,
+                                color: Colors.black87,
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            Container(
+                              width: double.infinity,
+                              padding:
+                                  const EdgeInsets.symmetric(horizontal: 12),
+                              decoration: BoxDecoration(
+                                border: Border.all(color: Colors.grey.shade300),
+                                borderRadius: BorderRadius.circular(4),
+                              ),
+                              child: DropdownButtonHideUnderline(
+                                child: DropdownButton<String>(
+                                  value: _selectedPriority,
+                                  icon: const Icon(Icons.keyboard_arrow_down),
+                                  iconSize: 24,
+                                  elevation: 16,
+                                  style: GoogleFonts.inter(
+                                    fontSize: 14,
+                                    color: Colors.black,
+                                  ),
+                                  onChanged: (String? newValue) {
+                                    setState(() {
+                                      _selectedPriority = newValue!;
+                                    });
+                                  },
+                                  items: <String>[
+                                    'Select Priority',
+                                    'High',
+                                    'Medium',
+                                    'Low',
+                                  ].map<DropdownMenuItem<String>>(
+                                      (String value) {
+                                    return DropdownMenuItem<String>(
+                                      value: value,
+                                      child: Text(value),
+                                    );
+                                  }).toList(),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+
+                        const SizedBox(height: 16),
+
+                        // Justification Field
+                        _buildFormField(
+                          label: 'Justification',
+                          controller: _justificationController,
+                          hintText: 'Enter Justification',
+                        ),
+
+                        const SizedBox(height: 24),
+
+                        // List Asset Header
+                        Text(
+                          'List Asset',
+                          style: GoogleFonts.inter(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w600,
+                            color: const Color(0xFF213268),
+                          ),
+                        ),
+
+                        const SizedBox(height: 16),
+
+                        // Asset Items
+                        ...List.generate(_assetItems.length, (index) {
+                          return _buildAssetItemFields(
+                            assetItem: _assetItems[index],
+                            index: index,
+                            onCostChanged: _calculateGrandTotal,
+                          );
+                        }),
+
+                        // Grand Total
+                        Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 16),
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Text(
+                                'Grand Total:',
+                                style: GoogleFonts.inter(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w600,
+                                  color: Colors.black,
+                                ),
+                              ),
+                              Text(
+                                'Rp. ${_grandTotal.toStringAsFixed(2)}',
+                                style: GoogleFonts.inter(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w600,
+                                  color: Colors.black,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+
+                        // Tambahkan space untuk tombol submit
+                        const SizedBox(height: 80),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+
+              // Submit Button
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(16),
+                child: ElevatedButton(
+                  onPressed: () {
+                    // Handle submit action
+                    Navigator.pop(context);
+                  },
+                  style: ButtonStyle(
+                    backgroundColor: MaterialStateProperty.all(
+                      const Color(0xFF213268),
+                    ),
+                    padding: MaterialStateProperty.all(
+                      const EdgeInsets.symmetric(vertical: 12),
+                    ),
+                    shape: MaterialStateProperty.all(
+                      RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                    ),
+                  ),
+                  child: Text(
+                    'Submit',
+                    style: GoogleFonts.inter(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
+                      color: Colors.white,
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+
+          // Floating Add Button
+          Positioned(
+            right: 16,
+            bottom: 90, // Posisi di atas tombol submit
+            child: FloatingActionButton(
+              onPressed: _addAssetItem,
+              backgroundColor: const Color(0xFF25B1FF),
+              child: const Icon(Icons.add),
+              mini: true,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildFormField({
+    required String label,
+    required TextEditingController controller,
+    required String hintText,
+    TextInputType keyboardType = TextInputType.text,
+  }) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          label,
+          style: GoogleFonts.inter(
+            fontSize: 14,
+            fontWeight: FontWeight.w500,
+            color: Colors.black87,
+          ),
+        ),
+        const SizedBox(height: 8),
+        TextField(
+          controller: controller,
+          keyboardType: keyboardType,
+          decoration: InputDecoration(
+            hintText: hintText,
+            hintStyle: GoogleFonts.inter(
+              fontSize: 14,
+              color: Colors.grey.shade500,
+            ),
+            contentPadding:
+                const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(4),
+              borderSide: BorderSide(color: Colors.grey.shade300),
+            ),
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(4),
+              borderSide: BorderSide(color: Colors.grey.shade300),
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(4),
+              borderSide: const BorderSide(color: Color(0xFF213268)),
+            ),
+          ),
+          style: GoogleFonts.inter(fontSize: 14),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildAssetItemFields({
+    required AssetItem assetItem,
+    required int index,
+    required VoidCallback onCostChanged,
+  }) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 16),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        border: Border.all(color: Colors.grey.shade300),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Asset Name
+          _buildFormField(
+            label: 'Asset Name',
+            controller: assetItem.nameController,
+            hintText: 'Enter Asset Name',
+          ),
+
+          const SizedBox(height: 12),
+
+          // Qty
+          _buildFormField(
+            label: 'Qty',
+            controller: assetItem.qtyController,
+            hintText: 'Enter Qty',
+            keyboardType: TextInputType.number,
+          ),
+
+          const SizedBox(height: 12),
+
+          // Estimated Cost
+          _buildFormField(
+            label: 'Estimated Cost',
+            controller: assetItem.costController,
+            hintText: 'Enter Estimated Cost',
+            keyboardType: TextInputType.number,
+          ),
+
+          const SizedBox(height: 12),
+
+          // Justification
+          _buildFormField(
+            label: 'Justification',
+            controller: assetItem.justificationController,
+            hintText: 'Enter Justification',
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class AssetItem {
+  final TextEditingController nameController = TextEditingController();
+  final TextEditingController qtyController = TextEditingController();
+  final TextEditingController costController = TextEditingController();
+  final TextEditingController justificationController = TextEditingController();
+
+  void dispose() {
+    nameController.dispose();
+    qtyController.dispose();
+    costController.dispose();
+    justificationController.dispose();
+  }
+}
