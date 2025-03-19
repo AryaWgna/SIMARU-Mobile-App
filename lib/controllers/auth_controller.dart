@@ -216,11 +216,11 @@ class ApiService {
     try {
       print('Sending refresh token request for user: $userId');
 
-      final response = await http.post(
+    final response = await http.post(
         Uri.parse('$baseUrl/auth/refresh-token'),
-        headers: {
-          'Content-Type': 'application/json',
-        },
+      headers: {
+        'Content-Type': 'application/json',
+      },
         body: jsonEncode({
           'userId': userId,
           'password': password,
