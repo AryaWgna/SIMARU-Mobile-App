@@ -38,6 +38,14 @@ dependencies:
   qr_code_scanner: ^1.0.1
   intl: ^0.18.1
   shared_preferences: ^2.2.0
+  mobile_scanner: ^3.5.5
+  permission_handler: ^11.0.1
+  table_calendar: ^3.0.9
+  fl_chart: ^0.66.0
+  qr_flutter: ^4.1.0
+  syncfusion_flutter_calendar: ^22.2.11
+  file_picker: ^5.3.1
+  dotted_border: ^2.0.0+3
 
 dev_dependencies:
   flutter_test:

@@ -10,6 +10,7 @@ import '../../views/calibration/calibration_screen.dart';
 import '../../views/maintenance/maintenance_screen.dart';
 import '../../views/complain/complain_form_screen.dart';
 import '../../views/complain/complain_list_screen.dart';
+import '../../views/stockopname/stockopname_task_list.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -209,7 +210,7 @@ class _HomeScreenState extends State<HomeScreen> {
     return Container(
       width: double.infinity,
       margin: const EdgeInsets.symmetric(horizontal: 16),
-      padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
+      padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 6),
       decoration: BoxDecoration(
         color: const Color(0xFF213268),
         borderRadius: BorderRadius.circular(8),
@@ -243,7 +244,11 @@ class _HomeScreenState extends State<HomeScreen> {
             "Stock\nopname",
             Icons.inventory_2_outlined,
             () {
-              // Navigasi ke Stock Screen
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                    builder: (context) => const StockopnameTaskList()),
+              );
             },
           ),
           _menuBarItem(
@@ -277,7 +282,7 @@ class _HomeScreenState extends State<HomeScreen> {
     return InkWell(
       onTap: onTap,
       child: SizedBox(
-        width: 65,
+        width: 60,
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -292,6 +297,7 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
               textAlign: TextAlign.center,
               maxLines: 2,
+              overflow: TextOverflow.ellipsis,
             ),
           ],
         ),
