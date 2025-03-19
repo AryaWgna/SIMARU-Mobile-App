@@ -33,6 +33,21 @@ class _ProcurementFormScreenState extends State<ProcurementFormScreen> {
     });
   }
 
+  void _removeAssetItem(int index) {
+    if (_assetItems.length > 1) {
+      // Pastikan selalu ada minimal 1 item
+      setState(() {
+        _assetItems.removeAt(index);
+        _calculateGrandTotal(); // Hitung ulang total setelah menghapus
+      });
+    } else {
+      // Optional: Tampilkan snackbar atau pesan lain jika mencoba menghapus item terakhir
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Minimal harus ada satu item')),
+      );
+    }
+  }
+
   void _calculateGrandTotal() {
     double total = 0.0;
     for (var item in _assetItems) {
@@ -189,6 +204,7 @@ class _ProcurementFormScreenState extends State<ProcurementFormScreen> {
                             assetItem: _assetItems[index],
                             index: index,
                             onCostChanged: _calculateGrandTotal,
+                            onRemove: () => _removeAssetItem(index),
                           );
                         }),
 
@@ -329,6 +345,7 @@ class _ProcurementFormScreenState extends State<ProcurementFormScreen> {
     required AssetItem assetItem,
     required int index,
     required VoidCallback onCostChanged,
+    required VoidCallback onRemove,
   }) {
     return Container(
       margin: const EdgeInsets.only(bottom: 16),
@@ -340,6 +357,30 @@ class _ProcurementFormScreenState extends State<ProcurementFormScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          // Header dengan tombol hapus
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                'Asset Item ${index + 1}',
+                style: GoogleFonts.inter(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                  color: const Color(0xFF213268),
+                ),
+              ),
+              IconButton(
+                icon: const Icon(Icons.delete_outline, color: Colors.red),
+                onPressed: onRemove,
+                splashRadius: 20,
+                padding: EdgeInsets.zero,
+                constraints: const BoxConstraints(),
+              ),
+            ],
+          ),
+
+          const SizedBox(height: 8),
+
           // Asset Name
           _buildFormField(
             label: 'Asset Name',

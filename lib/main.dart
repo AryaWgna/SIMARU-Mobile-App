@@ -11,9 +11,12 @@ import 'controllers/auth_controller.dart';
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // Set up callback untuk navigasi ke halaman login
+  // Set callback untuk navigasi ke login screen
   ApiService.navigateToLogin = (BuildContext context) {
-    Navigator.of(context).pushNamedAndRemoveUntil('/login', (route) => false);
+    Navigator.of(context).pushAndRemoveUntil(
+      MaterialPageRoute(builder: (context) => const LoginScreen()),
+      (route) => false,
+    );
   };
 
   runApp(const MyApp());

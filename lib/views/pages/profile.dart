@@ -66,12 +66,33 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
 
     if (shouldLogout == true) {
+      // Tampilkan loading indicator
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (BuildContext context) {
+          return const Center(
+            child: CircularProgressIndicator(),
+          );
+        },
+      );
+
       try {
-        await ApiService.logout();
+        // Gunakan context pada fungsi logout yang sudah diperbarui
+        await ApiService.logout(context);
+        // Tutup dialog loading
+        if (mounted && Navigator.canPop(context)) {
+          Navigator.pop(context);
+        }
+        // Navigasi ke login screen
         if (mounted) {
           Navigator.pushReplacementNamed(context, '/');
         }
       } catch (e) {
+        // Tutup dialog loading
+        if (mounted && Navigator.canPop(context)) {
+          Navigator.pop(context);
+        }
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(content: Text('Error: ${e.toString()}')),

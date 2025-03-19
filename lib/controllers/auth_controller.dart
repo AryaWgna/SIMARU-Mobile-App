@@ -3,6 +3,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
+import '../core/config/api_config.dart';
 
 class ApiService {
   static const String baseUrl =
@@ -87,7 +88,7 @@ class ApiService {
         } else {
           print('Token refresh failed, performing automatic logout');
           // Jika refresh token gagal, lakukan logout otomatis
-          await logout();
+          await logout(context!);
 
           // Navigasi ke halaman login jika context tersedia
           if (context != null && navigateToLogin != null) {
@@ -104,7 +105,7 @@ class ApiService {
         print(
             'Still receiving 401 after token refresh, performing automatic logout');
         // Jika masih 401 setelah refresh token, lakukan logout otomatis
-        await logout();
+        await logout(context!);
 
         // Navigasi ke halaman login jika context tersedia
         if (context != null && navigateToLogin != null) {
@@ -276,33 +277,113 @@ class ApiService {
     }
   }
 
-  static Future<void> logout() async {
-    print('Performing logout...');
+  static Future<Map<String, dynamic>> logout(BuildContext context) async {
+    try {
+      // Get access token
+      final accessToken = await _getAccessToken();
+
+      if (accessToken == null) {
+        throw Exception('No access token available for logout');
+      }
+
+      // Decode token to get user information
+      final decodedToken = _decodeJwt(accessToken);
+      print('Decoded token: $decodedToken');
+
+      // Extract user ID from token if needed for the logout API
+      final userId = decodedToken?['sub'] ?? decodedToken?['userId'];
+
+      print('Attempting to logout user with ID: $userId');
+
+      // Call logout API
+      final response = await http.post(
+        Uri.parse(ApiConfig.logoutUrl),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $accessToken',
+        },
+        body: jsonEncode({
+          'userId': userId,
+          // Add any other required fields for your logout API
+        }),
+      );
+
+      print('Logout response status: ${response.statusCode}');
+
+      // Clear local storage regardless of API response
+      await _clearStoredData();
+
+      if (response.statusCode >= 200 && response.statusCode < 300) {
+        final data = jsonDecode(response.body);
+        print('LOGOUT SUCCESS: ${response.body}');
+        return data;
+      } else {
+        print('Logout API failed with status code: ${response.statusCode}');
+        // Even if API fails, we still want to clear local data
+        return {'success': true, 'message': 'Logged out locally'};
+      }
+    } catch (e) {
+      print('Logout error: $e');
+      // Even on error, clear local data
+      await _clearStoredData();
+      return {
+        'success': true,
+        'message': 'Logged out locally due to error: $e'
+      };
+    }
+  }
+
+  // Helper method to decode JWT token
+  static Map<String, dynamic>? _decodeJwt(String token) {
+    try {
+      final parts = token.split('.');
+      if (parts.length != 3) {
+        return null;
+      }
+
+      // Get payload part (second part of JWT)
+      final payload = parts[1];
+      // Apply base64 padding if needed
+      String normalized = payload.replaceAll('-', '+').replaceAll('_', '/');
+      String padded = normalized.padRight(
+          normalized.length + (4 - normalized.length % 4) % 4, '=');
+
+      // Decode base64
+      final decoded = base64Url.decode(padded);
+      final payloadMap = jsonDecode(utf8.decode(decoded));
+
+      return payloadMap;
+    } catch (e) {
+      print('Error decoding JWT: $e');
+      return null;
+    }
+  }
+
+  // Helper method to clear all stored data
+  static Future<void> _clearStoredData() async {
     try {
       final prefs = await SharedPreferences.getInstance();
       await prefs.remove('accessToken');
       await prefs.remove('refreshToken');
       await prefs.remove('userId');
       await prefs.remove('password');
-      print('Cleared tokens from SharedPreferences');
     } catch (e) {
-      print('Warning: Failed to clear SharedPreferences: $e');
+      print('Error clearing SharedPreferences: $e');
     }
 
-    // Hapus variabel sementara
+    // Clear memory variables as well
     _tempAccessToken = null;
     _tempRefreshToken = null;
     _tempUserId = null;
     _tempPassword = null;
-    print('Cleared tokens from temporary variables');
-    print('Logout completed');
   }
 
   static Future<String?> _getAccessToken() async {
     try {
       final prefs = await SharedPreferences.getInstance();
-      return prefs.getString('accessToken');
+      return prefs.getString('accessToken') ?? _tempAccessToken;
     } catch (e) {
+      print('Error getting access token from SharedPreferences: $e');
       return _tempAccessToken;
     }
   }
