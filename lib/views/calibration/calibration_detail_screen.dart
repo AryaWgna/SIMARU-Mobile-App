@@ -7,10 +7,10 @@ class CalibrationDetailScreen extends StatelessWidget {
   final String performedBy;
 
   const CalibrationDetailScreen({
-    Key? key,
+    super.key,
     required this.status,
     required this.performedBy,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -184,12 +184,12 @@ class CalibrationDetailScreen extends StatelessWidget {
                         Navigator.pop(context);
                       },
                       style: ButtonStyle(
-                        backgroundColor: MaterialStateProperty.all(
+                        backgroundColor: WidgetStateProperty.all(
                           status == 'In Progress'
                               ? const Color(0xFF76B947)
                               : const Color(0xFF213268),
                         ),
-                        shape: MaterialStateProperty.all(
+                        shape: WidgetStateProperty.all(
                           RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(4),
                           ),

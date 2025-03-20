@@ -6,7 +6,7 @@ import 'inspection_detail_work_screen.dart';
 import 'inspection_detail_completed_screen.dart';
 
 class InspectionScreen extends StatelessWidget {
-  const InspectionScreen({Key? key}) : super(key: key);
+  const InspectionScreen({super.key});
 
   @override
   Widget build(BuildContext context) {

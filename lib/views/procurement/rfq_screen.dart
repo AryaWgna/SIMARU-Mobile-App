@@ -5,10 +5,10 @@ class RFQScreen extends StatefulWidget {
   final String? title;
 
   const RFQScreen({
-    Key? key,
+    super.key,
     this.procurementId,
     this.title,
-  }) : super(key: key);
+  });
 
   @override
   State<RFQScreen> createState() => _RFQScreenState();
@@ -161,7 +161,7 @@ class _RFQScreenState extends State<RFQScreen> {
                   ...vendors
                       .map((vendor) =>
                           _buildVendorCard(vendor, vendors.indexOf(vendor)))
-                      .toList(),
+                      ,
 
                   // Partially visible vendor card to match the image
                   Container(
@@ -326,7 +326,7 @@ class _RFQScreenState extends State<RFQScreen> {
           ),
 
           // Assets
-          ...vendor.assets.map((asset) => _buildAssetItem(asset)).toList(),
+          ...vendor.assets.map((asset) => _buildAssetItem(asset)),
 
           // Payment Terms
           Padding(

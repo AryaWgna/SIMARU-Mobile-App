@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 class SetPasswordScreen extends StatefulWidget {
-  const SetPasswordScreen({Key? key}) : super(key: key);
+  const SetPasswordScreen({super.key});
 
   @override
   State<SetPasswordScreen> createState() => _SetPasswordScreenState();

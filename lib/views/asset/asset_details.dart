@@ -4,6 +4,9 @@ import 'asset_history.dart';
 import 'asset_schedule.dart';
 import 'asset_mutation.dart';
 import 'asset_depreciation.dart';
+import 'lost.dart';
+import 'dispose.dart';
+import 'checkout.dart';
 
 class AssetDetails extends StatefulWidget {
   final String qrData;
@@ -100,17 +103,35 @@ class _AssetDetailsState extends State<AssetDetails> {
                       _buildActionButton(
                         icon: Icons.logout,
                         label: 'Check Out',
-                        onTap: () {},
+                        onTap: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                                builder: (context) => const CheckoutScreen()),
+                          );
+                        },
                       ),
                       _buildActionButton(
                         icon: Icons.delete_outline,
                         label: 'Dispose',
-                        onTap: () {},
+                        onTap: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                                builder: (context) => const DisposeScreen()),
+                          );
+                        },
                       ),
                       _buildActionButton(
                         icon: Icons.help_outline,
                         label: 'Lost',
-                        onTap: () {},
+                        onTap: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                                builder: (context) => const LostScreen()),
+                          );
+                        },
                       ),
                     ],
                   ),
@@ -149,32 +170,35 @@ class _AssetDetailsState extends State<AssetDetails> {
     required String label,
     required VoidCallback onTap,
   }) {
-    return Column(
-      children: [
-        Container(
-          width: 45,
-          height: 45,
-          decoration: BoxDecoration(
-            border: Border.all(color: const Color(0xFF213268), width: 2),
-            borderRadius: BorderRadius.circular(5),
+    return GestureDetector(
+      onTap: onTap,
+      child: Column(
+        children: [
+          Container(
+            width: 45,
+            height: 45,
+            decoration: BoxDecoration(
+              border: Border.all(color: const Color(0xFF213268), width: 2),
+              borderRadius: BorderRadius.circular(5),
+            ),
+            child: Icon(
+              icon,
+              color: const Color(0xFF213268),
+              size: 28,
+            ),
           ),
-          child: Icon(
-            icon,
-            color: const Color(0xFF213268),
-            size: 28,
+          const SizedBox(height: 6),
+          Text(
+            label,
+            style: const TextStyle(
+              fontFamily: 'Inter',
+              fontSize: 12,
+              fontWeight: FontWeight.w500,
+              color: Color(0xFF213268),
+            ),
           ),
-        ),
-        const SizedBox(height: 6),
-        Text(
-          label,
-          style: const TextStyle(
-            fontFamily: 'Inter',
-            fontSize: 12,
-            fontWeight: FontWeight.w500,
-            color: Color(0xFF213268),
-          ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 

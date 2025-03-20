@@ -6,9 +6,9 @@ class CalibrationDetailProgressScreen extends StatefulWidget {
   final String performedBy;
 
   const CalibrationDetailProgressScreen({
-    Key? key,
+    super.key,
     required this.performedBy,
-  }) : super(key: key);
+  });
 
   @override
   State<CalibrationDetailProgressScreen> createState() =>
@@ -266,10 +266,10 @@ class _CalibrationDetailProgressScreenState
                         Navigator.pop(context);
                       },
                       style: ButtonStyle(
-                        backgroundColor: MaterialStateProperty.all(
+                        backgroundColor: WidgetStateProperty.all(
                           const Color(0xFF213268),
                         ),
-                        shape: MaterialStateProperty.all(
+                        shape: WidgetStateProperty.all(
                           RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(4),
                           ),

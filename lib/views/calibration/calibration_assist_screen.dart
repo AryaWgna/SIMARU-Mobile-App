@@ -3,7 +3,7 @@ import 'package:google_fonts/google_fonts.dart';
 import '../../widgets/custom_app_bar.dart';
 
 class CalibrationAssistScreen extends StatelessWidget {
-  const CalibrationAssistScreen({Key? key}) : super(key: key);
+  const CalibrationAssistScreen({super.key});
 
   @override
   Widget build(BuildContext context) {

@@ -6,10 +6,10 @@ class ProcurementQuotationScreen extends StatefulWidget {
   final String? title;
 
   const ProcurementQuotationScreen({
-    Key? key,
+    super.key,
     this.procurementId,
     this.title,
-  }) : super(key: key);
+  });
 
   @override
   State<ProcurementQuotationScreen> createState() =>
@@ -143,7 +143,7 @@ class _ProcurementQuotationScreenState
                   ...vendors
                       .map((vendor) =>
                           _buildVendorCard(vendor, vendors.indexOf(vendor)))
-                      .toList(),
+                      ,
 
                   // Partially visible vendor card to match the image
                   Container(
@@ -308,7 +308,7 @@ class _ProcurementQuotationScreenState
           ),
 
           // Assets
-          ...vendor.assets.map((asset) => _buildAssetItem(asset)).toList(),
+          ...vendor.assets.map((asset) => _buildAssetItem(asset)),
 
           // Payment Terms
           Padding(

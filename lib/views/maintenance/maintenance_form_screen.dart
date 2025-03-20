@@ -3,7 +3,7 @@ import 'package:google_fonts/google_fonts.dart';
 import '../../widgets/custom_app_bar.dart';
 
 class MaintenanceFormScreen extends StatefulWidget {
-  const MaintenanceFormScreen({Key? key}) : super(key: key);
+  const MaintenanceFormScreen({super.key});
 
   @override
   State<MaintenanceFormScreen> createState() => _MaintenanceFormScreenState();
@@ -16,6 +16,7 @@ class _MaintenanceFormScreenState extends State<MaintenanceFormScreen> {
       TextEditingController();
   final TextEditingController _costController = TextEditingController();
   DateTime? _nextMaintenanceDate;
+  DateTime? _tempDate;
 
   @override
   void dispose() {
@@ -27,6 +28,24 @@ class _MaintenanceFormScreenState extends State<MaintenanceFormScreen> {
   }
 
   Future<void> _selectDate(BuildContext context) async {
+    // Tutup keyboard terlebih dahulu
+    FocusScope.of(context).unfocus();
+    await Future.delayed(const Duration(milliseconds: 100));
+
+    // Buat tema khusus untuk kalender
+    final ThemeData theme = Theme.of(context).copyWith(
+      colorScheme: const ColorScheme.light(
+        primary: Color(0xFF213268), // Warna header kalender
+        onPrimary: Colors.white, // Warna teks pada header
+        onSurface: Color(0xFF666666), // Warna teks tanggal
+      ),
+      textButtonTheme: TextButtonThemeData(
+        style: TextButton.styleFrom(
+          foregroundColor: const Color(0xFF213268), // Warna tombol
+        ),
+      ),
+    );
+
     final DateTime? picked = await showDatePicker(
       context: context,
       initialDate:
@@ -34,21 +53,36 @@ class _MaintenanceFormScreenState extends State<MaintenanceFormScreen> {
       firstDate: DateTime.now(),
       lastDate: DateTime.now().add(const Duration(days: 365 * 2)),
       builder: (context, child) {
+        // Menggunakan MediaQuery untuk mengatur skala teks dan mencegah overflow
         return Theme(
-          data: ThemeData.light().copyWith(
-            primaryColor: const Color(0xFF213268),
-            colorScheme: const ColorScheme.light(primary: Color(0xFF213268)),
-            buttonTheme:
-                const ButtonThemeData(textTheme: ButtonTextTheme.primary),
+          data: theme,
+          child: MediaQuery(
+            // Tetapkan skala teks ke 1.0 untuk mencegah text overflow
+            data: MediaQuery.of(context).copyWith(
+              textScaler: const TextScaler.linear(1.0),
+            ),
+            child: child!,
           ),
-          child: child!,
         );
       },
+      // Gunakan root navigator untuk menghindari masalah layout
+      useRootNavigator: true,
     );
-    if (picked != null && picked != _nextMaintenanceDate) {
+
+    if (picked != null) {
       setState(() {
         _nextMaintenanceDate = picked;
       });
+
+      // Tampilkan pesan konfirmasi jika perlu
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+              'Tanggal maintenance berikutnya: ${picked.day}/${picked.month}/${picked.year}'),
+          duration: const Duration(seconds: 2),
+          backgroundColor: const Color(0xFF213268),
+        ),
+      );
     }
   }
 
@@ -56,6 +90,7 @@ class _MaintenanceFormScreenState extends State<MaintenanceFormScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.white,
+      resizeToAvoidBottomInset: false,
       appBar: AppBar(
         backgroundColor: Colors.transparent,
         elevation: 0,
@@ -180,10 +215,10 @@ class _MaintenanceFormScreenState extends State<MaintenanceFormScreen> {
                   }
                 },
                 style: ButtonStyle(
-                  backgroundColor: MaterialStateProperty.all(
+                  backgroundColor: WidgetStateProperty.all(
                     const Color(0xFF213268),
                   ),
-                  shape: MaterialStateProperty.all(
+                  shape: WidgetStateProperty.all(
                     RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(4),
                     ),

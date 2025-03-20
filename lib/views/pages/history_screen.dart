@@ -4,7 +4,7 @@ import '../../widgets/custom_app_bar.dart';
 import '../../controllers/recent_activity_controller.dart';
 
 class HistoryScreen extends StatefulWidget {
-  const HistoryScreen({Key? key}) : super(key: key);
+  const HistoryScreen({super.key});
 
   @override
   State<HistoryScreen> createState() => _HistoryScreenState();
@@ -26,9 +26,9 @@ class _HistoryScreenState extends State<HistoryScreen> {
       width: double.infinity,
       height: 73,
       margin: const EdgeInsets.only(bottom: 13),
-      decoration: BoxDecoration(
+      decoration: const BoxDecoration(
         color: Colors.white,
-        boxShadow: const [
+        boxShadow: [
           BoxShadow(
             color: Color.fromRGBO(0, 0, 0, 0.25),
             offset: Offset(0, 4),

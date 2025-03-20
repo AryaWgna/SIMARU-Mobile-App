@@ -5,7 +5,7 @@ import 'complain_form_screen.dart';
 import 'complain_detail_screen.dart';
 
 class ComplainListScreen extends StatelessWidget {
-  const ComplainListScreen({Key? key}) : super(key: key);
+  const ComplainListScreen({super.key});
 
   @override
   Widget build(BuildContext context) {

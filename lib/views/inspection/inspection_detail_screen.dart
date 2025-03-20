@@ -4,7 +4,7 @@ import '../../widgets/custom_app_bar.dart';
 import 'inspection_detail_completed_screen.dart';
 
 class InspectionDetailScreen extends StatelessWidget {
-  const InspectionDetailScreen({Key? key}) : super(key: key);
+  const InspectionDetailScreen({super.key});
 
   @override
   Widget build(BuildContext context) {

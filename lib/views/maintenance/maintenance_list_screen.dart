@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import '../../controllers/maintenance_controller.dart';
 
 class MaintenanceListScreen extends StatefulWidget {
-  const MaintenanceListScreen({Key? key}) : super(key: key);
+  const MaintenanceListScreen({super.key});
 
   @override
   _MaintenanceListScreenState createState() => _MaintenanceListScreenState();

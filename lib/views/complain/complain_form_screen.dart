@@ -4,7 +4,7 @@ import '../../widgets/custom_app_bar.dart';
 import 'complain_list_screen.dart';
 
 class ComplainFormScreen extends StatefulWidget {
-  const ComplainFormScreen({Key? key}) : super(key: key);
+  const ComplainFormScreen({super.key});
 
   @override
   State<ComplainFormScreen> createState() => _ComplainFormScreenState();
@@ -322,10 +322,10 @@ class _ComplainFormScreenState extends State<ComplainFormScreen> {
                     );
                   },
                   style: ButtonStyle(
-                    backgroundColor: MaterialStateProperty.all(
+                    backgroundColor: WidgetStateProperty.all(
                       const Color(0xFF213268),
                     ),
-                    shape: MaterialStateProperty.all(
+                    shape: WidgetStateProperty.all(
                       RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(4),
                       ),

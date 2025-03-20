@@ -4,7 +4,7 @@ import '../../widgets/custom_app_bar.dart';
 import 'maintenance_form_screen.dart';
 
 class MaintenanceScreen extends StatelessWidget {
-  const MaintenanceScreen({Key? key}) : super(key: key);
+  const MaintenanceScreen({super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -328,7 +328,7 @@ class MaintenanceScreen extends StatelessWidget {
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (context) => MaintenanceDetailScreen(
+        builder: (context) => const MaintenanceDetailScreen(
           status: 'Scheduled',
           performedBy: 'Jhon Doe',
         ),
@@ -354,10 +354,10 @@ class MaintenanceDetailScreen extends StatelessWidget {
   final String performedBy;
 
   const MaintenanceDetailScreen({
-    Key? key,
+    super.key,
     required this.status,
     required this.performedBy,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -433,7 +433,7 @@ class MaintenanceDetailScreen extends StatelessWidget {
                         ),
                         Row(
                           children: [
-                            Icon(
+                            const Icon(
                               Icons.sync,
                               color: Colors.blue,
                               size: 16,
@@ -507,10 +507,10 @@ class MaintenanceDetailScreen extends StatelessWidget {
                   );
                 },
                 style: ButtonStyle(
-                  backgroundColor: MaterialStateProperty.all(
+                  backgroundColor: WidgetStateProperty.all(
                     const Color(0xFF76B947),
                   ),
-                  shape: MaterialStateProperty.all(
+                  shape: WidgetStateProperty.all(
                     RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(4),
                     ),
@@ -565,9 +565,9 @@ class MaintenanceDetailProgressScreen extends StatelessWidget {
   final String performedBy;
 
   const MaintenanceDetailProgressScreen({
-    Key? key,
+    super.key,
     required this.performedBy,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -718,10 +718,10 @@ class MaintenanceDetailProgressScreen extends StatelessWidget {
                   );
                 },
                 style: ButtonStyle(
-                  backgroundColor: MaterialStateProperty.all(
+                  backgroundColor: WidgetStateProperty.all(
                     const Color(0xFF76B947),
                   ),
-                  shape: MaterialStateProperty.all(
+                  shape: WidgetStateProperty.all(
                     RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(4),
                     ),

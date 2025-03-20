@@ -7,9 +7,9 @@ class CalibrationDetailWorkScreen extends StatelessWidget {
   final String performedBy;
 
   const CalibrationDetailWorkScreen({
-    Key? key,
+    super.key,
     required this.performedBy,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -155,10 +155,10 @@ class CalibrationDetailWorkScreen extends StatelessWidget {
                         );
                       },
                       style: ButtonStyle(
-                        backgroundColor: MaterialStateProperty.all(
+                        backgroundColor: WidgetStateProperty.all(
                           const Color(0xFF76B947),
                         ),
-                        shape: MaterialStateProperty.all(
+                        shape: WidgetStateProperty.all(
                           RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(4),
                           ),

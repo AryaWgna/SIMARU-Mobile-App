@@ -91,7 +91,7 @@ class ApiService {
           await logout(context!);
 
           // Navigasi ke halaman login jika context tersedia
-          if (context != null && navigateToLogin != null) {
+          if (navigateToLogin != null) {
             print('Navigating to login screen');
             navigateToLogin!(context);
           } else {
@@ -108,7 +108,7 @@ class ApiService {
         await logout(context!);
 
         // Navigasi ke halaman login jika context tersedia
-        if (context != null && navigateToLogin != null) {
+        if (navigateToLogin != null) {
           print('Navigating to login screen');
           navigateToLogin!(context);
         } else {

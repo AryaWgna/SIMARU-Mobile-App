@@ -4,7 +4,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'new_password_screen.dart';
 
 class ForgetPasswordScreen extends StatefulWidget {
-  const ForgetPasswordScreen({Key? key}) : super(key: key);
+  const ForgetPasswordScreen({super.key});
 
   @override
   State<ForgetPasswordScreen> createState() => _ForgetPasswordScreenState();
@@ -135,7 +135,7 @@ class _ForgetPasswordScreenState extends State<ForgetPasswordScreen> {
                             style: GoogleFonts.poppins(
                               fontSize: 14,
                               fontWeight: FontWeight.w500,
-                              color: Color(0xFF203268),
+                              color: const Color(0xFF203268),
                             ),
                           ),
                           style: TextButton.styleFrom(
@@ -151,7 +151,7 @@ class _ForgetPasswordScreenState extends State<ForgetPasswordScreen> {
                           style: GoogleFonts.poppins(
                             fontSize: 14,
                             fontWeight: FontWeight.w500,
-                            color: Color(0xFF203268),
+                            color: const Color(0xFF203268),
                           ),
                         ),
                         const SizedBox(height: 8),

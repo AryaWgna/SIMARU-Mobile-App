@@ -7,7 +7,7 @@ import 'calibration_detail_work_screen.dart';
 import 'calibration_assist_screen.dart';
 
 class CalibrationScreen extends StatelessWidget {
-  const CalibrationScreen({Key? key}) : super(key: key);
+  const CalibrationScreen({super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -77,7 +77,7 @@ class CalibrationScreen extends StatelessWidget {
                 Navigator.push(
                   context,
                   MaterialPageRoute(
-                    builder: (context) => CalibrationDetailWorkScreen(
+                    builder: (context) => const CalibrationDetailWorkScreen(
                       performedBy: 'Technician Name',
                     ),
                   ),
@@ -101,7 +101,7 @@ class CalibrationScreen extends StatelessWidget {
                 Navigator.push(
                   context,
                   MaterialPageRoute(
-                    builder: (context) => CalibrationDetailProgressScreen(
+                    builder: (context) => const CalibrationDetailProgressScreen(
                       performedBy: 'Vendor Name',
                     ),
                   ),

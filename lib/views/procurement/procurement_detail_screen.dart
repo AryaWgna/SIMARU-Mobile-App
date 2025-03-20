@@ -9,12 +9,12 @@ class ProcurementDetailScreen extends StatelessWidget {
   final String requestDate;
 
   const ProcurementDetailScreen({
-    Key? key,
+    super.key,
     required this.title,
     required this.status,
     required this.priority,
     required this.requestDate,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {

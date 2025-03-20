@@ -3,7 +3,7 @@ import 'package:google_fonts/google_fonts.dart';
 import '../../widgets/custom_app_bar.dart';
 
 class ProcurementFormScreen extends StatefulWidget {
-  const ProcurementFormScreen({Key? key}) : super(key: key);
+  const ProcurementFormScreen({super.key});
 
   @override
   State<ProcurementFormScreen> createState() => _ProcurementFormScreenState();
@@ -252,13 +252,13 @@ class _ProcurementFormScreenState extends State<ProcurementFormScreen> {
                     Navigator.pop(context);
                   },
                   style: ButtonStyle(
-                    backgroundColor: MaterialStateProperty.all(
+                    backgroundColor: WidgetStateProperty.all(
                       const Color(0xFF213268),
                     ),
-                    padding: MaterialStateProperty.all(
+                    padding: WidgetStateProperty.all(
                       const EdgeInsets.symmetric(vertical: 12),
                     ),
-                    shape: MaterialStateProperty.all(
+                    shape: WidgetStateProperty.all(
                       RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(4),
                       ),
@@ -284,8 +284,8 @@ class _ProcurementFormScreenState extends State<ProcurementFormScreen> {
             child: FloatingActionButton(
               onPressed: _addAssetItem,
               backgroundColor: const Color(0xFF25B1FF),
-              child: const Icon(Icons.add),
               mini: true,
+              child: const Icon(Icons.add),
             ),
           ),
         ],

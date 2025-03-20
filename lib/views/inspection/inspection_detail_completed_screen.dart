@@ -3,7 +3,7 @@ import 'package:google_fonts/google_fonts.dart';
 import '../../widgets/custom_app_bar.dart';
 
 class InspectionDetailCompletedScreen extends StatelessWidget {
-  const InspectionDetailCompletedScreen({Key? key}) : super(key: key);
+  const InspectionDetailCompletedScreen({super.key});
 
   @override
   Widget build(BuildContext context) {

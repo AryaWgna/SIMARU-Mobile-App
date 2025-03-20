@@ -10,12 +10,12 @@ class ComplainDetailScreen extends StatelessWidget {
   final String complainDesc;
 
   const ComplainDetailScreen({
-    Key? key,
+    super.key,
     required this.assetCode,
     required this.assetName,
     required this.performedBy,
     required this.complainDesc,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -168,10 +168,10 @@ class ComplainDetailScreen extends StatelessWidget {
                   );
                 },
                 style: ButtonStyle(
-                  backgroundColor: MaterialStateProperty.all(
+                  backgroundColor: WidgetStateProperty.all(
                     Colors.blue,
                   ),
-                  shape: MaterialStateProperty.all(
+                  shape: WidgetStateProperty.all(
                     RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(4),
                     ),

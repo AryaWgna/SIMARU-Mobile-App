@@ -8,10 +8,10 @@ class ComplainWorkFormScreen extends StatefulWidget {
   final String assetName;
 
   const ComplainWorkFormScreen({
-    Key? key,
+    super.key,
     required this.assetCode,
     required this.assetName,
-  }) : super(key: key);
+  });
 
   @override
   State<ComplainWorkFormScreen> createState() => _ComplainWorkFormScreenState();
@@ -35,22 +35,46 @@ class _ComplainWorkFormScreenState extends State<ComplainWorkFormScreen> {
   }
 
   Future<void> _selectDate(BuildContext context) async {
+    // Tutup keyboard terlebih dahulu
+    FocusScope.of(context).unfocus();
+    await Future.delayed(const Duration(milliseconds: 100));
+
+    // Buat tema khusus untuk kalender
+    final ThemeData theme = Theme.of(context).copyWith(
+      colorScheme: const ColorScheme.light(
+        primary: Color(0xFF213268), // Warna header kalender
+        onPrimary: Colors.white, // Warna teks pada header
+        onSurface: Color(0xFF666666), // Warna teks tanggal
+      ),
+      textButtonTheme: TextButtonThemeData(
+        style: TextButton.styleFrom(
+          foregroundColor: const Color(0xFF213268), // Warna tombol
+        ),
+      ),
+    );
+
     final DateTime? picked = await showDatePicker(
       context: context,
       initialDate: _nextMaintenanceDate ?? DateTime.now(),
       firstDate: DateTime.now(),
       lastDate: DateTime(2100),
       builder: (context, child) {
+        // Menggunakan MediaQuery untuk mengatur skala teks dan mencegah overflow
         return Theme(
-          data: ThemeData.light().copyWith(
-            colorScheme: const ColorScheme.light(
-              primary: Color(0xFF213268),
+          data: theme,
+          child: MediaQuery(
+            // Tetapkan skala teks ke 1.0 untuk mencegah text overflow
+            data: MediaQuery.of(context).copyWith(
+              textScaler: const TextScaler.linear(1.0),
             ),
+            child: child!,
           ),
-          child: child!,
         );
       },
+      // Gunakan root navigator untuk menghindari masalah layout
+      useRootNavigator: true,
     );
+
     if (picked != null && picked != _nextMaintenanceDate) {
       setState(() {
         _nextMaintenanceDate = picked;
@@ -62,6 +86,7 @@ class _ComplainWorkFormScreenState extends State<ComplainWorkFormScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.white,
+      resizeToAvoidBottomInset: false,
       appBar: AppBar(
         backgroundColor: Colors.transparent,
         elevation: 0,
@@ -224,10 +249,10 @@ class _ComplainWorkFormScreenState extends State<ComplainWorkFormScreen> {
                   Navigator.pop(context);
                 },
                 style: ButtonStyle(
-                  backgroundColor: MaterialStateProperty.all(
+                  backgroundColor: WidgetStateProperty.all(
                     const Color(0xFF213268),
                   ),
-                  shape: MaterialStateProperty.all(
+                  shape: WidgetStateProperty.all(
                     RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(4),
                     ),

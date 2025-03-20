@@ -4,7 +4,7 @@ import '../procurement/procurement_form_screen.dart';
 import '../procurement/procurement_detail_screen.dart';
 
 class ProcurementScreen extends StatefulWidget {
-  const ProcurementScreen({Key? key}) : super(key: key);
+  const ProcurementScreen({super.key});
 
   @override
   State<ProcurementScreen> createState() => _ProcurementScreenState();
@@ -139,7 +139,7 @@ class _ProcurementScreenState extends State<ProcurementScreen> {
             ),
           ],
           border: Border.all(
-            color: Color.fromRGBO(0, 0, 0, 0.1),
+            color: const Color.fromRGBO(0, 0, 0, 0.1),
             width: 1,
           ),
         ),
@@ -290,7 +290,7 @@ class _ProcurementScreenState extends State<ProcurementScreen> {
                 ...vendors
                     .map((vendor) =>
                         _buildVendorCard(vendor, vendors.indexOf(vendor)))
-                    .toList(),
+                    ,
 
                 // Partially visible vendor card to match the image
                 Container(
@@ -456,7 +456,7 @@ class _ProcurementScreenState extends State<ProcurementScreen> {
           ),
 
           // Assets
-          ...vendor.assets.map((asset) => _buildAssetItem(asset)).toList(),
+          ...vendor.assets.map((asset) => _buildAssetItem(asset)),
 
           // Payment Terms
           Padding(
