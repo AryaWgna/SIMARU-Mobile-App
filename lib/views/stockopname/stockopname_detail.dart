@@ -491,19 +491,19 @@ class _StockopnameDetailFormScreenState
                       ),
                       child: CustomPaint(
                         painter: DashedBlueBorderPainter(),
-                        child: Column(
+                        child: const Column(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
-                            const Icon(
+                            Icon(
                               Icons.cloud_upload,
                               color: Color(0xFF213268),
                               size: 36,
                             ),
-                            const SizedBox(height: 12),
+                            SizedBox(height: 12),
                             Row(
                               mainAxisAlignment: MainAxisAlignment.center,
                               children: [
-                                const Text(
+                                Text(
                                   'Drag your file(s) or ',
                                   style: TextStyle(
                                     fontFamily: 'Inter',
@@ -511,7 +511,7 @@ class _StockopnameDetailFormScreenState
                                     color: Color(0xFF1C1C1C),
                                   ),
                                 ),
-                                const Text(
+                                Text(
                                   'browse',
                                   style: TextStyle(
                                     fontFamily: 'Inter',
@@ -522,8 +522,8 @@ class _StockopnameDetailFormScreenState
                                 ),
                               ],
                             ),
-                            const SizedBox(height: 8),
-                            const Text(
+                            SizedBox(height: 8),
+                            Text(
                               'jpg, png, or svg',
                               style: TextStyle(
                                 fontFamily: 'Inter',

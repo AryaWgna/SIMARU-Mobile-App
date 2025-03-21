@@ -2,6 +2,9 @@ import 'package:flutter/material.dart';
 import '../../widgets/custom_app_bar.dart';
 import '../procurement/procurement_form_screen.dart';
 import '../procurement/procurement_detail_screen.dart';
+import '../procurement/form_rfq.dart';
+import '../procurement/purchase_order_screen.dart';
+import '../procurement/receipt_detail_screen.dart';
 
 class ProcurementScreen extends StatefulWidget {
   const ProcurementScreen({super.key});
@@ -287,10 +290,8 @@ class _ProcurementScreenState extends State<ProcurementScreen> {
                 const SizedBox(height: 12),
 
                 // Vendor cards
-                ...vendors
-                    .map((vendor) =>
-                        _buildVendorCard(vendor, vendors.indexOf(vendor)))
-                    ,
+                ...vendors.map((vendor) =>
+                    _buildVendorCard(vendor, vendors.indexOf(vendor))),
 
                 // Partially visible vendor card to match the image
                 Container(
@@ -383,7 +384,46 @@ class _ProcurementScreenState extends State<ProcurementScreen> {
         borderRadius: BorderRadius.circular(20),
       ),
       child: TextButton.icon(
-        onPressed: _addVendor,
+        onPressed: () async {
+          // Navigasi ke FormRFQ dan tunggu hasilnya
+          final result = await Navigator.push(
+            context,
+            MaterialPageRoute(builder: (context) => const FormRFQ()),
+          );
+
+          // Jika hasil tidak null, tambahkan vendor baru dengan data dari form
+          if (result != null && result is Map<String, dynamic>) {
+            setState(() {
+              // Konversi qty dari string ke int
+              int qty1 = int.tryParse(result['qty1'] ?? '3') ?? 3;
+              int qty2 = int.tryParse(result['qty2'] ?? '3') ?? 3;
+
+              vendors.add(
+                VendorItem(
+                  name: result['vendorName'] ?? "Vendor Name",
+                  assets: [
+                    AssetItem(
+                        name: result['assetName1'] ?? "Asset 1",
+                        qty: qty1,
+                        estimated: result['estimatedCost1'] ??
+                            "7.500.000(Rp/2.500.000)",
+                        actual: "900.000/bulan"),
+                    AssetItem(
+                        name: result['assetName2'] ?? "Asset 2",
+                        qty: qty2,
+                        estimated: result['estimatedCost2'] ??
+                            "7.500.000(Rp/2.500.000)",
+                        actual: "900.000/bulan"),
+                  ],
+                  paymentTerms: result['paymentTerms'] ??
+                      "payment through commercial bank",
+                  deliveryTerms: result['deliveryTerms'] ??
+                      "Delivery using JNE delivery service",
+                ),
+              );
+            });
+          }
+        },
         icon: const Icon(
           Icons.add,
           color: Colors.white,
@@ -716,12 +756,31 @@ class _ProcurementScreenState extends State<ProcurementScreen> {
       floatingActionButton: _selectedTabIndex != 1
           ? GestureDetector(
               onTap: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => const ProcurementFormScreen(),
-                  ),
-                );
+                if (_selectedTabIndex == 2) {
+                  // Jika tab Purchase Order yang aktif
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => const PurchaseOrderScreen(),
+                    ),
+                  );
+                } else if (_selectedTabIndex == 3) {
+                  // Jika tab Receipt yang aktif
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => const ReceiptDetailScreen(),
+                    ),
+                  );
+                } else {
+                  // Untuk tab lainnya (Request)
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => const ProcurementFormScreen(),
+                    ),
+                  );
+                }
               },
               child: Container(
                 width: 56,
