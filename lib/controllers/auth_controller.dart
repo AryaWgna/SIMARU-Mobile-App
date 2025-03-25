@@ -1,17 +1,64 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
-import 'package:shared_preferences/shared_preferences.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import '../core/config/api_config.dart';
+import 'dart:async';
+import 'dart:io';
+import 'dart:developer' as developer;
+
+class ApiException implements Exception {
+  final String message;
+  final String? code;
+  final int? statusCode;
+  final String? details;
+
+  ApiException({
+    required this.message,
+    this.code,
+    this.statusCode,
+    this.details,
+  });
+
+  @override
+  String toString() {
+    return 'ApiException: $message${code != null ? ' (Code: $code)' : ''}';
+  }
+
+  // Helper untuk membuat pesan yang user-friendly
+  String getUserFriendlyMessage() {
+    if (statusCode == 401) {
+      return 'Sesi Anda telah berakhir. Silakan login kembali.';
+    } else if (statusCode == 403) {
+      return 'Email atau password salah. Silakan periksa kembali.';
+    } else if (statusCode == 404) {
+      return 'Layanan tidak ditemukan. Silakan hubungi administrator.';
+    } else if (statusCode == 500) {
+      return 'Terjadi kesalahan pada server. Silakan coba lagi nanti.';
+    } else if (message.contains('SocketException') ||
+        message.contains('Connection refused')) {
+      return 'Tidak dapat terhubung ke server. Periksa koneksi internet Anda.';
+    } else if (message.contains('timeout')) {
+      return 'Koneksi timeout. Server mungkin sedang sibuk, silakan coba lagi.';
+    }
+
+    return message;
+  }
+}
 
 class ApiService {
-  static const String baseUrl =
-      'https://12d9aa80-068d-4c47-a664-b62f5cad5ec5.mock.pstmn.io';
+  // Base URL untuk perangkat fisik
+  static String baseUrl = 'http://192.168.43.133:8026';
+  // Alternatif: 'http://localhost:3000' untuk iOS simulator
+  // Gunakan URL publik Anda untuk perangkat fisik, misalnya: 'https://api.example.com'
 
-  // Variabel untuk menyimpan token sementara jika SharedPreferences gagal
+  // Membuat instance untuk flutter_secure_storage
+  static final _secureStorage = const FlutterSecureStorage();
+
+  // Variabel untuk menyimpan token sementara jika flutter_secure_storage gagal
   static String? _tempAccessToken;
   static String? _tempRefreshToken;
-  static String? _tempUserId;
+  static String? _tempEmail;
   static String? _tempPassword;
 
   // Callback untuk navigasi ke halaman login
@@ -121,107 +168,216 @@ class ApiService {
     return response;
   }
 
-  static Future<void> login(String userId, String password) async {
-    if (userId.isEmpty || password.isEmpty) {
-      throw Exception('User ID and password cannot be empty');
+  static void logNetworkRequest(
+      String method, String url, Map<String, dynamic>? body) {
+    developer.log(
+      '-------- NETWORK REQUEST --------',
+      name: 'API_REQUEST',
+    );
+    developer.log('Method: $method', name: 'API_REQUEST');
+    developer.log('URL: $url', name: 'API_REQUEST');
+    if (body != null) {
+      developer.log('Body: ${jsonEncode(body)}', name: 'API_REQUEST');
+    }
+    developer.log('-------------------------------', name: 'API_REQUEST');
+  }
+
+  static void logNetworkResponse(int statusCode, String body, String url) {
+    developer.log(
+      '-------- NETWORK RESPONSE --------',
+      name: 'API_RESPONSE',
+    );
+    developer.log('URL: $url', name: 'API_RESPONSE');
+    developer.log('Status Code: $statusCode', name: 'API_RESPONSE');
+
+    try {
+      // Coba format JSON untuk readability
+      final jsonData = jsonDecode(body);
+      final formattedJson =
+          const JsonEncoder.withIndent('  ').convert(jsonData);
+      developer.log('Response Body:\n$formattedJson', name: 'API_RESPONSE');
+    } catch (e) {
+      // Jika gagal format, tampilkan sebagai string biasa
+      developer.log('Response Body: $body', name: 'API_RESPONSE');
+    }
+
+    developer.log('--------------------------------', name: 'API_RESPONSE');
+  }
+
+  static Future<void> login(String email, String password) async {
+    if (email.isEmpty || password.isEmpty) {
+      throw ApiException(
+        message: 'Email dan password tidak boleh kosong',
+        code: 'VALIDATION_ERROR'
+      );
     }
 
     try {
-      print('Attempting to login with userId: $userId');
+      final url = '$baseUrl/auth/login';
+      final requestBody = {
+        'email': email,
+        'password': password,
+      };
 
       final response = await http.post(
-        Uri.parse('$baseUrl/auth/login'),
+        Uri.parse(url),
         headers: {
           'Content-Type': 'application/json',
         },
-        body: jsonEncode({
-          'userId': userId,
-          'password': password,
-        }),
+        body: jsonEncode(requestBody),
+      ).timeout(
+        const Duration(seconds: 15),
+        onTimeout: () {
+          throw ApiException(
+            message: 'Koneksi timeout',
+            code: 'TIMEOUT',
+            details: 'Login request timeout'
+          );
+        },
       );
 
-      print('Login response status code: ${response.statusCode}');
-      print('Login response body: ${response.body}');
-
       if (response.statusCode == 200) {
-        final jsonResponse = jsonDecode(response.body);
+        try {
+          final jsonResponse = jsonDecode(response.body);
 
-        if (jsonResponse['success'] == true) {
-          // Simpan token dan credentials
-          final accessToken = jsonResponse['data']['accessToken'];
-          final refreshToken = jsonResponse['data']['refreshToken'];
-
-          print('======================================');
-          print('LOGIN SUCCESS');
-          print('Access Token: $accessToken');
-          print('Refresh Token: $refreshToken');
-          print('======================================');
-
-          try {
-            // Coba simpan ke SharedPreferences
-            final prefs = await SharedPreferences.getInstance();
-            await prefs.setString('accessToken', accessToken);
-            await prefs.setString('refreshToken', refreshToken);
-            await prefs.setString('userId', userId);
-            await prefs.setString('password', password);
-            print('Tokens successfully saved to SharedPreferences');
-          } catch (e) {
-            // Jika gagal, simpan ke variabel sementara
-            print('Warning: Failed to save to SharedPreferences: $e');
-            _tempAccessToken = accessToken;
-            _tempRefreshToken = refreshToken;
-            _tempUserId = userId;
-            _tempPassword = password;
-            print('Tokens saved to temporary variables instead');
+          // PERBAIKAN: API mengembalikan "status", bukan "success"
+          if (jsonResponse['status'] == true) {
+            // Cek keberadaan data
+            if (jsonResponse['data'] == null) {
+              throw ApiException(
+                message: 'Data tidak ditemukan dalam respon',
+                code: 'INVALID_RESPONSE',
+                statusCode: 200
+              );
+            }
+            
+            final accessToken = jsonResponse['data']['accessToken'];
+            final refreshToken = jsonResponse['data']['refreshToken'];
+            
+            if (accessToken == null || refreshToken == null) {
+              throw ApiException(
+                message: 'Token tidak ditemukan dalam respon',
+                code: 'MISSING_TOKEN',
+                statusCode: 200
+              );
+            }
+            
+            // Simpan token
+            try {
+              await _secureStorage.write(key: 'accessToken', value: accessToken);
+              await _secureStorage.write(key: 'refreshToken', value: refreshToken);
+              await _secureStorage.write(key: 'email', value: email);
+              await _secureStorage.write(key: 'password', value: password);
+            } catch (e) {
+              // Backup ke variabel memori jika gagal
+              _tempAccessToken = accessToken;
+              _tempRefreshToken = refreshToken;
+              _tempEmail = email;
+              _tempPassword = password;
+            }
+            return;
+          } else {
+            // API mengembalikan status: false
+            final message = jsonResponse['message'] ?? 'Login gagal';
+            throw ApiException(
+              message: message,
+              code: 'LOGIN_FAILED',
+              statusCode: response.statusCode
+            );
           }
-          return;
-        } else {
-          print('Login failed: ${jsonResponse['message']}');
-          throw Exception(jsonResponse['message'] ?? 'Login failed');
+        } catch (e) {
+          if (e is ApiException) rethrow;
+          
+          throw ApiException(
+            message: 'Format respons tidak valid',
+            code: 'PARSE_ERROR',
+            statusCode: response.statusCode
+          );
+        }
+      } else if (response.statusCode == 400) {
+        try {
+          final jsonResponse = jsonDecode(response.body);
+          throw ApiException(
+            message: jsonResponse['message'] ?? 'Data yang dimasukkan tidak valid',
+            code: 'VALIDATION_ERROR',
+            statusCode: 400
+          );
+        } catch (e) {
+          if (e is ApiException) rethrow;
+          throw ApiException(
+            message: 'Data yang dimasukkan tidak valid',
+            code: 'VALIDATION_ERROR',
+            statusCode: 400
+          );
+        }
+      } else if (response.statusCode == 401) {
+        throw ApiException(
+          message: 'Tidak diizinkan mengakses sistem',
+          code: 'UNAUTHORIZED',
+          statusCode: 401
+        );
+      } else if (response.statusCode == 403) {
+        try {
+          final jsonResponse = jsonDecode(response.body);
+          throw ApiException(
+            message: jsonResponse['message'] ?? 'Email atau password salah',
+            code: 'FORBIDDEN',
+            statusCode: 403
+          );
+        } catch (e) {
+          if (e is ApiException) rethrow;
+          throw ApiException(
+            message: 'Email atau password salah',
+            code: 'FORBIDDEN',
+            statusCode: 403
+          );
         }
       } else {
-        print('Login failed with status code: ${response.statusCode}');
-        throw Exception('Failed to login. Status code: ${response.statusCode}');
+        throw ApiException(
+          message: 'Terjadi kesalahan saat login',
+          code: 'UNKNOWN_ERROR',
+          statusCode: response.statusCode
+        );
       }
     } catch (e) {
-      print('Error during login: $e');
-      throw Exception('Error during login: $e');
+      if (e is ApiException) rethrow;
+      
+      throw _processError(e, endpoint: '/auth/login');
     }
   }
 
   static Future<bool> refreshToken() async {
-    String? userId;
+    String? email;
     String? password;
 
     print('Attempting to refresh token...');
 
     try {
-      final prefs = await SharedPreferences.getInstance();
-      userId = prefs.getString('userId');
-      password = prefs.getString('password');
-      print('Retrieved credentials from SharedPreferences');
+      email = await _secureStorage.read(key: 'email');
+      password = await _secureStorage.read(key: 'password');
+      print('Retrieved credentials from Secure Storage');
     } catch (e) {
-      // Jika gagal mengakses SharedPreferences, gunakan variabel sementara
-      userId = _tempUserId;
+      // Jika gagal mengakses Secure Storage, gunakan variabel sementara
+      email = _tempEmail;
       password = _tempPassword;
       print('Retrieved credentials from temporary variables');
     }
 
-    if (userId == null || password == null) {
+    if (email == null || password == null) {
       print('No credentials found for token refresh');
       return false;
     }
 
     try {
-      print('Sending refresh token request for user: $userId');
+      print('Sending refresh token request for user: $email');
 
-    final response = await http.post(
+      final response = await http.post(
         Uri.parse('$baseUrl/auth/refresh-token'),
-      headers: {
-        'Content-Type': 'application/json',
-      },
+        headers: {
+          'Content-Type': 'application/json',
+        },
         body: jsonEncode({
-          'userId': userId,
+          'email': email,
           'password': password,
         }),
       );
@@ -241,13 +397,13 @@ class ApiService {
           print('======================================');
 
           try {
-            // Coba update token di SharedPreferences
-            final prefs = await SharedPreferences.getInstance();
-            await prefs.setString('accessToken', newAccessToken);
-            print('New token saved to SharedPreferences');
+            // Coba update token di secure storage
+            await _secureStorage.write(
+                key: 'accessToken', value: newAccessToken);
+            print('New token saved to Secure Storage');
           } catch (e) {
             // Jika gagal, update variabel sementara
-            print('Warning: Failed to update token in SharedPreferences: $e');
+            print('Warning: Failed to update token in Secure Storage: $e');
             _tempAccessToken = newAccessToken;
             print('New token saved to temporary variable');
           }
@@ -267,11 +423,10 @@ class ApiService {
 
   static Future<bool> isLoggedIn() async {
     try {
-      final prefs = await SharedPreferences.getInstance();
-      final accessToken = prefs.getString('accessToken');
+      final accessToken = await _secureStorage.read(key: 'accessToken');
       return accessToken != null && accessToken.isNotEmpty;
     } catch (e) {
-      // Jika gagal mengakses SharedPreferences, periksa variabel sementara
+      // Jika gagal mengakses Secure Storage, periksa variabel sementara
       return _tempAccessToken != null && _tempAccessToken!.isNotEmpty;
     }
   }
@@ -361,28 +516,23 @@ class ApiService {
   // Helper method to clear all stored data
   static Future<void> _clearStoredData() async {
     try {
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.remove('accessToken');
-      await prefs.remove('refreshToken');
-      await prefs.remove('userId');
-      await prefs.remove('password');
+      await _secureStorage.deleteAll();
     } catch (e) {
-      print('Error clearing SharedPreferences: $e');
+      print('Error clearing Secure Storage: $e');
     }
 
     // Clear memory variables as well
     _tempAccessToken = null;
     _tempRefreshToken = null;
-    _tempUserId = null;
+    _tempEmail = null;
     _tempPassword = null;
   }
 
   static Future<String?> _getAccessToken() async {
     try {
-      final prefs = await SharedPreferences.getInstance();
-      return prefs.getString('accessToken') ?? _tempAccessToken;
+      return await _secureStorage.read(key: 'accessToken') ?? _tempAccessToken;
     } catch (e) {
-      print('Error getting access token from SharedPreferences: $e');
+      print('Error getting access token from Secure Storage: $e');
       return _tempAccessToken;
     }
   }
@@ -455,5 +605,54 @@ class ApiService {
       print('Error getting profile: $e');
       throw Exception('Gagal melakukan koneksi ke server');
     }
+  }
+
+  static ApiException _processError(dynamic error,
+      {int? statusCode, String? endpoint}) {
+    print(
+        'Error processing error: $error, statusCode: $statusCode, endpoint: $endpoint');
+
+    if (error is ApiException) {
+      return error;
+    }
+
+    if (error is http.ClientException) {
+      return ApiException(
+        message: 'Kesalahan koneksi: ${error.message}',
+        statusCode: statusCode,
+        details: 'Endpoint: $endpoint',
+      );
+    }
+
+    if (error is FormatException) {
+      return ApiException(
+        message: 'Format respons tidak valid',
+        code: 'FORMAT_ERROR',
+        statusCode: statusCode,
+        details: error.toString(),
+      );
+    }
+
+    if (error is SocketException) {
+      return ApiException(
+        message: 'Tidak dapat terhubung ke server',
+        code: 'NETWORK_ERROR',
+        details: error.toString(),
+      );
+    }
+
+    if (error is TimeoutException) {
+      return ApiException(
+        message: 'Koneksi timeout',
+        code: 'TIMEOUT',
+        details: 'Request timeout at $endpoint',
+      );
+    }
+
+    return ApiException(
+      message: error.toString(),
+      statusCode: statusCode,
+      details: 'Unhandled exception',
+    );
   }
 }

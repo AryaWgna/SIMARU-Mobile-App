@@ -7,11 +7,14 @@ import 'asset_depreciation.dart';
 import 'lost.dart';
 import 'dispose.dart';
 import 'checkout.dart';
+import '../dashboard/dashboard.dart';
 
 class AssetDetails extends StatefulWidget {
   final String qrData;
+  final String previousScreen;
 
-  const AssetDetails({super.key, required this.qrData});
+  const AssetDetails(
+      {super.key, required this.qrData, this.previousScreen = 'home'});
 
   @override
   State<AssetDetails> createState() => _AssetDetailsState();
@@ -20,148 +23,237 @@ class AssetDetails extends StatefulWidget {
 class _AssetDetailsState extends State<AssetDetails> {
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Colors.white,
-      appBar: _buildAppBar(context),
-      body: SingleChildScrollView(
-        child: Column(
-          children: [
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              width: double.infinity,
-              margin: const EdgeInsets.only(top: 20),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  // Image and Asset Info Section
-                  Container(
-                    height: 220,
-                    margin: const EdgeInsets.only(bottom: 8),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFD9D9D9),
-                      borderRadius: BorderRadius.circular(15),
+    return WillPopScope(
+      onWillPop: () async {
+        _navigateBack();
+        return false;
+      },
+      child: Scaffold(
+        backgroundColor: Colors.white,
+        appBar: _buildAppBar(context),
+        body: SingleChildScrollView(
+          child: Column(
+            children: [
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                width: double.infinity,
+                margin: const EdgeInsets.only(top: 20),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    // Image and Asset Info Section
+                    Container(
+                      height: 220,
+                      margin: const EdgeInsets.only(bottom: 8),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFD9D9D9),
+                        borderRadius: BorderRadius.circular(15),
+                      ),
                     ),
-                  ),
 
-                  // Asset Code & Name with Available Tag
-                  Container(
-                    margin: const EdgeInsets.only(bottom: 16),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      crossAxisAlignment: CrossAxisAlignment.start,
+                    // Asset Code & Name with Available Tag
+                    Container(
+                      margin: const EdgeInsets.only(bottom: 16),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'Asset Code',
+                                style: TextStyle(
+                                  fontFamily: 'Inter',
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w500,
+                                  color: Color(0xFF213268),
+                                ),
+                              ),
+                              SizedBox(height: 2),
+                              Text(
+                                'Asset Name',
+                                style: TextStyle(
+                                  fontFamily: 'Inter',
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w500,
+                                  color: Color(0xFF213268),
+                                ),
+                              ),
+                            ],
+                          ),
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 10,
+                              vertical: 2,
+                            ),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFF659B09),
+                              borderRadius: BorderRadius.circular(5),
+                            ),
+                            child: const Text(
+                              'Available',
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 14,
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+
+                    // Action Buttons
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                       children: [
-                        const Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              'Asset Code',
-                              style: TextStyle(
-                                fontFamily: 'Inter',
-                                fontSize: 16,
-                                fontWeight: FontWeight.w500,
-                                color: Color(0xFF213268),
-                              ),
-                            ),
-                            SizedBox(height: 2),
-                            Text(
-                              'Asset Name',
-                              style: TextStyle(
-                                fontFamily: 'Inter',
-                                fontSize: 16,
-                                fontWeight: FontWeight.w500,
-                                color: Color(0xFF213268),
-                              ),
-                            ),
-                          ],
+                        _buildActionButton(
+                          icon: Icons.logout,
+                          label: 'Check Out',
+                          onTap: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                  builder: (context) => const CheckoutScreen()),
+                            );
+                          },
                         ),
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 10,
-                            vertical: 2,
-                          ),
-                          decoration: BoxDecoration(
-                            color: const Color(0xFF659B09),
-                            borderRadius: BorderRadius.circular(5),
-                          ),
-                          child: const Text(
-                            'Available',
-                            style: TextStyle(
-                              color: Colors.white,
-                              fontSize: 14,
-                              fontWeight: FontWeight.w500,
-                            ),
-                          ),
+                        _buildActionButton(
+                          icon: Icons.delete_outline,
+                          label: 'Dispose',
+                          onTap: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                  builder: (context) => const DisposeScreen()),
+                            );
+                          },
+                        ),
+                        _buildActionButton(
+                          icon: Icons.help_outline,
+                          label: 'Lost',
+                          onTap: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                  builder: (context) => const LostScreen()),
+                            );
+                          },
                         ),
                       ],
                     ),
-                  ),
 
-                  // Action Buttons
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                    children: [
-                      _buildActionButton(
-                        icon: Icons.logout,
-                        label: 'Check Out',
-                        onTap: () {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                                builder: (context) => const CheckoutScreen()),
-                          );
-                        },
-                      ),
-                      _buildActionButton(
-                        icon: Icons.delete_outline,
-                        label: 'Dispose',
-                        onTap: () {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                                builder: (context) => const DisposeScreen()),
-                          );
-                        },
-                      ),
-                      _buildActionButton(
-                        icon: Icons.help_outline,
-                        label: 'Lost',
-                        onTap: () {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                                builder: (context) => const LostScreen()),
-                          );
-                        },
-                      ),
-                    ],
-                  ),
+                    const SizedBox(height: 20),
 
-                  const SizedBox(height: 20),
-
-                  // Asset Information Title
-                  Container(
-                    margin: const EdgeInsets.only(bottom: 12),
-                    alignment: Alignment.centerLeft,
-                    child: const Text(
-                      'Asset Information',
-                      style: TextStyle(
-                        fontFamily: 'Inter',
-                        fontSize: 18,
-                        fontWeight: FontWeight.w500,
-                        color: Color(0xFF213268),
+                    // Asset Information Title
+                    Container(
+                      margin: const EdgeInsets.only(bottom: 12),
+                      alignment: Alignment.centerLeft,
+                      child: const Text(
+                        'Asset Information',
+                        style: TextStyle(
+                          fontFamily: 'Inter',
+                          fontSize: 18,
+                          fontWeight: FontWeight.w500,
+                          color: Color(0xFF213268),
+                        ),
                       ),
                     ),
-                  ),
 
-                  // Asset Information Table
-                  _buildAssetInformationTable(),
+                    // Asset Information Table
+                    _buildAssetInformationTable(),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+        bottomNavigationBar: _buildBottomNavigationBar(context, ''),
+      ),
+    );
+  }
+
+  PreferredSizeWidget _buildAppBar(BuildContext context) {
+    // Ukur tinggi status bar
+    final double statusBarHeight = MediaQuery.of(context).padding.top;
+
+    return PreferredSize(
+      preferredSize: const Size.fromHeight(82),
+      child: Stack(
+        children: [
+          // Warna biru tua untuk AppBar
+          Positioned(
+            top: 0,
+            left: 0,
+            right: 0,
+            height: 82 + statusBarHeight,
+            child: Container(
+              decoration: const BoxDecoration(
+                color: Color(0xFF213268),
+                borderRadius:
+                    BorderRadius.vertical(bottom: Radius.circular(20)),
+                boxShadow: [
+                  BoxShadow(
+                    color: Color(0xFF56C5F1),
+                    blurRadius: 3,
+                    offset: Offset(0, 3),
+                  ),
                 ],
               ),
             ),
-          ],
-        ),
+          ),
+
+          // AppBar Content - hanya logo di tengah tanpa tombol back
+          Positioned(
+            top: statusBarHeight,
+            left: 0,
+            right: 0,
+            height: 82,
+            child: Center(
+              child: Image.asset(
+                'images/Logo_RS_UMMI_white.png',
+                width: 208.14,
+                height: 55,
+                fit: BoxFit.contain,
+              ),
+            ),
+          ),
+        ],
       ),
-      bottomNavigationBar: _buildBottomNavigationBar(context, ''),
+    );
+  }
+
+  // Fungsi untuk navigasi kembali ke layar sebelumnya
+  void _navigateBack() {
+    // Tutup semua layar sebelumnya dan navigasi ke dashboard dengan tab yang sesuai
+    Navigator.of(context).popUntil((route) => route.isFirst);
+
+    // Tentukan index tab berdasarkan previousScreen
+    int tabIndex = 0;
+    switch (widget.previousScreen) {
+      case 'home':
+        tabIndex = 0;
+        break;
+      case 'procurement':
+        tabIndex = 1;
+        break;
+      case 'history':
+        tabIndex = 3;
+        break;
+      case 'profile':
+        tabIndex = 4;
+        break;
+      default:
+        tabIndex = 0;
+    }
+
+    // Navigasi ke Dashboard dengan tab yang sesuai
+    Navigator.pushReplacement(
+      context,
+      MaterialPageRoute(
+        builder: (context) => DashboardScreen(initialIndex: tabIndex),
+      ),
     );
   }
 
@@ -250,56 +342,6 @@ class _AssetDetailsState extends State<AssetDetails> {
           ),
         ),
       ],
-    );
-  }
-
-  PreferredSizeWidget _buildAppBar(BuildContext context) {
-    // Ukur tinggi status bar
-    final double statusBarHeight = MediaQuery.of(context).padding.top;
-
-    return PreferredSize(
-      preferredSize: const Size.fromHeight(82),
-      child: Stack(
-        children: [
-          // Warna biru tua untuk AppBar
-          Positioned(
-            top: 0,
-            left: 0,
-            right: 0,
-            height: 82 + statusBarHeight,
-            child: Container(
-              decoration: const BoxDecoration(
-                color: Color(0xFF213268),
-                borderRadius:
-                    BorderRadius.vertical(bottom: Radius.circular(20)),
-                boxShadow: [
-                  BoxShadow(
-                    color: Color(0xFF56C5F1),
-                    blurRadius: 3,
-                    offset: Offset(0, 3),
-                  ),
-                ],
-              ),
-            ),
-          ),
-
-          // AppBar Content - tanpa tombol back
-          Positioned(
-            top: statusBarHeight,
-            left: 0,
-            right: 0,
-            height: 82,
-            child: Center(
-              child: Image.asset(
-                'images/Logo_RS_UMMI_white.png',
-                width: 208.14,
-                height: 55,
-                fit: BoxFit.contain,
-              ),
-            ),
-          ),
-        ],
-      ),
     );
   }
 

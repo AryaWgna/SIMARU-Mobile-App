@@ -1,7 +1,9 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import '../controllers/auth_controller.dart';
+import '../views/dashboard/dashboard.dart';
 import 'forget_password_screen.dart';
+import 'dart:developer' as developer;
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -11,24 +13,137 @@ class LoginScreen extends StatefulWidget {
 }
 
 class _LoginScreenState extends State<LoginScreen> {
-  final _userIdController = TextEditingController();
+  final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   bool _isLoading = false;
+  String? _errorMessage;
+  bool _obscurePassword = true;
+
+  // Fungsi untuk logging error di terminal
+  void _logError(dynamic error, StackTrace stackTrace) {
+    developer.log(
+      '====== ERROR LOGIN ======',
+      name: 'LOGIN_ERROR',
+      error: error,
+    );
+
+    developer.log(
+      '--- Detail Error ---',
+      name: 'LOGIN_ERROR',
+    );
+
+    if (error is ApiException) {
+      developer.log(
+        'Type: ApiException',
+        name: 'LOGIN_ERROR',
+      );
+      developer.log(
+        'Message: ${error.message}',
+        name: 'LOGIN_ERROR',
+      );
+      developer.log(
+        'Code: ${error.code ?? "null"}',
+        name: 'LOGIN_ERROR',
+      );
+      developer.log(
+        'Status Code: ${error.statusCode ?? "null"}',
+        name: 'LOGIN_ERROR',
+      );
+      developer.log(
+        'Details: ${error.details ?? "null"}',
+        name: 'LOGIN_ERROR',
+      );
+    } else {
+      developer.log(
+        'Type: ${error.runtimeType}',
+        name: 'LOGIN_ERROR',
+      );
+      developer.log(
+        'Message: $error',
+        name: 'LOGIN_ERROR',
+      );
+    }
+
+    developer.log(
+      '--- Stack Trace ---',
+      name: 'LOGIN_ERROR',
+    );
+
+    // Format stack trace for better readability
+    final formattedStackTrace = stackTrace
+        .toString()
+        .split('\n')
+        .map((line) => line.trim())
+        .where((line) => line.isNotEmpty)
+        .take(10) // Ambil 10 baris pertama saja
+        .join('\n');
+
+    developer.log(
+      formattedStackTrace,
+      name: 'LOGIN_ERROR',
+    );
+
+    developer.log(
+      '=======================',
+      name: 'LOGIN_ERROR',
+    );
+  }
 
   Future<void> _login() async {
-    setState(() => _isLoading = true);
+    // Validasi dasar
+    if (_emailController.text.isEmpty || _passwordController.text.isEmpty) {
+      setState(() {
+        _errorMessage = 'Email dan password tidak boleh kosong';
+      });
+      return;
+    }
+
+    // Reset pesan error
+    setState(() {
+      _errorMessage = null;
+      _isLoading = true;
+    });
+
     try {
       await ApiService.login(
-        _userIdController.text,
+        _emailController.text,
         _passwordController.text,
       );
+
       if (mounted) {
-        Navigator.pushReplacementNamed(context, '/home');
+        // Navigasi langsung ke DashboardScreen
+        Navigator.of(context).pushAndRemoveUntil(
+          MaterialPageRoute(
+            builder: (context) => const DashboardScreen(),
+          ),
+          (route) => false,
+        );
       }
     } catch (e) {
       if (mounted) {
+        setState(() {
+          // Tampilkan pesan error yang user-friendly
+          if (e is ApiException) {
+            _errorMessage = e.getUserFriendlyMessage();
+          } else {
+            _errorMessage = 'Terjadi kesalahan: ${e.toString()}';
+          }
+        });
+
+        // Tampilkan snackbar untuk error
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error: ${e.toString()}')),
+          SnackBar(
+            content: Text(_errorMessage ?? 'Terjadi kesalahan saat login'),
+            backgroundColor: Colors.red[700],
+            behavior: SnackBarBehavior.floating,
+            action: SnackBarAction(
+              label: 'OK',
+              textColor: Colors.white,
+              onPressed: () {
+                ScaffoldMessenger.of(context).hideCurrentSnackBar();
+              },
+            ),
+          ),
         );
       }
     } finally {
@@ -129,6 +244,36 @@ class _LoginScreenState extends State<LoginScreen> {
                     ),
                   ),
                   const SizedBox(height: 20),
+                  // Error message area
+                  if (_errorMessage != null)
+                    Container(
+                      padding: const EdgeInsets.all(10),
+                      margin: const EdgeInsets.only(bottom: 15),
+                      decoration: BoxDecoration(
+                        color: Colors.red[50],
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: Colors.red.shade300),
+                      ),
+                      child: Row(
+                        children: [
+                          Icon(Icons.error_outline, color: Colors.red[700]),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: Text(
+                              _errorMessage!,
+                              style: TextStyle(color: Colors.red[700]),
+                            ),
+                          ),
+                          IconButton(
+                            icon: const Icon(Icons.close, size: 16),
+                            onPressed: () {
+                              setState(() => _errorMessage = null);
+                            },
+                            color: Colors.red[700],
+                          )
+                        ],
+                      ),
+                    ),
                   Container(
                     padding: const EdgeInsets.all(12),
                     decoration: BoxDecoration(
@@ -145,18 +290,34 @@ class _LoginScreenState extends State<LoginScreen> {
                     child: Column(
                       children: [
                         _buildTextField(
-                          controller: _userIdController,
-                          label: 'User ID',
-                          hint: 'Insert Your User ID',
-                          icon: Icons.person_outline,
+                          controller: _emailController,
+                          label: 'Email',
+                          hint: 'Masukkan Email Anda',
+                          icon: Icons.email_outlined,
+                          keyboardType: TextInputType.emailAddress,
+                          onChanged: (_) {
+                            if (_errorMessage != null) {
+                              setState(() => _errorMessage = null);
+                            }
+                          },
                         ),
                         const SizedBox(height: 15),
                         _buildTextField(
                           controller: _passwordController,
                           label: 'Password',
-                          hint: 'Insert Your Password',
+                          hint: 'Masukkan Password Anda',
                           icon: Icons.lock_outline,
                           isPassword: true,
+                          obscureText: _obscurePassword,
+                          toggleObscureText: () {
+                            setState(
+                                () => _obscurePassword = !_obscurePassword);
+                          },
+                          onChanged: (_) {
+                            if (_errorMessage != null) {
+                              setState(() => _errorMessage = null);
+                            }
+                          },
                         ),
                         const SizedBox(height: 20),
                         AnimatedContainer(
@@ -182,7 +343,7 @@ class _LoginScreenState extends State<LoginScreen> {
                                     ),
                                   )
                                 : const Text(
-                                    'Log In',
+                                    'Masuk',
                                     style: TextStyle(
                                       fontSize: 16,
                                       fontWeight: FontWeight.w600,
@@ -208,7 +369,7 @@ class _LoginScreenState extends State<LoginScreen> {
                               padding: const EdgeInsets.symmetric(vertical: 8),
                             ),
                             child: const Text(
-                              'Forgot Password?',
+                              'Lupa Password?',
                               style: TextStyle(
                                 fontSize: 14,
                                 color: Color(0xFF203268),
@@ -256,6 +417,10 @@ class _LoginScreenState extends State<LoginScreen> {
     required String hint,
     required IconData icon,
     bool isPassword = false,
+    TextInputType keyboardType = TextInputType.text,
+    bool obscureText = false,
+    VoidCallback? toggleObscureText,
+    Function(String)? onChanged,
   }) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -271,10 +436,21 @@ class _LoginScreenState extends State<LoginScreen> {
         const SizedBox(height: 5),
         TextField(
           controller: controller,
-          obscureText: isPassword,
+          obscureText: isPassword && obscureText,
+          keyboardType: keyboardType,
+          onChanged: onChanged,
           decoration: InputDecoration(
             hintText: hint,
             prefixIcon: Icon(icon, color: const Color(0xFF203268)),
+            suffixIcon: isPassword
+                ? IconButton(
+                    icon: Icon(
+                      obscureText ? Icons.visibility_off : Icons.visibility,
+                      color: const Color(0xFF203268),
+                    ),
+                    onPressed: toggleObscureText,
+                  )
+                : null,
             border: OutlineInputBorder(
               borderRadius: BorderRadius.circular(8),
               borderSide: const BorderSide(color: Color(0xFF203268)),

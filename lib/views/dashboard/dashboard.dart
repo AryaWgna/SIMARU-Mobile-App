@@ -6,21 +6,32 @@ import '../pages/history_screen.dart';
 import '../pages/qr_scanner_screen.dart';
 
 class DashboardScreen extends StatefulWidget {
-  const DashboardScreen({super.key});
+  final int initialIndex;
+
+  const DashboardScreen({super.key, this.initialIndex = 0});
 
   @override
   State<DashboardScreen> createState() => _DashboardScreenState();
 }
 
 class _DashboardScreenState extends State<DashboardScreen> {
-  int _selectedIndex = 0;
-  final List<Widget> _screens = [
-    const HomeScreen(),
-    const ProcurementScreen(),
-    const SizedBox(), // Placeholder for QR Scanner
-    const HistoryScreen(),
-    const ProfileScreen(),
-  ];
+  late int _selectedIndex;
+  final List<Widget> _screens = [];
+
+  @override
+  void initState() {
+    super.initState();
+    _selectedIndex = widget.initialIndex;
+
+    // Inisialisasi screens dengan cara yang lebih aman
+    _screens.addAll([
+      const HomeScreen(),
+      const ProcurementScreen(),
+      const SizedBox(), // Placeholder for QR Scanner
+      const HistoryScreen(),
+      const ProfileScreen(),
+    ]);
+  }
 
   void _onItemTapped(int index) {
     if (index == 2) return; // Ignore QR Scanner tab
@@ -31,6 +42,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
   @override
   Widget build(BuildContext context) {
+    // Pastikan _selectedIndex valid
+    if (_selectedIndex >= _screens.length) {
+      _selectedIndex = 0;
+    }
+
     return Scaffold(
       body: _screens[_selectedIndex],
       bottomNavigationBar: BottomNavigationBar(
@@ -77,9 +93,30 @@ class _DashboardScreenState extends State<DashboardScreen> {
             ),
           ),
           onPressed: () {
+            String previousScreen;
+            switch (_selectedIndex) {
+              case 0:
+                previousScreen = 'home';
+                break;
+              case 1:
+                previousScreen = 'procurement';
+                break;
+              case 3:
+                previousScreen = 'history';
+                break;
+              case 4:
+                previousScreen = 'profile';
+                break;
+              default:
+                previousScreen = 'home';
+            }
+
             Navigator.push(
               context,
-              MaterialPageRoute(builder: (context) => const QRScannerScreen()),
+              MaterialPageRoute(
+                builder: (context) =>
+                    QRScannerScreen(previousScreen: previousScreen),
+              ),
             );
           },
           child: const Icon(

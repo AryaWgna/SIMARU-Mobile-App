@@ -4,7 +4,9 @@ import 'package:qr_code_scanner/qr_code_scanner.dart';
 import '../asset/asset_details.dart';
 
 class QRScannerScreen extends StatefulWidget {
-  const QRScannerScreen({super.key});
+  final String previousScreen;
+
+  const QRScannerScreen({super.key, this.previousScreen = 'home'});
 
   @override
   State<QRScannerScreen> createState() => _QRScannerScreenState();
@@ -172,8 +174,10 @@ class _QRScannerScreenState extends State<QRScannerScreen> {
                         Navigator.push(
                           context,
                           MaterialPageRoute(
-                            builder: (context) =>
-                                AssetDetails(qrData: result!.code!),
+                            builder: (context) => AssetDetails(
+                              qrData: result!.code!,
+                              previousScreen: widget.previousScreen,
+                            ),
                           ),
                         );
                       } else {
