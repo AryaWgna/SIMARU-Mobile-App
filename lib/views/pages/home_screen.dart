@@ -22,12 +22,39 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   void initState() {
     super.initState();
-    // Load data when screen initializes
+    // Load data when screen initializes with error handling
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      context.read<TotalAssetController>().loadTotalAsset();
-      context.read<AssetUnderRepairController>().loadAssetUnderRepair();
-      context.read<NetAssetValueController>().loadNetAssetValue();
+      try {
+        print("Loading data for HomeScreen...");
+        if (mounted) {
+          _loadData();
+        }
+      } catch (e, s) {
+        print("Error loading HomeScreen data: $e");
+        print("Stack trace: $s");
+      }
     });
+  }
+
+  // Separate method for loading data with error handling
+  void _loadData() {
+    try {
+      context.read<TotalAssetController>().loadTotalAsset();
+    } catch (e) {
+      print("Error loading TotalAssetController: $e");
+    }
+
+    try {
+      context.read<AssetUnderRepairController>().loadAssetUnderRepair();
+    } catch (e) {
+      print("Error loading AssetUnderRepairController: $e");
+    }
+
+    try {
+      context.read<NetAssetValueController>().loadNetAssetValue();
+    } catch (e) {
+      print("Error loading NetAssetValueController: $e");
+    }
   }
 
   @override

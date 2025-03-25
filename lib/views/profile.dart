@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../controllers/auth_controller.dart';
+import 'dart:convert';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -12,6 +13,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   Map<String, dynamic> _profileData = {};
   bool _isLoading = true;
   String _errorMessage = '';
+  String _fullName = '';
 
   @override
   void initState() {
@@ -30,13 +32,30 @@ class _ProfileScreenState extends State<ProfileScreen> {
     });
 
     try {
-      final data = await ApiService.getProfile(context);
-      if (!mounted) return;
+      final response = await ApiService.get('/users/profile', context: context);
 
-      setState(() {
-        _profileData = data['data'] ?? {};
-        _isLoading = false;
-      });
+      if (response.statusCode == 200) {
+        final responseData = json.decode(response.body);
+
+        if (responseData['status'] == true) {
+          if (!mounted) return;
+
+          final employee = responseData['data']['employee'] ?? {};
+
+          final firstName = employee['first_name'] ?? '';
+          final lastName = employee['last_name'] ?? '';
+
+          setState(() {
+            _profileData = responseData['data'];
+            _fullName = '$firstName $lastName'.trim();
+            _isLoading = false;
+          });
+        } else {
+          throw Exception(responseData['message'] ?? 'Failed to load profile');
+        }
+      } else {
+        throw Exception('Failed to load profile: ${response.statusCode}');
+      }
     } catch (e) {
       if (!mounted) return;
 
@@ -139,41 +158,113 @@ class _ProfileScreenState extends State<ProfileScreen> {
       );
     }
 
+    final employee = _profileData['employee'] ?? {};
+    final firstName = employee['first_name'] ?? '';
+    final lastName = employee['last_name'] ?? '';
+    final fullName = '$firstName $lastName'.trim();
+
     return SingleChildScrollView(
       padding: const EdgeInsets.all(16),
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.center,
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const CircleAvatar(
-            radius: 50,
-            backgroundColor: Color(0xFF213268),
-            child: Icon(Icons.person, size: 50, color: Colors.white),
-          ),
-          const SizedBox(height: 16),
-          Text(
-            _profileData['name'] ?? 'User',
-            style: const TextStyle(
-              fontSize: 24,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-          Text(
-            _profileData['email'] ?? '',
-            style: const TextStyle(
-              fontSize: 16,
-              color: Colors.grey,
+          // Profile Image
+          Center(
+            child: const CircleAvatar(
+              radius: 50,
+              backgroundColor: Color(0xFF213268),
+              child: Icon(Icons.person, size: 50, color: Colors.white),
             ),
           ),
           const SizedBox(height: 32),
-          _buildProfileCard(),
-          const SizedBox(height: 24),
-          ElevatedButton.icon(
-            onPressed: _logout,
-            icon: const Icon(Icons.logout, color: Colors.white),
-            label: const Text('Logout'),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.red,
-              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+
+          // Nama Field
+          const Text(
+            'Nama',
+            style: TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+          Container(
+            margin: const EdgeInsets.only(top: 8, bottom: 16),
+            child: TextFormField(
+              initialValue: fullName,
+              decoration: InputDecoration(
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                contentPadding:
+                    const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              ),
+            ),
+          ),
+
+          // Email Field
+          const Text(
+            'Email',
+            style: TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+          Container(
+            margin: const EdgeInsets.only(top: 8, bottom: 16),
+            child: TextFormField(
+              initialValue: _profileData['email'] ?? '',
+              decoration: InputDecoration(
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                contentPadding:
+                    const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              ),
+            ),
+          ),
+
+          // No. Telepon Field
+          const Text(
+            'No. Telepon',
+            style: TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+          Container(
+            margin: const EdgeInsets.only(top: 8, bottom: 24),
+            child: TextFormField(
+              decoration: InputDecoration(
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                contentPadding:
+                    const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              ),
+            ),
+          ),
+
+          // Update Button
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton(
+              onPressed: () {
+                // TODO: Implement update logic
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF213268),
+                padding: const EdgeInsets.symmetric(vertical: 12),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8),
+                ),
+              ),
+              child: const Text(
+                'UPDATE',
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w600,
+                  color: Colors.white,
+                ),
+              ),
             ),
           ),
         ],
@@ -182,6 +273,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   Widget _buildProfileCard() {
+    final employee = _profileData['employee'] ?? {};
+    final role = _profileData['role'] ?? {};
+
     return Card(
       elevation: 4,
       shape: RoundedRectangleBorder(
@@ -192,10 +286,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            _buildProfileItem('User ID', _profileData['userId'] ?? '-'),
-            _buildProfileItem('Role', _profileData['role'] ?? '-'),
-            _buildProfileItem('Phone', _profileData['phone'] ?? '-'),
-            _buildProfileItem('Department', _profileData['department'] ?? '-'),
+            _buildProfileItem(
+                'User ID', _profileData['user_id']?.toString() ?? '-'),
+            _buildProfileItem(
+                'Employee ID', employee['employee_id']?.toString() ?? '-'),
+            _buildProfileItem('Position', employee['position'] ?? '-'),
+            _buildProfileItem('Role', role['role_name'] ?? '-'),
+            _buildProfileItem('Status',
+                _profileData['is_active'] == true ? 'Active' : 'Inactive'),
           ],
         ),
       ),

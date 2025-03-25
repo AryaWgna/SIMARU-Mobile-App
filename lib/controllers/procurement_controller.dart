@@ -1,20 +1,24 @@
 import 'package:flutter/material.dart';
-import '../services/auth_controller.dart';
+import '../controllers/auth_controller.dart';
+import 'dart:convert';
+import '../models/procurement_model.dart';
 
 class ProcurementController {
   // Mendapatkan daftar procurement
-  static Future<List<dynamic>> getProcurementList(BuildContext context) async {
+  static Future<ProcurementResponse> getProcurementList(BuildContext context) async {
     try {
-      final response = await ApiService.getWithAuth(
-        context,
-        'procurement/list', // Endpoint relatif
+      final response = await ApiService.get(
+        '/procurements', // Endpoint
+        context: context,
       );
 
-      if (response['success'] == true) {
-        return response['data'] ?? [];
+      // Decode response
+      final jsonResponse = jsonDecode(response.body);
+      
+      if (response.statusCode == 200) {
+        return ProcurementResponse.fromJson(jsonResponse);
       } else {
-        throw Exception(
-            response['message'] ?? 'Failed to get procurement list');
+        throw Exception(jsonResponse['message'] ?? 'Failed to get procurement list');
       }
     } catch (e) {
       print('Error getting procurement list: $e');
@@ -23,19 +27,21 @@ class ProcurementController {
   }
 
   // Mendapatkan detail procurement
-  static Future<Map<String, dynamic>> getProcurementDetail(
-      BuildContext context, String id) async {
+  static Future<Procurement> getProcurementDetail(
+      BuildContext context, int id) async {
     try {
-      final response = await ApiService.getWithAuth(
-        context,
-        'procurement/detail/$id', // Endpoint relatif
+      final response = await ApiService.get(
+        '/procurements/$id', // Endpoint relatif
+        context: context,
       );
 
-      if (response['success'] == true) {
-        return response['data'] ?? {};
+      // Decode response
+      final jsonResponse = jsonDecode(response.body);
+      
+      if (response.statusCode == 200 && jsonResponse['status'] == true) {
+        return Procurement.fromJson(jsonResponse['data']);
       } else {
-        throw Exception(
-            response['message'] ?? 'Failed to get procurement detail');
+        throw Exception(jsonResponse['message'] ?? 'Failed to get procurement detail');
       }
     } catch (e) {
       print('Error getting procurement detail: $e');
@@ -47,17 +53,19 @@ class ProcurementController {
   static Future<Map<String, dynamic>> submitProcurementRequest(
       BuildContext context, Map<String, dynamic> requestData) async {
     try {
-      final response = await ApiService.postWithAuth(
-        context,
-        'procurement/submit', // Endpoint relatif
+      final response = await ApiService.post(
+        '/procurements', // Endpoint relatif
         body: requestData,
+        context: context,
       );
 
-      if (response['success'] == true) {
-        return response;
+      // Decode response
+      final jsonResponse = jsonDecode(response.body);
+      
+      if (response.statusCode == 201 && jsonResponse['status'] == true) {
+        return jsonResponse;
       } else {
-        throw Exception(
-            response['message'] ?? 'Failed to submit procurement request');
+        throw Exception(jsonResponse['message'] ?? 'Failed to submit procurement request');
       }
     } catch (e) {
       print('Error submitting procurement request: $e');

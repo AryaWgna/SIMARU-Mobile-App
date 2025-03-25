@@ -17,8 +17,6 @@ class _QRScannerScreenState extends State<QRScannerScreen> {
   QRViewController? controller;
   Barcode? result;
 
-  // In order to get hot reload to work we need to pause the camera if the platform
-  // is android, or resume the camera if the platform is iOS.
   @override
   void reassemble() {
     super.reassemble();
@@ -31,235 +29,238 @@ class _QRScannerScreenState extends State<QRScannerScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final screenHeight = MediaQuery.of(context).size.height;
-
     return Scaffold(
+      // Penting: set false agar layout tidak berubah saat keyboard muncul
+      resizeToAvoidBottomInset: false,
       backgroundColor: Colors.black,
-      body: Column(
+      body: Stack(
+        fit: StackFit.expand,
         children: [
-          Expanded(
-            child: Stack(
-              alignment: Alignment.center,
-              children: [
-                // QR Camera View
-                QRView(
-                  key: qrKey,
-                  onQRViewCreated: _onQRViewCreated,
-                  overlay: QrScannerOverlayShape(
-                    borderColor: Colors.transparent,
-                    borderRadius: 4,
-                    borderLength: 0,
-                    borderWidth: 0,
-                    cutOutSize: 200,
-                  ),
-                ),
+          // QR Camera View sebagai background
+          QRView(
+            key: qrKey,
+            onQRViewCreated: _onQRViewCreated,
+            overlay: QrScannerOverlayShape(
+              borderColor: Colors.transparent,
+              borderRadius: 4,
+              borderLength: 0,
+              borderWidth: 0,
+              cutOutSize: 200,
+            ),
+          ),
 
-                // Judul
-                Positioned(
-                  top: screenHeight * 0.15,
-                  child: const Text(
-                    'Scan your QR Code',
-                    style: TextStyle(
-                      fontSize: 22,
-                      fontWeight: FontWeight.w400,
-                      color: Colors.white,
-                    ),
-                  ),
+          // Judul di bagian atas
+          const Positioned(
+            top: 80,
+            left: 0,
+            right: 0,
+            child: Center(
+              child: Text(
+                'Scan your QR Code',
+                style: TextStyle(
+                  fontSize: 22,
+                  fontWeight: FontWeight.w400,
+                  color: Colors.white,
                 ),
+              ),
+            ),
+          ),
 
-                // Frame scanner kustom dengan sudut
-                Center(
-                  child: Container(
-                    width: 230,
-                    height: 230,
-                    decoration: BoxDecoration(
-                      border: Border.all(color: Colors.transparent),
-                    ),
-                    child: Stack(
-                      children: [
-                        // Kiri atas
-                        Positioned(
-                          top: 0,
-                          left: 0,
-                          child: _buildCornerLine(true, true),
-                        ),
-                        // Kanan atas
-                        Positioned(
-                          top: 0,
-                          right: 0,
-                          child: _buildCornerLine(false, true),
-                        ),
-                        // Kiri bawah
-                        Positioned(
-                          bottom: 0,
-                          left: 0,
-                          child: _buildCornerLine(true, false),
-                        ),
-                        // Kanan bawah
-                        Positioned(
-                          bottom: 0,
-                          right: 0,
-                          child: _buildCornerLine(false, false),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-
-                // Tampilan hasil scan
-                if (result != null)
+          // Frame scanner di tengah
+          Center(
+            child: Container(
+              width: 230,
+              height: 230,
+              decoration: BoxDecoration(
+                border: Border.all(color: Colors.transparent),
+              ),
+              child: Stack(
+                children: [
                   Positioned(
-                    bottom: 140,
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 16, vertical: 8),
-                      decoration: BoxDecoration(
-                        color: Colors.white.withOpacity(0.8),
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: Text(
-                        'Data: ${result!.code}',
-                        style: const TextStyle(
-                          color: Colors.black87,
-                          fontSize: 14,
-                          fontFamily: 'Inter',
-                        ),
-                      ),
-                    ),
+                    top: 0,
+                    left: 0,
+                    child: _buildCornerLine(true, true),
                   ),
-
-                // Tombol flash
-                Positioned(
-                  top: 20,
-                  right: 20,
-                  child: Container(
-                    decoration: BoxDecoration(
-                      color: Colors.black.withOpacity(0.5),
-                      borderRadius: BorderRadius.circular(30),
-                    ),
-                    child: IconButton(
-                      icon: const Icon(Icons.flash_on, color: Colors.white),
-                      onPressed: () async {
-                        await controller?.toggleFlash();
-                      },
-                    ),
+                  Positioned(
+                    top: 0,
+                    right: 0,
+                    child: _buildCornerLine(false, true),
                   ),
-                ),
+                  Positioned(
+                    bottom: 0,
+                    left: 0,
+                    child: _buildCornerLine(true, false),
+                  ),
+                  Positioned(
+                    bottom: 0,
+                    right: 0,
+                    child: _buildCornerLine(false, false),
+                  ),
+                ],
+              ),
+            ),
+          ),
 
-                // Tombol flip kamera
-                Positioned(
-                  top: 20,
-                  left: 20,
-                  child: Container(
-                    decoration: BoxDecoration(
-                      color: Colors.black.withOpacity(0.5),
-                      borderRadius: BorderRadius.circular(30),
-                    ),
-                    child: IconButton(
-                      icon: const Icon(Icons.flip_camera_ios,
-                          color: Colors.white),
-                      onPressed: () async {
-                        await controller?.flipCamera();
-                      },
+          // Hasil scan
+          if (result != null)
+            Positioned(
+              bottom: 140,
+              left: 0,
+              right: 0,
+              child: Center(
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16, 
+                    vertical: 8
+                  ),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withOpacity(0.8),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Text(
+                    'Data: ${result!.code}',
+                    style: const TextStyle(
+                      color: Colors.black87,
+                      fontSize: 14,
+                      fontFamily: 'Inter',
                     ),
                   ),
                 ),
+              ),
+            ),
 
-                // Tombol Scan
-                Positioned(
-                  bottom: 50,
-                  child: ElevatedButton(
-                    onPressed: () {
-                      if (result != null && result!.code != null) {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (context) => AssetDetails(
-                              qrData: result!.code!,
-                              previousScreen: widget.previousScreen,
-                            ),
-                          ),
-                        );
-                      } else {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                            content:
-                                Text('Silakan scan QR code terlebih dahulu'),
-                            backgroundColor: Color(0xFF213268),
-                            duration: Duration(seconds: 2),
-                          ),
-                        );
-                      }
-                    },
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFF2A3F7E),
-                      minimumSize: const Size(220, 50),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(8),
-                      ),
+          // Tombol flash
+          Positioned(
+            top: 20,
+            right: 20,
+            child: Container(
+              decoration: BoxDecoration(
+                color: Colors.black.withOpacity(0.5),
+                borderRadius: BorderRadius.circular(30),
+              ),
+              child: IconButton(
+                icon: const Icon(Icons.flash_on, color: Colors.white),
+                onPressed: () async {
+                  await controller?.toggleFlash();
+                },
+              ),
+            ),
+          ),
+
+          // Tombol flip kamera
+          Positioned(
+            top: 20,
+            left: 20,
+            child: Container(
+              decoration: BoxDecoration(
+                color: Colors.black.withOpacity(0.5),
+                borderRadius: BorderRadius.circular(30),
+              ),
+              child: IconButton(
+                icon: const Icon(Icons.flip_camera_ios, color: Colors.white),
+                onPressed: () async {
+                  await controller?.flipCamera();
+                },
+              ),
+            ),
+          ),
+        ],
+      ),
+      
+      // KUNCI SOLUSI: Tambahkan bottomNavigationBar agar floatingActionButton centerDocked bisa berfungsi
+      // dengan benar dan menghilang saat keyboard muncul
+      bottomNavigationBar: Container(
+        // Atur height minimal untuk invisible bottomNavigationBar
+        height: 1,
+        color: Colors.transparent,
+      ),
+      
+      // Gunakan floatingActionButtonLocation yang sama dengan Dashboard
+      floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
+      
+      // Pindahkan tombol Scan ke floatingActionButton
+      floatingActionButton: Container(
+        width: 220,  // Sesuaikan dengan lebar button asli
+        height: 50,  // Sesuaikan dengan tinggi button asli
+        margin: const EdgeInsets.only(bottom: 20), // Untuk posisi yang tepat
+        child: FloatingActionButton.extended(
+          elevation: 2,
+          backgroundColor: const Color(0xFF2A3F7E),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(8),
+          ),
+          onPressed: () {
+            FocusScope.of(context).unfocus();
+            
+            if (result != null && result!.code != null) {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => AssetDetails(
+                    qrData: result!.code!,
+                    previousScreen: widget.previousScreen,
+                  ),
+                ),
+              );
+            } else {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text('Silakan scan QR code terlebih dahulu'),
+                  backgroundColor: Color(0xFF213268),
+                  duration: Duration(seconds: 2),
+                ),
+              );
+            }
+          },
+          icon: SizedBox(
+            width: 24,
+            height: 24,
+            child: Stack(
+              children: [
+                Container(
+                  width: 24,
+                  height: 24,
+                  decoration: BoxDecoration(
+                    border: Border.all(
+                      color: Colors.white,
+                      width: 1.5,
+                      style: BorderStyle.solid,
                     ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        SizedBox(
-                          width: 24,
-                          height: 24,
-                          child: Stack(
-                            children: [
-                              Container(
-                                width: 24,
-                                height: 24,
-                                decoration: BoxDecoration(
-                                  border: Border.all(
-                                    color: Colors.white,
-                                    width: 1.5,
-                                    style: BorderStyle.solid,
-                                  ),
-                                  borderRadius: BorderRadius.circular(2),
-                                ),
-                              ),
-                              // Garis di dalam kotak
-                              Positioned(
-                                top: 6,
-                                left: 6,
-                                right: 6,
-                                bottom: 6,
-                                child: Container(
-                                  decoration: BoxDecoration(
-                                    border: Border.all(
-                                      color: Colors.white,
-                                      width: 1,
-                                      style: BorderStyle.solid,
-                                    ),
-                                    borderRadius: BorderRadius.circular(1),
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                        const SizedBox(width: 10),
-                        const Text(
-                          'Scan QR Code',
-                          style: TextStyle(
-                            fontSize: 16,
-                            color: Colors.white,
-                            fontWeight: FontWeight.w400,
-                          ),
-                        ),
-                      ],
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+                Positioned(
+                  top: 6,
+                  left: 6,
+                  right: 6,
+                  bottom: 6,
+                  child: Container(
+                    decoration: BoxDecoration(
+                      border: Border.all(
+                        color: Colors.white,
+                        width: 1,
+                        style: BorderStyle.solid,
+                      ),
+                      borderRadius: BorderRadius.circular(1),
                     ),
                   ),
                 ),
               ],
             ),
           ),
-        ],
+          label: const Text(
+            'Scan QR Code',
+            style: TextStyle(
+              fontSize: 16,
+              color: Colors.white,
+              fontWeight: FontWeight.w400,
+            ),
+          ),
+        ),
       ),
     );
   }
 
-  // Fungsi untuk membuat garis sudut pada frame luar
   Widget _buildCornerLine(bool isLeft, bool isTop) {
     return SizedBox(
       width: 40,
@@ -286,7 +287,6 @@ class _QRScannerScreenState extends State<QRScannerScreen> {
   }
 }
 
-// Painter untuk membuat garis sudut
 class CornerLinePainter extends CustomPainter {
   final bool isLeft;
   final bool isTop;
@@ -301,25 +301,21 @@ class CornerLinePainter extends CustomPainter {
       ..strokeWidth = 3.0;
 
     final path = Path();
-    final length = size.width * 0.8; // Panjang garis
+    final length = size.width * 0.8;
 
     if (isLeft && isTop) {
-      // Kiri atas - L shape
       path.moveTo(0, length);
       path.lineTo(0, 0);
       path.lineTo(length, 0);
     } else if (!isLeft && isTop) {
-      // Kanan atas - ┐ shape
       path.moveTo(size.width - length, 0);
       path.lineTo(size.width, 0);
       path.lineTo(size.width, length);
     } else if (isLeft && !isTop) {
-      // Kiri bawah - └ shape
       path.moveTo(0, size.height - length);
       path.lineTo(0, size.height);
       path.lineTo(length, size.height);
     } else {
-      // Kanan bawah - ┘ shape
       path.moveTo(size.width - length, size.height);
       path.lineTo(size.width, size.height);
       path.lineTo(size.width, size.height - length);

@@ -6,6 +6,7 @@ import '../core/config/api_config.dart';
 import 'dart:async';
 import 'dart:io';
 import 'dart:developer' as developer;
+import '../views/dashboard/dashboard.dart'; // Import for DashboardScreen
 
 class ApiException implements Exception {
   final String message;
@@ -48,7 +49,7 @@ class ApiException implements Exception {
 
 class ApiService {
   // Base URL untuk perangkat fisik
-  static String baseUrl = 'http://192.168.43.133:8026';
+  static String baseUrl = 'http://10.0.2.2:8026';
   // Alternatif: 'http://localhost:3000' untuk iOS simulator
   // Gunakan URL publik Anda untuk perangkat fisik, misalnya: 'https://api.example.com'
 
@@ -207,141 +208,150 @@ class ApiService {
   static Future<void> login(String email, String password) async {
     if (email.isEmpty || password.isEmpty) {
       throw ApiException(
-        message: 'Email dan password tidak boleh kosong',
-        code: 'VALIDATION_ERROR'
-      );
+          message: 'Email dan password tidak boleh kosong',
+          code: 'VALIDATION_ERROR');
     }
 
     try {
       final url = '$baseUrl/auth/login';
+      print('Attempting login to: $url');
+      print('Email: $email');
+
       final requestBody = {
         'email': email,
         'password': password,
       };
 
-      final response = await http.post(
+      print('Sending login request...');
+      final response = await http
+          .post(
         Uri.parse(url),
         headers: {
           'Content-Type': 'application/json',
         },
         body: jsonEncode(requestBody),
-      ).timeout(
+      )
+          .timeout(
         const Duration(seconds: 15),
         onTimeout: () {
+          print('Login request timed out after 15 seconds');
           throw ApiException(
-            message: 'Koneksi timeout',
-            code: 'TIMEOUT',
-            details: 'Login request timeout'
-          );
+              message: 'Koneksi timeout',
+              code: 'TIMEOUT',
+              details: 'Login request timeout');
         },
       );
+
+      print('Login response received. Status: ${response.statusCode}');
+      print('Response body: ${response.body}');
 
       if (response.statusCode == 200) {
         try {
           final jsonResponse = jsonDecode(response.body);
+          print('Response decoded: $jsonResponse');
 
-          // PERBAIKAN: API mengembalikan "status", bukan "success"
           if (jsonResponse['status'] == true) {
+            print('Login success flag found in response');
             // Cek keberadaan data
             if (jsonResponse['data'] == null) {
+              print('Data not found in response');
               throw ApiException(
-                message: 'Data tidak ditemukan dalam respon',
-                code: 'INVALID_RESPONSE',
-                statusCode: 200
-              );
+                  message: 'Data tidak ditemukan dalam respon',
+                  code: 'INVALID_RESPONSE',
+                  statusCode: 200);
             }
-            
+
             final accessToken = jsonResponse['data']['accessToken'];
             final refreshToken = jsonResponse['data']['refreshToken'];
-            
+
             if (accessToken == null || refreshToken == null) {
+              print('Tokens not found in response data');
               throw ApiException(
-                message: 'Token tidak ditemukan dalam respon',
-                code: 'MISSING_TOKEN',
-                statusCode: 200
-              );
+                  message: 'Token tidak ditemukan dalam respon',
+                  code: 'MISSING_TOKEN',
+                  statusCode: 200);
             }
-            
+
+            print('Tokens found, storing credentials...');
             // Simpan token
             try {
-              await _secureStorage.write(key: 'accessToken', value: accessToken);
-              await _secureStorage.write(key: 'refreshToken', value: refreshToken);
+              await _secureStorage.write(
+                  key: 'accessToken', value: accessToken);
+              await _secureStorage.write(
+                  key: 'refreshToken', value: refreshToken);
               await _secureStorage.write(key: 'email', value: email);
               await _secureStorage.write(key: 'password', value: password);
+              print('Credentials stored successfully');
             } catch (e) {
+              print('Failed to store credentials in secure storage: $e');
               // Backup ke variabel memori jika gagal
               _tempAccessToken = accessToken;
               _tempRefreshToken = refreshToken;
               _tempEmail = email;
               _tempPassword = password;
+              print('Credentials stored in temporary variables');
             }
+            print('Login completed successfully');
             return;
           } else {
             // API mengembalikan status: false
             final message = jsonResponse['message'] ?? 'Login gagal';
             throw ApiException(
-              message: message,
-              code: 'LOGIN_FAILED',
-              statusCode: response.statusCode
-            );
+                message: message,
+                code: 'LOGIN_FAILED',
+                statusCode: response.statusCode);
           }
         } catch (e) {
           if (e is ApiException) rethrow;
-          
+
           throw ApiException(
-            message: 'Format respons tidak valid',
-            code: 'PARSE_ERROR',
-            statusCode: response.statusCode
-          );
+              message: 'Format respons tidak valid',
+              code: 'PARSE_ERROR',
+              statusCode: response.statusCode);
         }
       } else if (response.statusCode == 400) {
         try {
           final jsonResponse = jsonDecode(response.body);
           throw ApiException(
-            message: jsonResponse['message'] ?? 'Data yang dimasukkan tidak valid',
-            code: 'VALIDATION_ERROR',
-            statusCode: 400
-          );
+              message:
+                  jsonResponse['message'] ?? 'Data yang dimasukkan tidak valid',
+              code: 'VALIDATION_ERROR',
+              statusCode: 400);
         } catch (e) {
           if (e is ApiException) rethrow;
           throw ApiException(
-            message: 'Data yang dimasukkan tidak valid',
-            code: 'VALIDATION_ERROR',
-            statusCode: 400
-          );
+              message: 'Data yang dimasukkan tidak valid',
+              code: 'VALIDATION_ERROR',
+              statusCode: 400);
         }
       } else if (response.statusCode == 401) {
         throw ApiException(
-          message: 'Tidak diizinkan mengakses sistem',
-          code: 'UNAUTHORIZED',
-          statusCode: 401
-        );
+            message: 'Tidak diizinkan mengakses sistem',
+            code: 'UNAUTHORIZED',
+            statusCode: 401);
       } else if (response.statusCode == 403) {
         try {
           final jsonResponse = jsonDecode(response.body);
           throw ApiException(
-            message: jsonResponse['message'] ?? 'Email atau password salah',
-            code: 'FORBIDDEN',
-            statusCode: 403
-          );
+              message: jsonResponse['message'] ?? 'Email atau password salah',
+              code: 'FORBIDDEN',
+              statusCode: 403);
         } catch (e) {
           if (e is ApiException) rethrow;
           throw ApiException(
-            message: 'Email atau password salah',
-            code: 'FORBIDDEN',
-            statusCode: 403
-          );
+              message: 'Email atau password salah',
+              code: 'FORBIDDEN',
+              statusCode: 403);
         }
       } else {
         throw ApiException(
-          message: 'Terjadi kesalahan saat login',
-          code: 'UNKNOWN_ERROR',
-          statusCode: response.statusCode
-        );
+            message: 'Terjadi kesalahan saat login',
+            code: 'UNKNOWN_ERROR',
+            statusCode: response.statusCode);
       }
     } catch (e) {
       if (e is ApiException) rethrow;
-      
+
       throw _processError(e, endpoint: '/auth/login');
     }
   }
@@ -388,7 +398,7 @@ class ApiService {
       if (response.statusCode == 200) {
         final jsonResponse = jsonDecode(response.body);
 
-        if (jsonResponse['success'] == true) {
+        if (jsonResponse['status'] == true) {
           final newAccessToken = jsonResponse['data']['accessToken'];
 
           print('======================================');
@@ -588,16 +598,15 @@ class ApiService {
   // Metode untuk mendapatkan profil pengguna
   static Future<Map<String, dynamic>> getProfile(BuildContext context) async {
     try {
-      final response = await get('/api/profiles', context: context);
+      final response = await get('/users/profile', context: context);
 
       if (response.statusCode == 200) {
         final responseData = json.decode(response.body);
-        return {
-          'name': responseData['data']['name'],
-          'email': responseData['data']['email'],
-          'phone': responseData['data']['phone_number'],
-          'image': responseData['data']['image_path'],
-        };
+        if (responseData['status'] == true) {
+          return responseData['data'];
+        } else {
+          throw Exception(responseData['message'] ?? 'Failed to load profile');
+        }
       } else {
         throw Exception('Gagal mengambil profil: ${response.statusCode}');
       }
@@ -654,5 +663,42 @@ class ApiService {
       statusCode: statusCode,
       details: 'Unhandled exception',
     );
+  }
+
+  // Helper method untuk navigasi ke dashboard
+  static void navigateToDashboard(BuildContext context) {
+    try {
+      print("Attempting to navigate to dashboard (ApiService method)");
+
+      // Coba dengan named route
+      try {
+        print("Using named route");
+        Navigator.of(context)
+            .pushNamedAndRemoveUntil('/home', (route) => false);
+        return;
+      } catch (e) {
+        print("Named route failed: $e");
+      }
+
+      // Jika gagal, coba dengan import langsung
+      try {
+        print("Using direct import");
+        Navigator.of(context).pushAndRemoveUntil(
+          MaterialPageRoute(
+            builder: (context) => const DashboardScreen(),
+          ),
+          (route) => false,
+        );
+        return;
+      } catch (e) {
+        print("Direct import failed: $e");
+      }
+
+      // Jika masih gagal, coba cara lain
+      print("All navigation methods failed");
+    } catch (e, s) {
+      print("Navigation error in ApiService: $e");
+      print("Stack trace: $s");
+    }
   }
 }

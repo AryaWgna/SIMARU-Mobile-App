@@ -1,12 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../widgets/custom_app_bar.dart';
+import '../../controllers/procurement_controller.dart';
+import '../../models/procurement_model.dart';
 
-class ProcurementDetailScreen extends StatelessWidget {
+class ProcurementDetailScreen extends StatefulWidget {
   final String title;
   final String status;
   final String priority;
   final String requestDate;
+  final int procurementId;
 
   const ProcurementDetailScreen({
     super.key,
@@ -14,7 +17,54 @@ class ProcurementDetailScreen extends StatelessWidget {
     required this.status,
     required this.priority,
     required this.requestDate,
+    required this.procurementId,
   });
+
+  @override
+  State<ProcurementDetailScreen> createState() =>
+      _ProcurementDetailScreenState();
+}
+
+class _ProcurementDetailScreenState extends State<ProcurementDetailScreen> {
+  bool _isLoading = true;
+  late Procurement _procurement;
+  String? _errorMessage;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadProcurementDetail();
+  }
+
+  Future<void> _loadProcurementDetail() async {
+    if (mounted) {
+      setState(() {
+        _isLoading = true;
+        _errorMessage = null;
+      });
+    }
+
+    try {
+      final procurementData = await ProcurementController.getProcurementDetail(
+        context,
+        widget.procurementId,
+      );
+
+      if (mounted) {
+        setState(() {
+          _procurement = procurementData;
+          _isLoading = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _errorMessage = 'Failed to load procurement detail: $e';
+          _isLoading = false;
+        });
+      }
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -30,242 +80,195 @@ class ProcurementDetailScreen extends StatelessWidget {
         flexibleSpace: const CustomAppBar(),
         toolbarHeight: 82,
       ),
-      body: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Judul di bawah AppBar
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
-            child: Text(
-              'PROCUREMENT REQUEST DETAIL',
-              style: GoogleFonts.inter(
-                fontSize: 16,
-                fontWeight: FontWeight.w600,
-                color: const Color(0xFF213268),
-              ),
-            ),
-          ),
-
-          // Konten utama
-          Expanded(
-            child: SingleChildScrollView(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // Procurement ID
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 16),
-                    child: _buildInfoRow('Procurement ID', '-'),
+      body: _isLoading
+          ? const Center(child: CircularProgressIndicator())
+          : _errorMessage != null
+              ? Center(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Text(
+                        _errorMessage!,
+                        style: const TextStyle(color: Colors.red),
+                        textAlign: TextAlign.center,
+                      ),
+                      ElevatedButton(
+                        onPressed: _loadProcurementDetail,
+                        child: const Text('Retry'),
+                      ),
+                    ],
                   ),
+                )
+              : Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // Judul di bawah AppBar - perbaikan typo menjadi sama dengan gambar
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+                      child: Text(
+                        'PROCUREMENT REQUEST DETAIL',
+                        style: GoogleFonts.inter(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w600,
+                          color: const Color(0xFF213268),
+                        ),
+                      ),
+                    ),
 
-                  _buildDivider(),
+                    // Konten utama
+                    Expanded(
+                      child: SingleChildScrollView(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            // Procurement ID
+                            Padding(
+                              padding:
+                                  const EdgeInsets.symmetric(horizontal: 16),
+                              child: _buildInfoRow('Procurement ID', '-'),
+                            ),
 
-                  // Title Request
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 16),
-                    child: _buildInfoRow('Title Request', title),
-                  ),
+                            _buildDivider(),
 
-                  _buildDivider(),
+                            // Title Request
+                            Padding(
+                              padding:
+                                  const EdgeInsets.symmetric(horizontal: 16),
+                              child: _buildInfoRow('Title Request', '-'),
+                            ),
 
-                  // Requester
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 16),
-                    child: _buildInfoRow('Requester', '-'),
-                  ),
+                            _buildDivider(),
 
-                  _buildDivider(),
+                            // Requester
+                            Padding(
+                              padding:
+                                  const EdgeInsets.symmetric(horizontal: 16),
+                              child: _buildInfoRow('Requester', '-'),
+                            ),
 
-                  // Request Date
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 16),
-                    child: _buildInfoRow('Request Date', requestDate),
-                  ),
+                            _buildDivider(),
 
-                  _buildDivider(),
+                            // Request Date
+                            Padding(
+                              padding:
+                                  const EdgeInsets.symmetric(horizontal: 16),
+                              child: _buildInfoRow('Request Date', '-'),
+                            ),
 
-                  // Status - Diubah sesuai gambar dengan teks di kanan
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 16),
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 10),
-                      child: Row(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          SizedBox(
-                            width: 100,
-                            child: Text(
-                              'Status',
-                              style: GoogleFonts.inter(
-                                fontSize: 13,
-                                fontWeight: FontWeight.w500,
-                                color: Colors.black87,
+                            _buildDivider(),
+
+                            // Status dengan icon
+                            Padding(
+                              padding: const EdgeInsets.symmetric(horizontal: 16),
+                              child: Row(
+                                children: [
+                                  const Text(
+                                    'Status:',
+                                    style: TextStyle(
+                                      fontSize: 14,
+                                      fontWeight: FontWeight.w500,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 8),
+                                  Row(
+                                    children: [
+                                      Icon(
+                                        Icons.pending_outlined,
+                                        size: 16,
+                                        color: Colors.orange[700],
+                                      ),
+                                      const SizedBox(width: 4),
+                                      Text(
+                                        'Under Review',
+                                        style: TextStyle(
+                                          fontSize: 14,
+                                          color: Colors.orange[700],
+                                          fontWeight: FontWeight.w500,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ],
                               ),
                             ),
-                          ),
-                          Expanded(
-                            child: Row(
-                              children: [
-                                Container(
-                                  width: 10,
-                                  height: 10,
-                                  decoration: const BoxDecoration(
-                                    color: Color(0xFFDAAE0F),
-                                    shape: BoxShape.circle,
-                                  ),
+
+                            const SizedBox(height: 16),
+
+                            // List Asset Section
+                            Padding(
+                              padding: const EdgeInsets.symmetric(horizontal: 16),
+                              child: Text(
+                                'List Asset',
+                                style: GoogleFonts.inter(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w600,
                                 ),
-                                const SizedBox(width: 6),
-                                Text(
-                                  'Under Review',
-                                  style: GoogleFonts.inter(
-                                    fontSize: 13,
-                                    color: Colors.black,
-                                  ),
-                                ),
-                              ],
+                              ),
                             ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
 
-                  _buildDivider(),
+                            const SizedBox(height: 8),
 
-                  // List Asset Header
-                  Container(
-                    width: double.infinity,
-                    padding:
-                        const EdgeInsets.symmetric(vertical: 8, horizontal: 16),
-                    color: Colors.grey.shade200,
-                    child: Text(
-                      'List Asset',
-                      style: GoogleFonts.inter(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w600,
-                        color: const Color(0xFF213268),
-                      ),
-                    ),
-                  ),
+                            // Asset Cards
+                            _buildAssetCard('Asset 1', 3, 7500000),
+                            _buildAssetCard('Asset 2', 3, 7500000),
 
-                  // Asset Item 1
-                  Padding(
-                    padding: const EdgeInsets.all(16),
-                    child: Card(
-                      elevation: 2,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: Padding(
-                        padding: const EdgeInsets.all(12),
-                        child: _buildAssetItemDetailed(
-                          assetName: 'Asset 1',
-                          qty: '1',
-                          estimated: '7.000.000/2.000.000',
+                            // Grand Total
+                            Padding(
+                              padding: const EdgeInsets.all(16),
+                              child: Row(
+                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                children: [
+                                  Text(
+                                    'Est. Grand Total:',
+                                    style: GoogleFonts.inter(
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                  Text(
+                                    'Rp. xx.xxx.xxxx',
+                                    style: GoogleFonts.inter(
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
                         ),
                       ),
                     ),
-                  ),
-
-                  // Asset Item 2
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-                    child: Card(
-                      elevation: 2,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: Padding(
-                        padding: const EdgeInsets.all(12),
-                        child: _buildAssetItemDetailed(
-                          assetName: 'Asset 2',
-                          qty: '1',
-                          estimated: '7.000.000/2.000.000',
-                        ),
-                      ),
-                    ),
-                  ),
-
-                  // Spacer untuk memastikan Est. Grand Total berada di bawah
-                  const SizedBox(height: 80),
-                ],
-              ),
-            ),
-          ),
-
-          // Est. Grand Total - Posisi fixed di bawah
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withOpacity(0.1),
-                  blurRadius: 4,
-                  offset: const Offset(0, -2),
+                  ],
                 ),
-              ],
-            ),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text(
-                  'Est. Grand Total:',
-                  style: GoogleFonts.inter(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w600,
-                    color: Colors.black,
-                  ),
-                ),
-                Text(
-                  'Rp. xx.xxx.xxxx',
-                  style: GoogleFonts.inter(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w600,
-                    color: Colors.black,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
     );
   }
 
   Widget _buildDivider() {
-    return const Divider(
-      height: 1,
-      thickness: 1,
-      color: Color(0xFFE0E0E0),
+    return const Padding(
+      padding: EdgeInsets.symmetric(vertical: 8),
+      child: Divider(height: 1, thickness: 1),
     );
   }
 
   Widget _buildInfoRow(String label, String value) {
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 10),
+      padding: const EdgeInsets.symmetric(vertical: 8),
       child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          SizedBox(
-            width: 100,
-            child: Text(
-              label,
-              style: GoogleFonts.inter(
-                fontSize: 13,
-                fontWeight: FontWeight.w500,
-                color: Colors.black87,
-              ),
+          Text(
+            '$label',
+            style: const TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.w500,
             ),
           ),
-          Expanded(
-            child: Text(
-              value,
-              style: GoogleFonts.inter(
-                fontSize: 13,
-                color: Colors.black,
-              ),
+          const SizedBox(width: 8),
+          Text(
+            value,
+            style: const TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.w400,
             ),
           ),
         ],
@@ -273,68 +276,42 @@ class ProcurementDetailScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildAssetItemDetailed({
-    required String assetName,
-    required String qty,
-    required String estimated,
-  }) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
+  Widget _buildAssetCard(String assetName, int qty, double estimatedPrice) {
+    return Card(
+      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      elevation: 2,
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            SizedBox(
-              width: 100,
-              child: Text(
-                'Asset Name',
-                style: GoogleFonts.inter(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w500,
-                  color: Colors.black87,
-                ),
+            Text(
+              'Asset Name: $assetName',
+              style: const TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.w500,
               ),
             ),
-            Expanded(
-              child: Text(
-                assetName,
-                style: GoogleFonts.inter(
-                  fontSize: 13,
-                  color: Colors.black,
-                ),
+            const SizedBox(height: 8),
+            Text(
+              'Qty: $qty',
+              style: const TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.w400,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Estimated: ${estimatedPrice.toStringAsFixed(0)}(@${(estimatedPrice/qty).toStringAsFixed(0)})',
+              style: const TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.w400,
               ),
             ),
           ],
         ),
-
-        const SizedBox(height: 4),
-
-        // Qty
-        Padding(
-          padding: const EdgeInsets.only(left: 100),
-          child: Text(
-            'Qty: $qty',
-            style: GoogleFonts.inter(
-              fontSize: 13,
-              color: Colors.black87,
-            ),
-          ),
-        ),
-
-        const SizedBox(height: 2),
-
-        // Estimated
-        Padding(
-          padding: const EdgeInsets.only(left: 100),
-          child: Text(
-            'Estimated: $estimated',
-            style: GoogleFonts.inter(
-              fontSize: 13,
-              color: Colors.black87,
-            ),
-          ),
-        ),
-      ],
+      ),
     );
   }
 }
+

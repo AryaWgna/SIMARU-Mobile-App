@@ -5,6 +5,8 @@ import '../procurement/procurement_detail_screen.dart';
 import '../procurement/form_rfq.dart';
 import '../procurement/purchase_order_screen.dart';
 import '../procurement/receipt_detail_screen.dart';
+import '../../controllers/procurement_controller.dart';
+import '../../models/procurement_model.dart';
 
 class ProcurementScreen extends StatefulWidget {
   const ProcurementScreen({super.key});
@@ -16,6 +18,9 @@ class ProcurementScreen extends StatefulWidget {
 class _ProcurementScreenState extends State<ProcurementScreen> {
   int _selectedTabIndex = 0;
   final List<VendorItem> vendors = [];
+  bool _isLoading = false;
+  List<Procurement> _procurements = [];
+  String? _errorMessage;
 
   @override
   void initState() {
@@ -40,6 +45,41 @@ class _ProcurementScreenState extends State<ProcurementScreen> {
         deliveryTerms: "Delivery using JNE delivery service",
       ),
     );
+
+    // Load procurements data
+    _loadProcurements();
+  }
+
+  // Method to load procurements
+  Future<void> _loadProcurements() async {
+    if (mounted) {
+      setState(() {
+        _isLoading = true;
+        _errorMessage = null;
+      });
+    }
+
+    try {
+      final response = await ProcurementController.getProcurementList(context);
+      if (mounted) {
+        setState(() {
+          _procurements = response.data;
+          _isLoading = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _errorMessage = 'Failed to load procurements: $e';
+          _isLoading = false;
+        });
+
+        // Show error message
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(_errorMessage!)),
+        );
+      }
+    }
   }
 
   void _onTabSelected(int index) {
@@ -104,26 +144,65 @@ class _ProcurementScreenState extends State<ProcurementScreen> {
     );
   }
 
-  Widget _buildProcurementItem({
-    required String title,
-    required String status,
-    required IconData statusIcon,
-    required Color statusIconColor,
-    required String priority,
-    required Color priorityColor,
-    required String quantity,
-    required String requestDate,
-  }) {
+  // Updated method to build procurement item using API data
+  Widget _buildProcurementItem(Procurement procurement) {
+    // Helper to determine icon based on status
+    IconData getStatusIcon() {
+      switch (procurement.status) {
+        case 'Submitted':
+          return Icons.check_circle_outline;
+        case 'Under Review':
+          return Icons.access_time;
+        case 'Approved':
+          return Icons.check_circle;
+        case 'Rejected':
+          return Icons.cancel_outlined;
+        default:
+          return Icons.help_outline;
+      }
+    }
+
+    // Helper to determine icon color
+    Color getStatusIconColor() {
+      switch (procurement.status) {
+        case 'Submitted':
+          return const Color(0xFF757575);
+        case 'Under Review':
+          return const Color(0xFFDAAE0F);
+        case 'Approved':
+          return const Color(0xFF659B09);
+        case 'Rejected':
+          return Colors.red;
+        default:
+          return Colors.grey;
+      }
+    }
+
+    // Helper to determine priority color
+    Color getPriorityColor() {
+      switch (procurement.priority) {
+        case 'High':
+          return Colors.red;
+        case 'Medium':
+          return const Color(0xFFF16A1B);
+        case 'Low':
+          return const Color(0xFF659B09);
+        default:
+          return Colors.grey;
+      }
+    }
+
     return GestureDetector(
       onTap: () {
         Navigator.push(
           context,
           MaterialPageRoute(
             builder: (context) => ProcurementDetailScreen(
-              title: title,
-              status: status,
-              priority: priority,
-              requestDate: requestDate,
+              title: procurement.title,
+              status: procurement.status,
+              priority: procurement.priority,
+              requestDate: procurement.getFormattedDate(),
+              procurementId: procurement.procurementId,
             ),
           ),
         );
@@ -162,7 +241,7 @@ class _ProcurementScreenState extends State<ProcurementScreen> {
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   Text(
-                    title,
+                    procurement.title,
                     style: const TextStyle(
                       fontFamily: 'Inter',
                       fontSize: 16,
@@ -185,10 +264,11 @@ class _ProcurementScreenState extends State<ProcurementScreen> {
                       'Status:',
                       Row(
                         children: [
-                          Icon(statusIcon, color: statusIconColor, size: 16),
+                          Icon(getStatusIcon(),
+                              color: getStatusIconColor(), size: 16),
                           const SizedBox(width: 4),
                           Text(
-                            status,
+                            procurement.status,
                             style: const TextStyle(
                               fontFamily: 'Inter',
                               fontSize: 14,
@@ -200,19 +280,19 @@ class _ProcurementScreenState extends State<ProcurementScreen> {
                   _buildInfoRow(
                       'Priority:',
                       Text(
-                        priority,
+                        procurement.priority,
                         style: TextStyle(
                           fontFamily: 'Inter',
                           fontSize: 14,
                           fontWeight: FontWeight.w500,
-                          color: priorityColor,
+                          color: getPriorityColor(),
                         ),
                       )),
                   const SizedBox(height: 8),
                   _buildInfoRow(
                       'Qty:',
                       Text(
-                        quantity,
+                        procurement.getQuantityText(),
                         style: const TextStyle(
                           fontFamily: 'Inter',
                           fontSize: 14,
@@ -222,7 +302,7 @@ class _ProcurementScreenState extends State<ProcurementScreen> {
                   _buildInfoRow(
                       'Request Date:',
                       Text(
-                        requestDate,
+                        procurement.getFormattedDate(),
                         style: const TextStyle(
                           fontFamily: 'Inter',
                           fontSize: 14,
@@ -674,83 +754,72 @@ class _ProcurementScreenState extends State<ProcurementScreen> {
             ),
           ),
 
-          // Content based on selected tab
-          Expanded(
-            child: _selectedTabIndex == 1
-                ? _buildQuotationScreen() // Tampilkan layar quotation untuk tab 1
-                : ListView(
-                    padding: const EdgeInsets.all(16),
-                    children: [
-                      if (_selectedTabIndex == 0) ...[
-                        // Request Tab
-                        _buildProcurementItem(
-                          title: 'Title',
-                          status: 'Submitted',
-                          statusIcon: Icons.check_circle_outline,
-                          statusIconColor: const Color(0xFF757575),
-                          priority: 'High',
-                          priorityColor: Colors.red,
-                          quantity: '1',
-                          requestDate: '06/03/2025',
-                        ),
-                        _buildProcurementItem(
-                          title: 'Title',
-                          status: 'Under Review',
-                          statusIcon: Icons.access_time,
-                          statusIconColor: const Color(0xFFDAAE0F),
-                          priority: 'Medium',
-                          priorityColor: const Color(0xFFF16A1B),
-                          quantity: '1',
-                          requestDate: '06/03/2025',
-                        ),
-                        _buildProcurementItem(
-                          title: 'Title',
-                          status: 'Approved',
-                          statusIcon: Icons.check_circle,
-                          statusIconColor: const Color(0xFF659B09),
-                          priority: 'Low',
-                          priorityColor: const Color(0xFF659B09),
-                          quantity: '1',
-                          requestDate: '06/03/2025',
-                        ),
-                        _buildProcurementItem(
-                          title: 'Title',
-                          status: 'Rejected',
-                          statusIcon: Icons.cancel_outlined,
-                          statusIconColor: Colors.red,
-                          priority: 'High',
-                          priorityColor: Colors.red,
-                          quantity: '1',
-                          requestDate: '06/03/2025',
-                        ),
-                      ] else if (_selectedTabIndex == 2) ...[
-                        // Purchase Order Tab
-                        _buildProcurementItem(
-                          title: 'Vendor',
-                          status: 'Under Review',
-                          statusIcon: Icons.access_time,
-                          statusIconColor: const Color(0xFFDAAE0F),
-                          priority: 'High',
-                          priorityColor: Colors.red,
-                          quantity: '1',
-                          requestDate: '05/03/2025',
-                        ),
-                      ] else if (_selectedTabIndex == 3) ...[
-                        // Receipt Tab
-                        _buildProcurementItem(
-                          title: 'Title',
-                          status: 'Received',
-                          statusIcon: Icons.check_circle,
-                          statusIconColor: Colors.green,
-                          priority: 'High',
-                          priorityColor: Colors.red,
-                          quantity: '1',
-                          requestDate: '06/03/2025',
-                        ),
-                      ],
-                    ],
+          // Loading indicator
+          if (_isLoading)
+            const Padding(
+              padding: EdgeInsets.all(16.0),
+              child: Center(child: CircularProgressIndicator()),
+            ),
+
+          // Error message
+          if (_errorMessage != null && !_isLoading)
+            Padding(
+              padding: const EdgeInsets.all(16.0),
+              child: Column(
+                children: [
+                  Text(
+                    _errorMessage!,
+                    style: const TextStyle(color: Colors.red),
+                    textAlign: TextAlign.center,
                   ),
-          ),
+                  ElevatedButton(
+                    onPressed: _loadProcurements,
+                    child: const Text('Retry'),
+                  ),
+                ],
+              ),
+            ),
+
+          // Content based on selected tab
+          if (!_isLoading && _errorMessage == null)
+            Expanded(
+              child: _selectedTabIndex == 1
+                  ? _buildQuotationScreen() // Tampilkan layar quotation untuk tab 1
+                  : ListView(
+                      padding: const EdgeInsets.all(16),
+                      children: [
+                        if (_selectedTabIndex == 0) ...[
+                          // Request Tab - Now using data from API
+                          if (_procurements.isEmpty)
+                            const Center(
+                                child: Text('No procurement data found')),
+                          ..._procurements
+                              .where((p) => [
+                                    'Submitted',
+                                    'Under Review',
+                                    'Approved',
+                                    'Rejected'
+                                  ].contains(p.status))
+                              .map((p) => _buildProcurementItem(p))
+                              .toList(),
+                        ] else if (_selectedTabIndex == 2) ...[
+                          // Purchase Order Tab
+                          // Filter procurements relevant to Purchase Order tab
+                          ..._procurements
+                              .where((p) => p.status == 'Approved')
+                              .map((p) => _buildProcurementItem(p))
+                              .toList(),
+                        ] else if (_selectedTabIndex == 3) ...[
+                          // Receipt Tab
+                          // Filter procurements relevant to Receipt tab
+                          ..._procurements
+                              .where((p) => p.status == 'Received')
+                              .map((p) => _buildProcurementItem(p))
+                              .toList(),
+                        ],
+                      ],
+                    ),
+            ),
         ],
       ),
       floatingActionButton: _selectedTabIndex != 1
@@ -779,7 +848,10 @@ class _ProcurementScreenState extends State<ProcurementScreen> {
                     MaterialPageRoute(
                       builder: (context) => const ProcurementFormScreen(),
                     ),
-                  );
+                  ).then((_) {
+                    // Refresh data setelah kembali dari form
+                    _loadProcurements();
+                  });
                 }
               },
               child: Container(

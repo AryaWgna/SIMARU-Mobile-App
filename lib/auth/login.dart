@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../controllers/auth_controller.dart';
 import '../views/dashboard/dashboard.dart';
 import 'forget_password_screen.dart';
+import 'dart:async';
 import 'dart:developer' as developer;
 
 class LoginScreen extends StatefulWidget {
@@ -105,13 +106,16 @@ class _LoginScreenState extends State<LoginScreen> {
     });
 
     try {
+      print("Attempting login with: ${_emailController.text}");
       await ApiService.login(
         _emailController.text,
         _passwordController.text,
       );
 
+      print("Login successful, navigating to dashboard immediately");
+
       if (mounted) {
-        // Navigasi langsung ke DashboardScreen
+        // PERBAIKAN: Navigasi langsung tanpa delay dan tanpa snackbar
         Navigator.of(context).pushAndRemoveUntil(
           MaterialPageRoute(
             builder: (context) => const DashboardScreen(),
@@ -119,7 +123,10 @@ class _LoginScreenState extends State<LoginScreen> {
           (route) => false,
         );
       }
-    } catch (e) {
+    } catch (e, stackTrace) {
+      print("Login error: $e");
+      _logError(e, stackTrace);
+
       if (mounted) {
         setState(() {
           // Tampilkan pesan error yang user-friendly
@@ -131,18 +138,12 @@ class _LoginScreenState extends State<LoginScreen> {
         });
 
         // Tampilkan snackbar untuk error
+        ScaffoldMessenger.of(context).clearSnackBars();
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(_errorMessage ?? 'Terjadi kesalahan saat login'),
             backgroundColor: Colors.red[700],
             behavior: SnackBarBehavior.floating,
-            action: SnackBarAction(
-              label: 'OK',
-              textColor: Colors.white,
-              onPressed: () {
-                ScaffoldMessenger.of(context).hideCurrentSnackBar();
-              },
-            ),
           ),
         );
       }

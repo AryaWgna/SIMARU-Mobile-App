@@ -1,7 +1,7 @@
 class ApiConfig {
   // Base URL untuk API
   static const String baseUrl =
-      'https://12d9aa80-068d-4c47-a664-b62f5cad5ec5.mock.pstmn.io';
+      'http://10.0.2.2:8026';
 
   // Endpoint URLs
   static String get loginUrl => '$baseUrl/auth/login';
