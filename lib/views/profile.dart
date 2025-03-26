@@ -1,19 +1,39 @@
 import 'package:flutter/material.dart';
 import '../controllers/auth_controller.dart';
 import 'dart:convert';
+import 'common/error_handling_screen.dart';
 
-class ProfileScreen extends StatefulWidget {
+class ProfileScreen extends StatefulWidget implements ErrorHandlingCapable {
   const ProfileScreen({super.key});
 
   @override
   State<ProfileScreen> createState() => _ProfileScreenState();
+
+  @override
+  String? get errorMessage => null;
+
+  @override
+  void clearError() {}
 }
 
-class _ProfileScreenState extends State<ProfileScreen> {
+class _ProfileScreenState extends State<ProfileScreen>
+    implements ErrorHandlingCapable {
   Map<String, dynamic> _profileData = {};
   bool _isLoading = true;
   String _errorMessage = '';
   String _fullName = '';
+
+  @override
+  String? get errorMessage => _errorMessage.isEmpty ? null : _errorMessage;
+
+  @override
+  void clearError() {
+    if (_errorMessage.isNotEmpty) {
+      setState(() {
+        _errorMessage = '';
+      });
+    }
+  }
 
   @override
   void initState() {
@@ -63,6 +83,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
         _errorMessage = e.toString();
         _isLoading = false;
       });
+
+      // No need to call widget._errorState.setError
     }
   }
 
@@ -139,22 +161,45 @@ class _ProfileScreenState extends State<ProfileScreen> {
     }
 
     if (_errorMessage.isNotEmpty) {
-      return Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Text(
-              'Error: $_errorMessage',
-              textAlign: TextAlign.center,
-              style: const TextStyle(color: Colors.red),
+      return Stack(
+        children: [
+          // Main content area (empty or grayed out when error occurs)
+          const Center(
+            child: Text(
+              'Unable to load profile',
+              style: TextStyle(color: Colors.grey),
             ),
-            const SizedBox(height: 16),
-            ElevatedButton(
-              onPressed: _loadProfile,
-              child: const Text('Retry'),
+          ),
+
+          // Error notification at the top of the screen
+          Positioned(
+            top: 0,
+            left: 0,
+            right: 0,
+            child: Container(
+              color: Colors.red.shade900,
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              child: Text(
+                'Error: $_errorMessage',
+                textAlign: TextAlign.center,
+                style: const TextStyle(color: Colors.white),
+              ),
             ),
-          ],
-        ),
+          ),
+
+          // Retry button
+          Positioned(
+            bottom: 20,
+            left: 0,
+            right: 0,
+            child: Center(
+              child: ElevatedButton(
+                onPressed: _loadProfile,
+                child: const Text('Retry'),
+              ),
+            ),
+          ),
+        ],
       );
     }
 

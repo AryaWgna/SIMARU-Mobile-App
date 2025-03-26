@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../controllers/auth_controller.dart';
 import 'dart:convert';
 import '../models/procurement_model.dart';
+import 'dart:convert';
 
 class ProcurementController {
   // Mendapatkan daftar procurement
@@ -53,6 +54,8 @@ class ProcurementController {
   static Future<Map<String, dynamic>> submitProcurementRequest(
       BuildContext context, Map<String, dynamic> requestData) async {
     try {
+      print('Debug - Submit request: ${json.encode(requestData)}');
+      
       final response = await ApiService.post(
         '/procurements', // Endpoint relatif
         body: requestData,
@@ -61,15 +64,32 @@ class ProcurementController {
 
       // Decode response
       final jsonResponse = jsonDecode(response.body);
+      print('Debug - Response received: ${json.encode(jsonResponse)}');
       
-      if (response.statusCode == 201 && jsonResponse['status'] == true) {
+      // Perubahan disini: Menerima status code 200 atau 201
+      if ((response.statusCode == 201 || response.statusCode == 200) && 
+          jsonResponse['status'] == true) {
         return jsonResponse;
       } else {
+        print('Failed with status code: ${response.statusCode}');
+        print('Response: ${response.body}');
+        
+        // Cek apakah ada array errors di respons
+        if (jsonResponse['errors'] != null && jsonResponse['errors'] is List) {
+          final errors = jsonResponse['errors'] as List;
+          if (errors.isNotEmpty) {
+            // Ambil pesan error pertama
+            final firstError = errors.first;
+            final errorMessage = firstError['message'] ?? 'Validation error';
+            throw Exception(errorMessage);
+          }
+        }
+        
         throw Exception(jsonResponse['message'] ?? 'Failed to submit procurement request');
       }
     } catch (e) {
       print('Error submitting procurement request: $e');
-      throw Exception('Failed to submit procurement request: $e');
+      throw Exception('$e');
     }
   }
 }

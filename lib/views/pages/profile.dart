@@ -25,15 +25,33 @@ class _ProfileScreenState extends State<ProfileScreen> {
   Future<void> _loadProfile() async {
     try {
       final profile = await ApiService.getProfile(context);
+
+      // Extract first_name and last_name from employee data if available
+      String fullName = '';
+      if (profile.containsKey('employee') && profile['employee'] != null) {
+        final employee = profile['employee'];
+        final firstName = employee['first_name'] ?? '';
+        final lastName = employee['last_name'] ?? '';
+        fullName = '$firstName $lastName'.trim();
+      } else {
+        // Fallback to name field or empty string
+        fullName = profile['name'] ?? '';
+      }
+
       setState(() {
         _profile = profile;
+        // Add the full name to the profile object for easy access
+        _profile!['fullName'] = fullName;
         _isLoading = false;
       });
     } catch (e) {
       setState(() => _isLoading = false);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error: ${e.toString()}')),
+          SnackBar(
+            content: Text('Error: ${e.toString()}'),
+            backgroundColor: Colors.red.shade900,
+          ),
         );
       }
     }
@@ -103,6 +121,28 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   @override
   Widget build(BuildContext context) {
+    // Calculate the initials from the full name
+    String initials = '';
+    if (_profile != null && (_profile!['fullName'] ?? '').isNotEmpty) {
+      final fullName = _profile!['fullName'] as String;
+      final nameParts = fullName.split(' ');
+
+      // Get first letter of first name
+      if (nameParts.isNotEmpty && nameParts[0].isNotEmpty) {
+        initials += nameParts[0][0].toUpperCase();
+      }
+
+      // Get first letter of last name (if exists)
+      if (nameParts.length > 1 && nameParts[nameParts.length - 1].isNotEmpty) {
+        initials += nameParts[nameParts.length - 1][0].toUpperCase();
+      }
+
+      // Fallback if we couldn't get two initials
+      if (initials.isEmpty) {
+        initials = fullName[0].toUpperCase();
+      }
+    }
+
     return Scaffold(
       backgroundColor: Colors.white,
       appBar: const CustomAppBar(),
@@ -115,7 +155,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 child: Column(
                   children: [
                     const SizedBox(height: 24),
-                    // Profile Image
+                    // Profile Image with initials
                     Container(
                       width: 150,
                       height: 150,
@@ -130,15 +170,24 @@ class _ProfileScreenState extends State<ProfileScreen> {
                             : null,
                       ),
                       child: _profile?['image'] == null
-                          ? const Icon(Icons.person,
-                              size: 50, color: Colors.white)
+                          ? Center(
+                              child: Text(
+                                initials,
+                                style: const TextStyle(
+                                  fontSize: 50,
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.white,
+                                  fontFamily: 'Inter',
+                                ),
+                              ),
+                            )
                           : null,
                     ),
                     const SizedBox(height: 24),
 
                     // Form Contact
                     _buildFormContainer([
-                      _buildInputField('Nama', _profile?['name'] ?? ''),
+                      _buildInputField('Nama', _profile?['fullName'] ?? ''),
                       _buildInputField('Email', _profile?['email'] ?? ''),
                       _buildInputField('No. Telepon', _profile?['phone'] ?? ''),
                       _buildButton('UPDATE',

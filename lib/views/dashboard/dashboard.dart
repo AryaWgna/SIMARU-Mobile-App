@@ -91,7 +91,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
       body: Stack(
         children: [
           _screens[_selectedIndex],
-          // Notifikasi error di bagian atas
+
+          // Notifikasi error di bagian atas (keep this for top errors)
           if (_errorMessage != null)
             Positioned(
               top: MediaQuery.of(context).padding.top + 10,
@@ -115,7 +116,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
             ),
         ],
       ),
-      extendBody: true, // Penting untuk mencegah bottom overflow
+      extendBody: true, // Keep this to prevent bottom overflow
+
+      // Bottom notification area - will appear above the navigation bar
+      bottomSheet: _getBottomErrorWidget(),
+
       bottomNavigationBar: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
@@ -204,5 +209,60 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   ),
                 ),
     );
+  }
+
+  // New method to handle bottom error notifications
+  Widget? _getBottomErrorWidget() {
+    // Get error message from current screen if possible
+    String? errorMessage;
+
+    // Try to get error message from the current screen
+    if (_selectedIndex == 1) {
+      // Procurement screen
+      try {
+        final procurementScreen = _screens[_selectedIndex] as ProcurementScreen;
+        // You might need to expose an error message getter in ProcurementScreen
+        // errorMessage = procurementScreen.errorMessage;
+      } catch (e) {
+        // Fallback to direct widget check
+        errorMessage = _findErrorMessageInWidget(_screens[_selectedIndex]);
+      }
+    } else if (_selectedIndex == 4) {
+      // Profile screen
+      try {
+        final profileScreen = _screens[_selectedIndex] as ProfileScreen;
+        // You might need to expose an error message getter in ProfileScreen
+        // errorMessage = profileScreen.errorMessage;
+      } catch (e) {
+        // Fallback to direct widget check
+        errorMessage = _findErrorMessageInWidget(_screens[_selectedIndex]);
+      }
+    }
+
+    // If no error message found, return null (no bottomSheet)
+    if (errorMessage == null || errorMessage.isEmpty) {
+      return null;
+    }
+
+    // Return error widget that appears above the navigation bar
+    return Container(
+      width: double.infinity,
+      color: Colors.red.shade900,
+      padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 16),
+      margin: const EdgeInsets.only(bottom: 56), // Height of the nav bar
+      child: Text(
+        errorMessage,
+        style: const TextStyle(color: Colors.white),
+        textAlign: TextAlign.center,
+      ),
+    );
+  }
+
+  // Helper method to search for error text in widgets
+  String? _findErrorMessageInWidget(Widget screen) {
+    // This is a simplified placeholder - in reality, you'd need to
+    // implement a way to access the error state of each screen type
+    // or create a common interface for all screens to expose errors
+    return null;
   }
 }
