@@ -57,28 +57,24 @@ class ProcurementController {
       print('Debug - Submit request: ${json.encode(requestData)}');
       
       final response = await ApiService.post(
-        '/procurements', // Endpoint relatif
+        '/procurements',
         body: requestData,
         context: context,
       );
 
-      // Decode response
       final jsonResponse = jsonDecode(response.body);
       print('Debug - Response received: ${json.encode(jsonResponse)}');
       
-      // Perubahan disini: Menerima status code 200 atau 201
       if ((response.statusCode == 201 || response.statusCode == 200) && 
           jsonResponse['status'] == true) {
-        return jsonResponse;
+        return jsonResponse['data'];
       } else {
         print('Failed with status code: ${response.statusCode}');
         print('Response: ${response.body}');
         
-        // Cek apakah ada array errors di respons
         if (jsonResponse['errors'] != null && jsonResponse['errors'] is List) {
           final errors = jsonResponse['errors'] as List;
           if (errors.isNotEmpty) {
-            // Ambil pesan error pertama
             final firstError = errors.first;
             final errorMessage = firstError['message'] ?? 'Validation error';
             throw Exception(errorMessage);

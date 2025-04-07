@@ -1,14 +1,15 @@
 import 'package:flutter/material.dart';
-import '../models/recent_activity.dart';
-import '../services/recent_activity_service.dart';
+import '../models/history_model.dart';
+import '../core/config/api_config.dart';
+import 'dart:convert';
+import 'auth_controller.dart';
 
 class RecentActivityController extends ChangeNotifier {
-  final RecentActivityService _service = RecentActivityService();
-  List<RecentActivity> _activities = [];
+  List<HistoryModel> _activities = [];
   bool _isLoading = false;
   String? _error;
 
-  List<RecentActivity> get activities => _activities;
+  List<HistoryModel> get activities => _activities;
   bool get isLoading => _isLoading;
   String? get error => _error;
 
@@ -18,11 +19,30 @@ class RecentActivityController extends ChangeNotifier {
       _error = null;
       notifyListeners();
 
-      _activities = await _service.getRecentActivities();
-      _isLoading = false;
-      notifyListeners();
+      // Get current date in required format (dd-MM-yyyy)
+      final now = DateTime.now();
+      final formattedDate = "${now.day.toString().padLeft(2, '0')}-${now.month.toString().padLeft(2, '0')}-${now.year}";
+      
+      final response = await ApiService.get(
+        '/asset-histories/activities/user/1?date=$formattedDate',
+      );
+
+      if (response.statusCode == 200) {
+        final jsonResponse = json.decode(response.body);
+        if (jsonResponse['status'] == true) {
+          final List<dynamic> historiesJson = jsonResponse['data']['histories'];
+          _activities = historiesJson
+              .map((json) => HistoryModel.fromJson(json))
+              .toList();
+        } else {
+          _error = jsonResponse['message'] ?? 'Failed to load activities';
+        }
+      } else {
+        _error = 'Failed to load activities';
+      }
     } catch (e) {
       _error = e.toString();
+    } finally {
       _isLoading = false;
       notifyListeners();
     }

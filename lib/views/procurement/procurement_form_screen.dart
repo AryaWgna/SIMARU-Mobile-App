@@ -87,7 +87,6 @@ class _ProcurementFormScreenState extends State<ProcurementFormScreen> {
       return false;
     }
 
-    // Tambahkan validasi untuk panjang justification minimal 10 karakter
     if (_justificationController.text.length < 10) {
       _showErrorSnackBar('Justification harus minimal 10 karakter');
       return false;
@@ -107,9 +106,12 @@ class _ProcurementFormScreenState extends State<ProcurementFormScreen> {
         return false;
       }
 
-      // Validasi quantity harus angka
       try {
-        int.parse(item.qtyController.text);
+        int qty = int.parse(item.qtyController.text);
+        if (qty <= 0) {
+          _showErrorSnackBar('Quantity pada item ${i + 1} harus lebih dari 0');
+          return false;
+        }
       } catch (e) {
         _showErrorSnackBar('Quantity pada item ${i + 1} harus berupa angka');
         return false;
@@ -121,20 +123,17 @@ class _ProcurementFormScreenState extends State<ProcurementFormScreen> {
         return false;
       }
 
-      // Validasi cost harus angka
       try {
-        double.parse(item.costController.text.replaceAll(',', ''));
+        double cost =
+            double.parse(item.costController.text.replaceAll(',', ''));
+        if (cost <= 0) {
+          _showErrorSnackBar(
+              'Estimated cost pada item ${i + 1} harus lebih dari 0');
+          return false;
+        }
       } catch (e) {
         _showErrorSnackBar(
             'Estimated cost pada item ${i + 1} harus berupa angka');
-        return false;
-      }
-
-      // Jika item justification diisi, validasi panjang minimal
-      if (item.justificationController.text.isNotEmpty &&
-          item.justificationController.text.length < 10) {
-        _showErrorSnackBar(
-            'Justification pada item ${i + 1} harus minimal 10 karakter');
         return false;
       }
     }
@@ -162,42 +161,21 @@ class _ProcurementFormScreenState extends State<ProcurementFormScreen> {
     });
 
     try {
-      // Prepare details
-      List<Map<String, dynamic>> details = [];
-
-      for (var item in _assetItems) {
-        // Untuk specifications dan justification, jika kosong, set null
-        final specifications = item.specificationsController.text.isEmpty
-            ? null
-            : item.specificationsController.text;
-
-        final justification = item.justificationController.text.isEmpty
-            ? null
-            : item.justificationController.text;
-
-        details.add({
-          "asset_name": item.nameController.text,
-          "quantity": int.parse(item.qtyController.text),
-          "estimated_unit_price":
-              double.parse(item.costController.text.replaceAll(',', '')),
-          "specifications": specifications,
-          "justification": justification
-        });
-      }
-
       // Prepare request body
       final Map<String, dynamic> requestBody = {
         "title": _titleController.text,
         "priority": _selectedPriority,
         "justification": _justificationController.text,
-        "details": details
+        "details": _assetItems.map((item) => item.toJson()).toList(),
       };
 
       print('Submitting procurement: ${json.encode(requestBody)}');
 
       // Submit to API
       final response = await ProcurementController.submitProcurementRequest(
-          context, requestBody);
+        context,
+        requestBody,
+      );
 
       setState(() {
         _isSubmitting = false;
@@ -205,14 +183,13 @@ class _ProcurementFormScreenState extends State<ProcurementFormScreen> {
 
       // Show success message
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content:
-              Text(response['message'] ?? 'Procurement created successfully'),
+        const SnackBar(
+          content: Text('Procurement created successfully'),
           backgroundColor: Colors.green,
         ),
       );
 
-      // Navigate back or to detail page
+      // Navigate back
       Future.delayed(const Duration(seconds: 1), () {
         Navigator.pop(context, true);
       });
@@ -223,14 +200,12 @@ class _ProcurementFormScreenState extends State<ProcurementFormScreen> {
 
       print('Error submitting procurement: $e');
 
-      // Tampilkan pesan error yang lebih ramah
+      // Show error message
       String errorMessage = e.toString();
-      // Hapus "Exception: " dari awal pesan error jika ada
       if (errorMessage.startsWith("Exception: ")) {
         errorMessage = errorMessage.substring("Exception: ".length);
       }
 
-      // Show error message
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(errorMessage),
@@ -628,15 +603,30 @@ class AssetItem {
   final TextEditingController nameController = TextEditingController();
   final TextEditingController qtyController = TextEditingController();
   final TextEditingController costController = TextEditingController();
-  final TextEditingController justificationController = TextEditingController();
   final TextEditingController specificationsController =
       TextEditingController();
+  final TextEditingController justificationController = TextEditingController();
+
+  Map<String, dynamic> toJson() {
+    return {
+      "asset_name": nameController.text,
+      "quantity": int.parse(qtyController.text),
+      "estimated_unit_price":
+          double.parse(costController.text.replaceAll(',', '')),
+      "specifications": specificationsController.text.isNotEmpty
+          ? specificationsController.text
+          : null,
+      "justification": justificationController.text.isNotEmpty
+          ? justificationController.text
+          : null,
+    };
+  }
 
   void dispose() {
     nameController.dispose();
     qtyController.dispose();
     costController.dispose();
-    justificationController.dispose();
     specificationsController.dispose();
+    justificationController.dispose();
   }
 }

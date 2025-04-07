@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../widgets/custom_app_bar.dart';
 import '../../controllers/recent_activity_controller.dart';
+import '../../models/history_model.dart';
 
 class HistoryScreen extends StatefulWidget {
   const HistoryScreen({super.key});
@@ -20,8 +21,12 @@ class _HistoryScreenState extends State<HistoryScreen> {
     });
   }
 
-  Widget _buildHistoryItem(String date, String time, String assetId,
-      String fromStatus, String toStatus) {
+  Widget _buildHistoryItem(HistoryModel activity) {
+    final date = activity.actionDate;
+    final formattedDate = "${date.day}/${date.month}/${date.year}";
+    final formattedTime =
+        "${date.hour.toString().padLeft(2, '0')}:${date.minute.toString().padLeft(2, '0')}";
+
     return Container(
       width: double.infinity,
       height: 73,
@@ -57,7 +62,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  date,
+                  formattedDate,
                   style: const TextStyle(
                     fontFamily: 'Inter',
                     fontSize: 16,
@@ -67,7 +72,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
                 ),
                 const SizedBox(height: 4),
                 Text(
-                  time,
+                  formattedTime,
                   style: const TextStyle(
                     fontFamily: 'Inter',
                     fontSize: 14,
@@ -93,7 +98,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    assetId,
+                    'Asset ID: ${activity.assetInfo.assetCode}',
                     textAlign: TextAlign.left,
                     style: const TextStyle(
                       fontFamily: 'Inter',
@@ -104,40 +109,16 @@ class _HistoryScreenState extends State<HistoryScreen> {
                   ),
                   const SizedBox(height: 8),
                   Flexible(
-                    child: RichText(
-                      textAlign: TextAlign.left,
+                    child: Text(
+                      activity.message,
+                      style: const TextStyle(
+                        fontFamily: 'Inter',
+                        fontSize: 12,
+                        fontWeight: FontWeight.w400,
+                        color: Colors.black,
+                      ),
                       overflow: TextOverflow.ellipsis,
                       maxLines: 2,
-                      text: TextSpan(
-                        style: const TextStyle(
-                          fontFamily: 'Inter',
-                          fontSize: 12,
-                          fontWeight: FontWeight.w400,
-                          color: Colors.black,
-                        ),
-                        children: [
-                          const TextSpan(text: 'You change status from '),
-                          TextSpan(
-                            text: fromStatus,
-                            style: TextStyle(
-                              color: fromStatus == 'Available'
-                                  ? const Color(0xFF4CAF50)
-                                  : const Color(0xFFFFA726),
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                          const TextSpan(text: ' to '),
-                          TextSpan(
-                            text: toStatus,
-                            style: TextStyle(
-                              color: toStatus == 'Available'
-                                  ? const Color(0xFF4CAF50)
-                                  : const Color(0xFFFFA726),
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                        ],
-                      ),
                     ),
                   ),
                 ],
@@ -274,14 +255,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
                       physics: const AlwaysScrollableScrollPhysics(),
                       itemCount: controller.activities.length,
                       itemBuilder: (context, index) {
-                        final activity = controller.activities[index];
-                        return _buildHistoryItem(
-                          activity.date,
-                          activity.time,
-                          'Asset ID: ${activity.assetId}',
-                          activity.oldStatus,
-                          activity.newStatus,
-                        );
+                        return _buildHistoryItem(controller.activities[index]);
                       },
                     );
                   },

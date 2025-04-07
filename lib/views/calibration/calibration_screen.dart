@@ -1,12 +1,52 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:provider/provider.dart';
 import '../../widgets/custom_app_bar.dart';
+import '../../controllers/calibration_controller.dart';
+import '../../models/calibration_model.dart';
 import 'calibration_detail_progress_screen.dart';
 import 'calibration_detail_work_screen.dart';
 import 'calibration_assist_screen.dart';
+import 'package:intl/intl.dart';
+import 'calibration_detail_screen.dart';
 
-class CalibrationScreen extends StatelessWidget {
+class CalibrationScreen extends StatefulWidget {
   const CalibrationScreen({super.key});
+
+  @override
+  State<CalibrationScreen> createState() => _CalibrationScreenState();
+}
+
+class _CalibrationScreenState extends State<CalibrationScreen> {
+  @override
+  void initState() {
+    super.initState();
+    final controller =
+        Provider.of<CalibrationController>(context, listen: false);
+    controller.loadCalibrations(context);
+  }
+
+  String _formatDate(String date) {
+    try {
+      final DateTime parsedDate = DateTime.parse(date);
+      return DateFormat('dd MMMM yyyy').format(parsedDate);
+    } catch (e) {
+      return date;
+    }
+  }
+
+  Color _getStatusColor(String status) {
+    switch (status.toLowerCase()) {
+      case 'scheduled':
+        return Colors.grey;
+      case 'in_progress':
+        return Colors.blue;
+      case 'completed':
+        return const Color(0xFF76B947);
+      default:
+        return Colors.grey;
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -22,111 +62,125 @@ class CalibrationScreen extends StatelessWidget {
         flexibleSpace: const CustomAppBar(),
         toolbarHeight: 82,
       ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Padding(
-              padding: const EdgeInsets.only(left: 8, bottom: 16),
-              child: Text(
-                'Calibration',
-                style: GoogleFonts.inter(
-                  fontSize: 32,
-                  fontWeight: FontWeight.w600,
-                  color: const Color(0xFF213268),
-                ),
+      body: Consumer<CalibrationController>(
+        builder: (context, controller, child) {
+          if (controller.isLoading) {
+            return const Center(child: CircularProgressIndicator());
+          }
+
+          if (controller.error != null) {
+            return Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Text(
+                    controller.error!,
+                    style: const TextStyle(color: Colors.red),
+                    textAlign: TextAlign.center,
+                  ),
+                  ElevatedButton(
+                    onPressed: () {
+                      controller.clearError();
+                      controller.loadCalibrations(context);
+                    },
+                    child: const Text('Retry'),
+                  ),
+                ],
               ),
-            ),
-            _buildCalibrationItem(
-              context: context,
-              date: '06 March 2025',
-              status: 'Scheduled',
-              statusColor: Colors.grey,
-              assetName: 'Asset Name',
-              brandName: 'Brand Name',
-              serialNumber: '12345678',
-              location: 'Location',
-              performedBy: 'Vendor Name',
-              buttonText: 'Assist',
-              buttonColor: const Color(0xFF213268),
-              onButtonTap: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => const CalibrationAssistScreen(),
+            );
+          }
+
+          if (controller.calibrations.isEmpty) {
+            return const Center(
+              child: Text('No calibrations found'),
+            );
+          }
+
+          return RefreshIndicator(
+            onRefresh: () => controller.loadCalibrations(context),
+            child: ListView.builder(
+              padding: const EdgeInsets.all(16),
+              itemCount: controller.calibrations.length,
+              itemBuilder: (context, index) {
+                final calibration = controller.calibrations[index];
+                return Padding(
+                  padding: const EdgeInsets.only(bottom: 16),
+                  child: _buildCalibrationItem(
+                    context: context,
+                    calibration: calibration,
                   ),
                 );
               },
             ),
-            const SizedBox(height: 16),
-            _buildCalibrationItem(
-              context: context,
-              date: '06 March 2025',
-              status: 'In Progress',
-              statusColor: Colors.blue,
-              assetName: 'Asset Name',
-              brandName: 'Brand Name',
-              serialNumber: '12345678',
-              location: 'Location',
-              performedBy: 'Technician Name',
-              buttonText: 'Work',
-              buttonColor: Colors.blue,
-              onButtonTap: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => const CalibrationDetailWorkScreen(
-                      performedBy: 'Technician Name',
-                    ),
-                  ),
-                );
-              },
-            ),
-            const SizedBox(height: 16),
-            _buildCalibrationItem(
-              context: context,
-              date: '06 March 2025',
-              status: 'In Progress',
-              statusColor: Colors.blue,
-              assetName: 'Asset Name',
-              brandName: 'Brand Name',
-              serialNumber: '12345678',
-              location: 'Location',
-              performedBy: 'Vendor Name',
-              buttonText: 'Done',
-              buttonColor: const Color(0xFF76B947),
-              onButtonTap: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => const CalibrationDetailProgressScreen(
-                      performedBy: 'Vendor Name',
-                    ),
-                  ),
-                );
-              },
-            ),
-          ],
-        ),
+          );
+        },
       ),
     );
   }
 
   Widget _buildCalibrationItem({
     required BuildContext context,
-    required String date,
-    required String status,
-    required Color statusColor,
-    required String assetName,
-    required String brandName,
-    required String serialNumber,
-    required String location,
-    required String performedBy,
-    required String buttonText,
-    required Color buttonColor,
-    required VoidCallback onButtonTap,
+    required Calibration calibration,
   }) {
+    String buttonText;
+    Color buttonColor;
+    VoidCallback onButtonTap;
+
+    switch (calibration.statusCalibration.toLowerCase()) {
+      case 'scheduled':
+        buttonText = 'Assist';
+        buttonColor = const Color(0xFF213268);
+        onButtonTap = () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => CalibrationDetailScreen(
+                calibrationId: calibration.id,
+                status: calibration.statusCalibration,
+                performedBy: calibration.completedByName ?? 'Not assigned',
+              ),
+            ),
+          );
+        };
+        break;
+      case 'in_progress':
+        buttonText = 'Work';
+        buttonColor = Colors.blue;
+        onButtonTap = () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => CalibrationDetailScreen(
+                calibrationId: calibration.id,
+                status: calibration.statusCalibration,
+                performedBy: calibration.completedByName ?? 'Technician',
+              ),
+            ),
+          );
+        };
+        break;
+      case 'completed':
+        buttonText = 'Done';
+        buttonColor = const Color(0xFF76B947);
+        onButtonTap = () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => CalibrationDetailScreen(
+                calibrationId: calibration.id,
+                status: calibration.statusCalibration,
+                performedBy: calibration.completedByName ?? 'Unknown',
+              ),
+            ),
+          );
+        };
+        break;
+      default:
+        buttonText = 'View';
+        buttonColor = Colors.grey;
+        onButtonTap = () {};
+    }
+
     return Container(
       decoration: BoxDecoration(
         color: Colors.white,
@@ -151,7 +205,7 @@ class CalibrationScreen extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      date,
+                      _formatDate(calibration.planningCalibrationDate),
                       style: GoogleFonts.inter(
                         fontSize: 16,
                         fontWeight: FontWeight.w600,
@@ -159,7 +213,7 @@ class CalibrationScreen extends StatelessWidget {
                       ),
                     ),
                     Text(
-                      'Monthly',
+                      'Task: ${calibration.taskCode}',
                       style: GoogleFonts.inter(
                         fontSize: 12,
                         color: Colors.grey,
@@ -170,16 +224,19 @@ class CalibrationScreen extends StatelessWidget {
                 Row(
                   children: [
                     Icon(
-                      status == 'In Progress' ? Icons.sync : Icons.schedule,
-                      color: statusColor,
+                      calibration.statusCalibration.toLowerCase() ==
+                              'in_progress'
+                          ? Icons.sync
+                          : Icons.schedule,
+                      color: _getStatusColor(calibration.statusCalibration),
                       size: 16,
                     ),
                     const SizedBox(width: 4),
                     Text(
-                      status,
+                      calibration.statusCalibration,
                       style: GoogleFonts.inter(
                         fontSize: 14,
-                        color: statusColor,
+                        color: _getStatusColor(calibration.statusCalibration),
                       ),
                     ),
                   ],
@@ -204,14 +261,14 @@ class CalibrationScreen extends StatelessWidget {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        'Asset Code',
+                        calibration.assetCode,
                         style: GoogleFonts.inter(
                           fontSize: 12,
                           color: Colors.grey[600],
                         ),
                       ),
                       Text(
-                        assetName,
+                        calibration.assetName,
                         style: GoogleFonts.inter(
                           fontSize: 16,
                           fontWeight: FontWeight.w600,
@@ -219,7 +276,7 @@ class CalibrationScreen extends StatelessWidget {
                       ),
                       const SizedBox(height: 4),
                       Text(
-                        'Brand Name | SN : $serialNumber',
+                        '${calibration.brandName} | SN: ${calibration.serialNumber}',
                         style: GoogleFonts.inter(
                           fontSize: 12,
                           color: Colors.grey[600],
@@ -227,7 +284,7 @@ class CalibrationScreen extends StatelessWidget {
                       ),
                       const SizedBox(height: 4),
                       Text(
-                        location,
+                        calibration.location.getFullLocation(),
                         style: GoogleFonts.inter(
                           fontSize: 12,
                           color: Colors.grey[600],
@@ -245,14 +302,14 @@ class CalibrationScreen extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'Perform by',
+                  'Scheduled by',
                   style: GoogleFonts.inter(
                     fontSize: 14,
                   ),
                 ),
                 const SizedBox(height: 4),
                 Text(
-                  performedBy,
+                  calibration.scheduledByName,
                   style: GoogleFonts.inter(
                     fontSize: 16,
                     fontWeight: FontWeight.w600,

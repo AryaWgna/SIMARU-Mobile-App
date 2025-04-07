@@ -4,10 +4,12 @@ import '../../widgets/custom_app_bar.dart';
 import 'calibration_detail_progress_screen.dart';
 
 class CalibrationDetailWorkScreen extends StatelessWidget {
+  final int calibrationId;
   final String performedBy;
 
   const CalibrationDetailWorkScreen({
     super.key,
+    required this.calibrationId,
     required this.performedBy,
   });
 
@@ -143,22 +145,22 @@ class CalibrationDetailWorkScreen extends StatelessWidget {
                     height: 48,
                     child: ElevatedButton(
                       onPressed: () {
-                        // Navigasi ke halaman detail dengan form submit
                         Navigator.push(
                           context,
                           MaterialPageRoute(
                             builder: (context) =>
                                 CalibrationDetailProgressScreen(
+                              calibrationId: calibrationId,
                               performedBy: performedBy,
                             ),
                           ),
                         );
                       },
                       style: ButtonStyle(
-                        backgroundColor: WidgetStateProperty.all(
+                        backgroundColor: MaterialStateProperty.all(
                           const Color(0xFF76B947),
                         ),
-                        shape: WidgetStateProperty.all(
+                        shape: MaterialStateProperty.all(
                           RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(4),
                           ),

@@ -3,10 +3,12 @@ import 'package:google_fonts/google_fonts.dart';
 import '../../widgets/custom_app_bar.dart';
 
 class CalibrationDetailProgressScreen extends StatefulWidget {
+  final int calibrationId;
   final String performedBy;
 
   const CalibrationDetailProgressScreen({
     super.key,
+    required this.calibrationId,
     required this.performedBy,
   });
 
