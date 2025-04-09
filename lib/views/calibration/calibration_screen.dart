@@ -136,8 +136,6 @@ class _CalibrationScreenState extends State<CalibrationScreen> {
             MaterialPageRoute(
               builder: (context) => CalibrationDetailScreen(
                 calibrationId: calibration.id,
-                status: calibration.statusCalibration,
-                performedBy: calibration.completedByName ?? 'Not assigned',
               ),
             ),
           );
@@ -152,8 +150,6 @@ class _CalibrationScreenState extends State<CalibrationScreen> {
             MaterialPageRoute(
               builder: (context) => CalibrationDetailScreen(
                 calibrationId: calibration.id,
-                status: calibration.statusCalibration,
-                performedBy: calibration.completedByName ?? 'Technician',
               ),
             ),
           );
@@ -168,8 +164,6 @@ class _CalibrationScreenState extends State<CalibrationScreen> {
             MaterialPageRoute(
               builder: (context) => CalibrationDetailScreen(
                 calibrationId: calibration.id,
-                status: calibration.statusCalibration,
-                performedBy: calibration.completedByName ?? 'Unknown',
               ),
             ),
           );

@@ -52,17 +52,19 @@ class CalibrationController extends ChangeNotifier {
       _error = null;
       notifyListeners();
 
-      final response = await ApiService.get('/calibrations/$id', context: context);
+      final response =
+          await ApiService.get('/calibrations/$id', context: context);
 
       if (response.statusCode == 200) {
         final jsonResponse = json.decode(response.body);
-        
+
         if (jsonResponse['success'] == true) {
           _selectedCalibration = Calibration.fromJson(jsonResponse['data']);
           _error = null;
           return _selectedCalibration;
         } else {
-          _error = jsonResponse['message'] ?? 'Failed to load calibration details';
+          _error =
+              jsonResponse['message'] ?? 'Failed to load calibration details';
           return null;
         }
       } else {
@@ -78,7 +80,9 @@ class CalibrationController extends ChangeNotifier {
     }
   }
 
-  Future<bool> updateCalibration(BuildContext context, int id, Map<String, dynamic> data) async {
+  Future<bool> updateCalibration(
+      BuildContext context, int id, Map<String, dynamic> data,
+      {String? filePath}) async {
     try {
       _isLoading = true;
       notifyListeners();
