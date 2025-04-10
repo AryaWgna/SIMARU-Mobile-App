@@ -5,11 +5,9 @@ import '../../widgets/custom_app_bar.dart';
 import '../../controllers/total_asset_controller.dart';
 import '../../controllers/asset_under_repair_controller.dart';
 import '../../controllers/net_asset_value_controller.dart';
-import '../../views/inspection/inspection_screen.dart';
-import '../../views/calibration/calibration_screen.dart';
-import '../../views/maintenance/maintenance_screen.dart';
 import '../../views/complain/complain_list_screen.dart';
 import '../../views/stockopname/stockopname_task_list.dart';
+import '../pages/history_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -68,16 +66,38 @@ class _HomeScreenState extends State<HomeScreen> {
           children: [
             _buildStatCards(),
             const SizedBox(height: 16),
-            _buildMenuBar(),
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-              child: Text(
-                "Recent Activity",
-                style: GoogleFonts.inter(
-                  fontSize: 18,
-                  fontWeight: FontWeight.w600,
-                  color: const Color(0xFF213268),
-                ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(
+                    "Recent Activity",
+                    style: GoogleFonts.inter(
+                      fontSize: 18,
+                      fontWeight: FontWeight.w600,
+                      color: const Color(0xFF213268),
+                    ),
+                  ),
+                  GestureDetector(
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => const HistoryScreen(),
+                        ),
+                      );
+                    },
+                    child: Text(
+                      "All My History",
+                      style: GoogleFonts.inter(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w500,
+                        color: const Color(0xFF25B1FF),
+                      ),
+                    ),
+                  ),
+                ],
               ),
             ),
             _buildRecentActivities(),
@@ -200,16 +220,8 @@ class _HomeScreenState extends State<HomeScreen> {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Container(
-            padding: const EdgeInsets.all(8),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: Icon(icon, color: Colors.black54, size: 20),
-          ),
           Column(
-            crossAxisAlignment: CrossAxisAlignment.end,
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
                 value,
@@ -227,106 +239,15 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
             ],
           ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildMenuBar() {
-    return Container(
-      width: double.infinity,
-      margin: const EdgeInsets.symmetric(horizontal: 16),
-      padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 6),
-      decoration: BoxDecoration(
-        color: const Color(0xFF213268),
-        borderRadius: BorderRadius.circular(8),
-      ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-        children: [
-          _menuBarItem(
-            "Maintenance",
-            Icons.build_circle_outlined,
-            () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                    builder: (context) => const MaintenanceScreen()),
-              );
-            },
-          ),
-          _menuBarItem(
-            "Inspection",
-            Icons.search,
-            () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                    builder: (context) => const InspectionScreen()),
-              );
-            },
-          ),
-          _menuBarItem(
-            "Stock\nopname",
-            Icons.inventory_2_outlined,
-            () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                    builder: (context) => const StockopnameTaskList()),
-              );
-            },
-          ),
-          _menuBarItem(
-            "Complain\nand Repair",
-            Icons.warning_amber_outlined,
-            () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                    builder: (context) => const ComplainListScreen()),
-              );
-            },
-          ),
-          _menuBarItem(
-            "Calibration",
-            Icons.tune,
-            () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                    builder: (context) => const CalibrationScreen()),
-              );
-            },
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _menuBarItem(String title, IconData icon, VoidCallback onTap) {
-    return InkWell(
-      onTap: onTap,
-      child: SizedBox(
-        width: 60,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(icon, color: Colors.white, size: 18),
-            const SizedBox(height: 4),
-            Text(
-              title,
-              style: GoogleFonts.inter(
-                color: Colors.white,
-                fontSize: 8,
-                height: 1.2,
-              ),
-              textAlign: TextAlign.center,
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
+          Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(8),
             ),
-          ],
-        ),
+            child: Icon(icon, color: Colors.black54, size: 20),
+          ),
+        ],
       ),
     );
   }
@@ -370,16 +291,16 @@ class _HomeScreenState extends State<HomeScreen> {
     String toStatus,
   ) {
     return Container(
-      margin: const EdgeInsets.only(bottom: 12),
-      padding: const EdgeInsets.all(12),
+      margin: const EdgeInsets.only(bottom: 16),
+      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(10),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.05),
-            blurRadius: 4,
-            offset: const Offset(0, 2),
+            color: Colors.black.withOpacity(0.1),
+            blurRadius: 6,
+            offset: const Offset(0, 3),
           ),
         ],
       ),
@@ -388,13 +309,13 @@ class _HomeScreenState extends State<HomeScreen> {
         children: [
           Container(
             width: 4,
-            height: 50,
+            height: 65,
             decoration: BoxDecoration(
               color: Colors.blue,
               borderRadius: BorderRadius.circular(2),
             ),
           ),
-          const SizedBox(width: 12),
+          const SizedBox(width: 16),
           Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -402,19 +323,21 @@ class _HomeScreenState extends State<HomeScreen> {
                 date,
                 style: GoogleFonts.inter(
                   fontWeight: FontWeight.w500,
-                  fontSize: 12,
+                  fontSize: 14,
                 ),
               ),
+              const SizedBox(height: 6),
               Text(
                 time,
                 style: GoogleFonts.inter(
-                  color: Colors.grey,
-                  fontSize: 10,
+                  color: Colors.grey[700],
+                  fontSize: 13,
+                  fontWeight: FontWeight.w500,
                 ),
               ),
             ],
           ),
-          const SizedBox(width: 16),
+          const SizedBox(width: 20),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -422,15 +345,17 @@ class _HomeScreenState extends State<HomeScreen> {
                 Text(
                   assetId,
                   style: GoogleFonts.inter(
-                    color: Colors.grey[600],
-                    fontSize: 11,
+                    color: Colors.grey[700],
+                    fontSize: 12,
+                    fontWeight: FontWeight.w500,
                   ),
                 ),
-                const SizedBox(height: 4),
+                const SizedBox(height: 10),
                 RichText(
                   text: TextSpan(
                     style: GoogleFonts.inter(
-                      fontSize: 11,
+                      fontSize: 13,
+                      height: 1.4,
                       color: Colors.black87,
                     ),
                     children: [

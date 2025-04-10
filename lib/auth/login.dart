@@ -2,7 +2,6 @@ import 'dart:ui';
 import 'package:flutter/material.dart';
 import '../controllers/auth_controller.dart';
 import '../views/dashboard/dashboard.dart';
-import 'forget_password_screen.dart';
 import 'dart:async';
 import 'dart:developer' as developer;
 
@@ -351,32 +350,6 @@ class _LoginScreenState extends State<LoginScreen> {
                                       color: Colors.white,
                                     ),
                                   ),
-                          ),
-                        ),
-                        const SizedBox(height: 10),
-                        MouseRegion(
-                          cursor: SystemMouseCursors.click,
-                          child: TextButton(
-                            onPressed: () {
-                              Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (context) =>
-                                      const ForgetPasswordScreen(),
-                                ),
-                              );
-                            },
-                            style: TextButton.styleFrom(
-                              padding: const EdgeInsets.symmetric(vertical: 8),
-                            ),
-                            child: const Text(
-                              'Lupa Password?',
-                              style: TextStyle(
-                                fontSize: 14,
-                                color: Color(0xFF203268),
-                                decoration: TextDecoration.underline,
-                              ),
-                            ),
                           ),
                         ),
                       ],

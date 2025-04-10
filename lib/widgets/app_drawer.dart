@@ -13,6 +13,7 @@ class AppDrawer extends StatelessWidget {
           DrawerHeader(
             decoration: const BoxDecoration(
               color: Color(0xFF213268),
+              boxShadow: [],
             ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,

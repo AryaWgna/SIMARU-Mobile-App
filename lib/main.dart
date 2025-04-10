@@ -7,7 +7,6 @@ import 'controllers/total_asset_controller.dart';
 import 'controllers/asset_under_repair_controller.dart';
 import 'controllers/net_asset_value_controller.dart';
 import 'controllers/auth_controller.dart';
-import 'controllers/calibration_controller.dart';
 import 'dart:developer' as developer;
 
 void main() {
@@ -44,7 +43,6 @@ void main() {
         ChangeNotifierProvider(create: (_) => TotalAssetController()),
         ChangeNotifierProvider(create: (_) => AssetUnderRepairController()),
         ChangeNotifierProvider(create: (_) => NetAssetValueController()),
-        ChangeNotifierProvider(create: (_) => CalibrationController()),
       ],
       child: const MyApp(),
     ),
@@ -64,7 +62,6 @@ class MyApp extends StatelessWidget {
         ChangeNotifierProvider(create: (_) => TotalAssetController()),
         ChangeNotifierProvider(create: (_) => AssetUnderRepairController()),
         ChangeNotifierProvider(create: (_) => NetAssetValueController()),
-        ChangeNotifierProvider(create: (_) => CalibrationController()),
       ],
       child: MaterialApp(
         debugShowCheckedModeBanner: false,

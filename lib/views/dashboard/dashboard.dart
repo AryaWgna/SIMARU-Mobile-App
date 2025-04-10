@@ -1,9 +1,10 @@
 import 'package:flutter/material.dart';
 import '../pages/profile.dart';
 import '../pages/home_screen.dart';
-import '../pages/procurement_screen.dart';
 import '../pages/history_screen.dart';
 import '../pages/qr_scanner_screen.dart';
+import '../stockopname/stockopname_task_list.dart';
+import '../complain/complain_list_screen.dart';
 
 class DashboardScreen extends StatefulWidget {
   final int initialIndex;
@@ -29,10 +30,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
       _screens.addAll([
         _buildScreenWithErrorHandling(() => const HomeScreen(), 'HomeScreen'),
         _buildScreenWithErrorHandling(
-            () => const ProcurementScreen(), 'ProcurementScreen'),
+            () => const StockopnameTaskList(), 'StockopnameTaskList'),
         const SizedBox(), // Placeholder for QR Scanner
         _buildScreenWithErrorHandling(
-            () => const HistoryScreen(), 'HistoryScreen'),
+            () => const ComplainListScreen(), 'ComplainListScreen'),
         _buildScreenWithErrorHandling(
             () => const ProfileScreen(), 'ProfileScreen'),
       ]);
@@ -132,7 +133,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                       ),
                       BottomNavigationBarItem(
                         icon: Icon(Icons.inventory),
-                        label: 'Procurement',
+                        label: 'Stock',
                       ),
                       BottomNavigationBarItem(
                         icon: Icon(Icons.qr_code_scanner,
@@ -140,8 +141,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
                         label: '',
                       ),
                       BottomNavigationBarItem(
-                        icon: Icon(Icons.history),
-                        label: 'History',
+                        icon: Icon(Icons.build),
+                        label: 'Repair',
                       ),
                       BottomNavigationBarItem(
                         icon: Icon(Icons.person),
@@ -180,10 +181,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
                           previousScreen = 'home';
                           break;
                         case 1:
-                          previousScreen = 'procurement';
+                          previousScreen = 'stockopname';
                           break;
                         case 3:
-                          previousScreen = 'history';
+                          previousScreen = 'repair';
                           break;
                         case 4:
                           previousScreen = 'profile';

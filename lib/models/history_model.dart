@@ -31,6 +31,30 @@ class HistoryModel {
       assetInfo: AssetInfo.fromJson(json['asset_info']),
     );
   }
+
+  // Get month year string for grouping
+  String get monthYearString {
+    return '${_getMonthName(actionDate.month)} ${actionDate.year}';
+  }
+
+  // Get month name
+  static String _getMonthName(int month) {
+    const months = [
+      'January',
+      'February',
+      'March',
+      'April',
+      'May',
+      'June',
+      'July',
+      'August',
+      'September',
+      'October',
+      'November',
+      'December'
+    ];
+    return months[month - 1];
+  }
 }
 
 class UserInfo {
@@ -89,6 +113,35 @@ class AssetInfo {
       assetId: json['asset_id'],
       assetName: json['asset_name'],
       assetCode: json['asset_code'],
+    );
+  }
+}
+
+class HistoryPagination {
+  final int totalItems;
+  final int totalPages;
+  final int currentPage;
+  final int limit;
+  final bool hasNext;
+  final bool hasPrev;
+
+  HistoryPagination({
+    required this.totalItems,
+    required this.totalPages,
+    required this.currentPage,
+    required this.limit,
+    required this.hasNext,
+    required this.hasPrev,
+  });
+
+  factory HistoryPagination.fromJson(Map<String, dynamic> json) {
+    return HistoryPagination(
+      totalItems: json['total_items'],
+      totalPages: json['total_pages'],
+      currentPage: json['current_page'],
+      limit: json['limit'],
+      hasNext: json['has_next'],
+      hasPrev: json['has_prev'],
     );
   }
 }

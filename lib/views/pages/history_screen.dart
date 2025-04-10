@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:intl/intl.dart';
 import '../../widgets/custom_app_bar.dart';
 import '../../controllers/recent_activity_controller.dart';
 import '../../models/history_model.dart';
@@ -12,6 +13,8 @@ class HistoryScreen extends StatefulWidget {
 }
 
 class _HistoryScreenState extends State<HistoryScreen> {
+  final ScrollController _scrollController = ScrollController();
+
   @override
   void initState() {
     super.initState();
@@ -19,13 +22,31 @@ class _HistoryScreenState extends State<HistoryScreen> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       context.read<RecentActivityController>().loadRecentActivities();
     });
+
+    // Setup scroll listener for pagination
+    _scrollController.addListener(_onScroll);
+  }
+
+  @override
+  void dispose() {
+    _scrollController.removeListener(_onScroll);
+    _scrollController.dispose();
+    super.dispose();
+  }
+
+  void _onScroll() {
+    if (_scrollController.position.pixels >=
+        _scrollController.position.maxScrollExtent * 0.8) {
+      final controller = context.read<RecentActivityController>();
+      if (!controller.isLoading && controller.hasMoreData) {
+        controller.loadMoreActivities();
+      }
+    }
   }
 
   Widget _buildHistoryItem(HistoryModel activity) {
-    final date = activity.actionDate;
-    final formattedDate = "${date.day}/${date.month}/${date.year}";
-    final formattedTime =
-        "${date.hour.toString().padLeft(2, '0')}:${date.minute.toString().padLeft(2, '0')}";
+    final formattedDate = DateFormat('dd/MM/yyyy').format(activity.actionDate);
+    final formattedTime = DateFormat('HH:mm').format(activity.actionDate);
 
     return Container(
       width: double.infinity,
@@ -130,6 +151,28 @@ class _HistoryScreenState extends State<HistoryScreen> {
     );
   }
 
+  Widget _buildMonthSection(String monthYear, List<HistoryModel> activities) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.only(bottom: 10, top: 16),
+          child: Text(
+            monthYear,
+            style: const TextStyle(
+              fontFamily: 'Inter',
+              fontSize: 24,
+              fontWeight: FontWeight.w600,
+              color: Color(0xFF213268),
+              height: 0.75,
+            ),
+          ),
+        ),
+        ...activities.map((activity) => _buildHistoryItem(activity)).toList(),
+      ],
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -173,20 +216,6 @@ class _HistoryScreenState extends State<HistoryScreen> {
                       ),
                     ),
                   ),
-                  const SizedBox(height: 22),
-                  Container(
-                    alignment: Alignment.centerLeft,
-                    child: const Text(
-                      'March',
-                      style: TextStyle(
-                        fontFamily: 'Inter',
-                        fontSize: 24,
-                        fontWeight: FontWeight.w600,
-                        color: Color(0xFF213268),
-                        height: 0.75,
-                      ),
-                    ),
-                  ),
                 ],
               ),
             ),
@@ -196,7 +225,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
                 padding: const EdgeInsets.fromLTRB(24, 9, 24, 0),
                 child: Consumer<RecentActivityController>(
                   builder: (context, controller, child) {
-                    if (controller.isLoading) {
+                    if (controller.isLoading && controller.activities.isEmpty) {
                       return const Center(
                         child: CircularProgressIndicator(
                           color: Color(0xFF213268),
@@ -204,7 +233,8 @@ class _HistoryScreenState extends State<HistoryScreen> {
                       );
                     }
 
-                    if (controller.error != null) {
+                    if (controller.error != null &&
+                        controller.activities.isEmpty) {
                       return Center(
                         child: Column(
                           mainAxisAlignment: MainAxisAlignment.center,
@@ -251,11 +281,39 @@ class _HistoryScreenState extends State<HistoryScreen> {
                       );
                     }
 
+                    // Group activities by month
+                    final byMonth = controller.activitiesByMonth;
+                    final months = byMonth.keys.toList()
+                      ..sort((a, b) {
+                        // Sort from newest to oldest
+                        final aDate = DateFormat('MMMM yyyy').parse(a);
+                        final bDate = DateFormat('MMMM yyyy').parse(b);
+                        return bDate.compareTo(aDate);
+                      });
+
                     return ListView.builder(
+                      controller: _scrollController,
                       physics: const AlwaysScrollableScrollPhysics(),
-                      itemCount: controller.activities.length,
+                      itemCount: months.length +
+                          (controller.isLoading &&
+                                  controller.activities.isNotEmpty
+                              ? 1
+                              : 0),
                       itemBuilder: (context, index) {
-                        return _buildHistoryItem(controller.activities[index]);
+                        if (index < months.length) {
+                          final month = months[index];
+                          return _buildMonthSection(month, byMonth[month]!);
+                        } else {
+                          // Loading indicator at the bottom
+                          return const Center(
+                            child: Padding(
+                              padding: EdgeInsets.all(16.0),
+                              child: CircularProgressIndicator(
+                                color: Color(0xFF213268),
+                              ),
+                            ),
+                          );
+                        }
                       },
                     );
                   },
