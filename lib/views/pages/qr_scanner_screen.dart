@@ -56,7 +56,7 @@ class _QRScannerScreenState extends State<QRScannerScreen> {
             right: 0,
             child: Center(
               child: Text(
-                'Scan your QR Code',
+                'Pindai Kode QR',
                 style: TextStyle(
                   fontSize: 22,
                   fontWeight: FontWeight.w400,
@@ -109,10 +109,8 @@ class _QRScannerScreenState extends State<QRScannerScreen> {
               right: 0,
               child: Center(
                 child: Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 16, 
-                    vertical: 8
-                  ),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                   decoration: BoxDecoration(
                     color: Colors.white.withOpacity(0.8),
                     borderRadius: BorderRadius.circular(8),
@@ -166,7 +164,7 @@ class _QRScannerScreenState extends State<QRScannerScreen> {
           ),
         ],
       ),
-      
+
       // KUNCI SOLUSI: Tambahkan bottomNavigationBar agar floatingActionButton centerDocked bisa berfungsi
       // dengan benar dan menghilang saat keyboard muncul
       bottomNavigationBar: Container(
@@ -174,15 +172,15 @@ class _QRScannerScreenState extends State<QRScannerScreen> {
         height: 1,
         color: Colors.transparent,
       ),
-      
+
       // Gunakan floatingActionButtonLocation yang sama dengan Dashboard
       floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
-      
+
       // Pindahkan tombol Scan ke floatingActionButton
       floatingActionButton: Container(
-        width: 220,  // Sesuaikan dengan lebar button asli
-        height: 50,  // Sesuaikan dengan tinggi button asli
-        margin: const EdgeInsets.only(bottom: 20), // Untuk posisi yang tepat
+        width: 220, // Sesuaikan dengan lebar button asli
+        height: 50, // Sesuaikan dengan tinggi button asli
+        margin: const EdgeInsets.only(bottom: 30), // Untuk posisi yang tepat
         child: FloatingActionButton.extended(
           elevation: 2,
           backgroundColor: const Color(0xFF2A3F7E),
@@ -191,7 +189,7 @@ class _QRScannerScreenState extends State<QRScannerScreen> {
           ),
           onPressed: () {
             FocusScope.of(context).unfocus();
-            
+
             if (result != null && result!.code != null) {
               Navigator.push(
                 context,
@@ -249,7 +247,7 @@ class _QRScannerScreenState extends State<QRScannerScreen> {
             ),
           ),
           label: const Text(
-            'Scan QR Code',
+            'Pindai Kode QR',
             style: TextStyle(
               fontSize: 16,
               color: Colors.white,

@@ -14,6 +14,7 @@ class HistoryScreen extends StatefulWidget {
 
 class _HistoryScreenState extends State<HistoryScreen> {
   final ScrollController _scrollController = ScrollController();
+  bool _isLoadingMore = false;
 
   @override
   void initState() {
@@ -37,10 +38,28 @@ class _HistoryScreenState extends State<HistoryScreen> {
   void _onScroll() {
     if (_scrollController.position.pixels >=
         _scrollController.position.maxScrollExtent * 0.8) {
-      final controller = context.read<RecentActivityController>();
-      if (!controller.isLoading && controller.hasMoreData) {
-        controller.loadMoreActivities();
-      }
+      _loadMoreData();
+    }
+  }
+
+  Future<void> _loadMoreData() async {
+    final controller = context.read<RecentActivityController>();
+
+    // Cek apakah sedang loading atau tidak ada data lagi
+    if (_isLoadingMore || !controller.hasMoreData || controller.isLoading) {
+      return;
+    }
+
+    setState(() {
+      _isLoadingMore = true;
+    });
+
+    await controller.loadMoreActivities();
+
+    if (mounted) {
+      setState(() {
+        _isLoadingMore = false;
+      });
     }
   }
 
@@ -119,7 +138,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    'Asset ID: ${activity.assetInfo.assetCode}',
+                    'ID Aset: ${activity.assetInfo.assetCode}',
                     textAlign: TextAlign.left,
                     style: const TextStyle(
                       fontFamily: 'Inter',
@@ -193,7 +212,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
                   Container(
                     alignment: Alignment.centerLeft,
                     child: const Text(
-                      'History',
+                      'Riwayat',
                       style: TextStyle(
                         fontFamily: 'Inter',
                         fontSize: 32,
@@ -207,7 +226,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
                   Container(
                     alignment: Alignment.centerLeft,
                     child: const Text(
-                      'Display all your activities',
+                      'Menampilkan semua aktivitas Anda',
                       style: TextStyle(
                         fontFamily: 'Inter',
                         fontSize: 16,
@@ -225,6 +244,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
                 padding: const EdgeInsets.fromLTRB(24, 9, 24, 0),
                 child: Consumer<RecentActivityController>(
                   builder: (context, controller, child) {
+                    // Menampilkan indikator loading saat pertama kali memuat data
                     if (controller.isLoading && controller.activities.isEmpty) {
                       return const Center(
                         child: CircularProgressIndicator(
@@ -233,6 +253,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
                       );
                     }
 
+                    // Menampilkan pesan error jika gagal memuat data
                     if (controller.error != null &&
                         controller.activities.isEmpty) {
                       return Center(
@@ -261,17 +282,18 @@ class _HistoryScreenState extends State<HistoryScreen> {
                                   borderRadius: BorderRadius.circular(8),
                                 ),
                               ),
-                              child: const Text('Retry'),
+                              child: const Text('Coba Lagi'),
                             ),
                           ],
                         ),
                       );
                     }
 
+                    // Menampilkan pesan jika tidak ada aktivitas
                     if (controller.activities.isEmpty) {
                       return const Center(
                         child: Text(
-                          'No activities found',
+                          'Tidak ada aktivitas ditemukan',
                           style: TextStyle(
                             fontFamily: 'Inter',
                             fontSize: 16,
@@ -281,44 +303,112 @@ class _HistoryScreenState extends State<HistoryScreen> {
                       );
                     }
 
-                    // Group activities by month
+                    // Kelompokkan aktivitas berdasarkan bulan
                     final byMonth = controller.activitiesByMonth;
                     final months = byMonth.keys.toList()
                       ..sort((a, b) {
                         // Sort from newest to oldest
-                        final aDate = DateFormat('MMMM yyyy').parse(a);
-                        final bDate = DateFormat('MMMM yyyy').parse(b);
-                        return bDate.compareTo(aDate);
+                        final partsA = a.split(' ');
+                        final partsB = b.split(' ');
+                        final yearA = int.parse(partsA[1]);
+                        final yearB = int.parse(partsB[1]);
+                        if (yearA != yearB) return yearB.compareTo(yearA);
+
+                        final indonesianMonths = [
+                          'Januari',
+                          'Februari',
+                          'Maret',
+                          'April',
+                          'Mei',
+                          'Juni',
+                          'Juli',
+                          'Agustus',
+                          'September',
+                          'Oktober',
+                          'November',
+                          'Desember'
+                        ];
+                        final monthA = indonesianMonths.indexOf(partsA[0]);
+                        final monthB = indonesianMonths.indexOf(partsB[0]);
+                        return monthB.compareTo(monthA);
                       });
 
-                    return ListView.builder(
-                      controller: _scrollController,
-                      physics: const AlwaysScrollableScrollPhysics(),
-                      itemCount: months.length +
-                          (controller.isLoading &&
-                                  controller.activities.isNotEmpty
-                              ? 1
-                              : 0),
-                      itemBuilder: (context, index) {
-                        if (index < months.length) {
-                          final month = months[index];
-                          return _buildMonthSection(month, byMonth[month]!);
-                        } else {
-                          // Loading indicator at the bottom
-                          return const Center(
-                            child: Padding(
-                              padding: EdgeInsets.all(16.0),
-                              child: CircularProgressIndicator(
-                                color: Color(0xFF213268),
+                    return Stack(
+                      children: [
+                        ListView.builder(
+                          controller: _scrollController,
+                          physics: const AlwaysScrollableScrollPhysics(),
+                          itemCount:
+                              months.length + 1, // +1 for loading indicator
+                          itemBuilder: (context, index) {
+                            if (index < months.length) {
+                              final month = months[index];
+                              return _buildMonthSection(month, byMonth[month]!);
+                            } else {
+                              // Loading indicator at the bottom
+                              if (controller.hasMoreData) {
+                                return Padding(
+                                  padding: const EdgeInsets.symmetric(
+                                      vertical: 16.0),
+                                  child: Center(
+                                    child: controller.isLoading
+                                        ? const CircularProgressIndicator(
+                                            color: Color(0xFF213268),
+                                          )
+                                        : const SizedBox.shrink(),
+                                  ),
+                                );
+                              }
+                              return const SizedBox(
+                                  height:
+                                      20); // Bottom padding when no more data
+                            }
+                          },
+                        ),
+
+                        // Overlay loading indicator saat memuat lebih banyak data
+                        if (_isLoadingMore && !controller.isLoading)
+                          Positioned(
+                            bottom: 0,
+                            left: 0,
+                            right: 0,
+                            child: Container(
+                              color: Colors.white.withOpacity(0.7),
+                              padding: const EdgeInsets.all(8.0),
+                              child: const Center(
+                                child: CircularProgressIndicator(
+                                  color: Color(0xFF213268),
+                                ),
                               ),
                             ),
-                          );
-                        }
-                      },
+                          ),
+                      ],
                     );
                   },
                 ),
               ),
+            ),
+            // Tampilkan pagination info jika ada
+            Consumer<RecentActivityController>(
+              builder: (context, controller, _) {
+                final pagination = controller.pagination;
+                if (pagination != null) {
+                  return Container(
+                    padding:
+                        const EdgeInsets.symmetric(vertical: 8, horizontal: 24),
+                    color: Colors.grey[100],
+                    child: Text(
+                      'Halaman ${pagination.currentPage} dari ${pagination.totalPages} (${pagination.totalItems} item)',
+                      style: const TextStyle(
+                        fontSize: 12,
+                        color: Colors.grey,
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+                  );
+                }
+                return const SizedBox.shrink();
+              },
             ),
           ],
         ),

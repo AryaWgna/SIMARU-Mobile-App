@@ -72,7 +72,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   Text(
-                    "Recent Activity",
+                    "Aktivitas Terbaru",
                     style: GoogleFonts.inter(
                       fontSize: 18,
                       fontWeight: FontWeight.w600,
@@ -89,7 +89,7 @@ class _HomeScreenState extends State<HomeScreen> {
                       );
                     },
                     child: Text(
-                      "All My History",
+                      "Semua Riwayat Saya",
                       style: GoogleFonts.inter(
                         fontSize: 14,
                         fontWeight: FontWeight.w500,
@@ -117,8 +117,8 @@ class _HomeScreenState extends State<HomeScreen> {
             builder: (context, controller, child) {
               if (controller.isLoading) {
                 return _buildStatCard(
-                  "Loading...",
-                  "Asset",
+                  "Memuat...",
+                  "Aset",
                   Icons.grid_4x4,
                   const Color(0xFFDCEDC8),
                 );
@@ -126,8 +126,8 @@ class _HomeScreenState extends State<HomeScreen> {
 
               if (controller.error != null) {
                 return _buildStatCard(
-                  "Error",
-                  "Asset",
+                  "Kesalahan",
+                  "Aset",
                   Icons.grid_4x4,
                   const Color(0xFFDCEDC8),
                 );
@@ -135,7 +135,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
               return _buildStatCard(
                 controller.totalAsset?.totalAssets ?? "134.4k",
-                "Asset",
+                "Aset",
                 Icons.grid_4x4,
                 const Color(0xFFDCEDC8),
               );
@@ -146,8 +146,8 @@ class _HomeScreenState extends State<HomeScreen> {
             builder: (context, controller, child) {
               if (controller.isLoading) {
                 return _buildStatCard(
-                  "Loading...",
-                  "Under Repair",
+                  "Memuat...",
+                  "Sedang Perbaikan",
                   Icons.build,
                   const Color(0xFFFFF9C4),
                 );
@@ -155,8 +155,8 @@ class _HomeScreenState extends State<HomeScreen> {
 
               if (controller.error != null) {
                 return _buildStatCard(
-                  "Error",
-                  "Under Repair",
+                  "Kesalahan",
+                  "Sedang Perbaikan",
                   Icons.build,
                   const Color(0xFFFFF9C4),
                 );
@@ -164,7 +164,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
               return _buildStatCard(
                 controller.assetUnderRepair?.totalUnderRepair ?? "50",
-                "Under Repair",
+                "Sedang Perbaikan",
                 Icons.build,
                 const Color(0xFFFFF9C4),
               );
@@ -175,8 +175,8 @@ class _HomeScreenState extends State<HomeScreen> {
             builder: (context, controller, child) {
               if (controller.isLoading) {
                 return _buildStatCard(
-                  "Loading...",
-                  "Net Asset Value",
+                  "Memuat...",
+                  "Nilai Aset Bersih",
                   Icons.attach_money,
                   const Color(0xFFFFCCBC),
                 );
@@ -184,8 +184,8 @@ class _HomeScreenState extends State<HomeScreen> {
 
               if (controller.error != null) {
                 return _buildStatCard(
-                  "Error",
-                  "Net Asset Value",
+                  "Kesalahan",
+                  "Nilai Aset Bersih",
                   Icons.attach_money,
                   const Color(0xFFFFCCBC),
                 );
@@ -193,7 +193,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
               return _buildStatCard(
                 controller.netAssetValue?.totalNetValue ?? "500",
-                "Net Asset Value",
+                "Nilai Aset Bersih",
                 Icons.attach_money,
                 const Color(0xFFFFCCBC),
               );
@@ -260,23 +260,23 @@ class _HomeScreenState extends State<HomeScreen> {
           _buildRecentActivity(
             "04 Mar 25",
             "16:00",
-            "Asset ID: 123456",
-            "Checked Out",
-            "Available",
+            "ID Aset: 123456",
+            "Dipinjam",
+            "Tersedia",
           ),
           _buildRecentActivity(
             "04 Mar 25",
             "08:00",
-            "Asset ID: 123456",
-            "Available",
-            "Checked Out",
+            "ID Aset: 123456",
+            "Tersedia",
+            "Dipinjam",
           ),
           _buildRecentActivity(
             "03 Mar 25",
             "16:00",
-            "Asset ID: 123456",
-            "Checked Out",
-            "Available",
+            "ID Aset: 123456",
+            "Dipinjam",
+            "Tersedia",
           ),
         ],
       ),
@@ -359,21 +359,21 @@ class _HomeScreenState extends State<HomeScreen> {
                       color: Colors.black87,
                     ),
                     children: [
-                      const TextSpan(text: 'You change status from '),
+                      const TextSpan(text: 'Anda mengubah status dari '),
                       TextSpan(
                         text: fromStatus,
                         style: TextStyle(
-                          color: fromStatus == 'Available'
+                          color: fromStatus == 'Tersedia'
                               ? Colors.green
                               : Colors.orange,
                           fontWeight: FontWeight.w600,
                         ),
                       ),
-                      const TextSpan(text: ' to '),
+                      const TextSpan(text: ' ke '),
                       TextSpan(
                         text: toStatus,
                         style: TextStyle(
-                          color: toStatus == 'Available'
+                          color: toStatus == 'Tersedia'
                               ? Colors.green
                               : Colors.orange,
                           fontWeight: FontWeight.w600,

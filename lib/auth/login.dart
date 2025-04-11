@@ -223,7 +223,7 @@ class _LoginScreenState extends State<LoginScreen> {
                     child: const Column(
                       children: [
                         Text(
-                          'Welcome,',
+                          'Selamat Datang,',
                           style: TextStyle(
                             fontSize: 22,
                             fontWeight: FontWeight.w600,
@@ -232,7 +232,7 @@ class _LoginScreenState extends State<LoginScreen> {
                           textAlign: TextAlign.center,
                         ),
                         Text(
-                          'Please Login First!',
+                          'Silakan Masuk Terlebih Dahulu!',
                           style: TextStyle(
                             fontSize: 22,
                             fontWeight: FontWeight.w600,

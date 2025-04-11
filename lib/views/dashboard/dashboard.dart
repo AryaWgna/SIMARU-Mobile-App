@@ -52,7 +52,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
       print("Stack trace: $s");
       return Center(
         child: Text(
-          'Error loading $screenName: $e',
+          'Kesalahan memuat $screenName: $e',
           style: const TextStyle(color: Colors.red),
           textAlign: TextAlign.center,
         ),
@@ -129,11 +129,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     items: const [
                       BottomNavigationBarItem(
                         icon: Icon(Icons.home),
-                        label: 'Home',
+                        label: 'Beranda',
                       ),
                       BottomNavigationBarItem(
                         icon: Icon(Icons.inventory),
-                        label: 'Stock',
+                        label: 'Stok',
                       ),
                       BottomNavigationBarItem(
                         icon: Icon(Icons.qr_code_scanner,
@@ -142,11 +142,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
                       ),
                       BottomNavigationBarItem(
                         icon: Icon(Icons.build),
-                        label: 'Repair',
+                        label: 'Perbaikan',
                       ),
                       BottomNavigationBarItem(
                         icon: Icon(Icons.person),
-                        label: 'Profile',
+                        label: 'Profil',
                       ),
                     ],
                   ),
@@ -159,7 +159,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
             Positioned(
               left: 0,
               right: 0,
-              bottom: 28,
+              bottom: 16,
               child: Center(
                 child: SizedBox(
                   width: 84,

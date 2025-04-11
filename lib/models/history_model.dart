@@ -20,38 +20,69 @@ class HistoryModel {
   });
 
   factory HistoryModel.fromJson(Map<String, dynamic> json) {
+    final message = json['message'] as String;
+    // Terjemahkan pesan status menjadi bahasa Indonesia
+    String translatedMessage = message;
+    
+    if (message.contains('changed status from')) {
+      translatedMessage = message.replaceAll('changed status from', 'mengubah status dari');
+      translatedMessage = translatedMessage.replaceAll('to', 'menjadi');
+      translatedMessage = translatedMessage.replaceAll('Available', 'Tersedia');
+      translatedMessage = translatedMessage.replaceAll('Checked out', 'Dipinjam');
+      translatedMessage = translatedMessage.replaceAll('Returned', 'Dikembalikan');
+      translatedMessage = translatedMessage.replaceAll('In Repair', 'Dalam Perbaikan');
+      translatedMessage = translatedMessage.replaceAll('Disposed', 'Dimusnahkan');
+    }
+
     return HistoryModel(
       historyId: json['history_id'],
       actionDate: DateTime.parse(json['action_date']),
       user: UserInfo.fromJson(json['user']),
-      message: json['message'],
+      message: translatedMessage,
       actionType: json['action_type'],
-      oldStatus: json['old_status'],
-      newStatus: json['new_status'],
+      oldStatus: _translateStatus(json['old_status']),
+      newStatus: _translateStatus(json['new_status']),
       assetInfo: AssetInfo.fromJson(json['asset_info']),
     );
   }
 
-  // Get month year string for grouping
-  String get monthYearString {
-    return '${_getMonthName(actionDate.month)} ${actionDate.year}';
+  static String _translateStatus(String status) {
+    switch (status) {
+      case 'Available':
+        return 'Tersedia';
+      case 'Checked out':
+        return 'Dipinjam';
+      case 'Returned':
+        return 'Dikembalikan';
+      case 'In Repair':
+        return 'Dalam Perbaikan';
+      case 'Disposed':
+        return 'Dimusnahkan';
+      default:
+        return status;
+    }
   }
 
-  // Get month name
-  static String _getMonthName(int month) {
+  // Get month year string for grouping
+  String get monthYearString {
+    return '${_getIndonesianMonthName(actionDate.month)} ${actionDate.year}';
+  }
+
+  // Get month name in Indonesian
+  static String _getIndonesianMonthName(int month) {
     const months = [
-      'January',
-      'February',
-      'March',
+      'Januari',
+      'Februari',
+      'Maret',
       'April',
-      'May',
-      'June',
-      'July',
-      'August',
+      'Mei',
+      'Juni',
+      'Juli',
+      'Agustus',
       'September',
-      'October',
+      'Oktober',
       'November',
-      'December'
+      'Desember'
     ];
     return months[month - 1];
   }

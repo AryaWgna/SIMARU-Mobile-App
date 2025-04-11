@@ -12,6 +12,7 @@ class RecentActivityController extends ChangeNotifier {
   String? _error;
   int _currentPage = 1;
   bool _hasMoreData = true;
+  final int _limit = 6;
 
   List<HistoryModel> get activities => _activities;
   Map<String, List<HistoryModel>> get activitiesByMonth => _activitiesByMonth;
@@ -34,7 +35,7 @@ class RecentActivityController extends ChangeNotifier {
       notifyListeners();
 
       final response = await ApiService.get(
-        '/asset-histories/activities/user/1?page=$_currentPage',
+        '/asset-histories/activities/user/1?limit=$_limit&page=$_currentPage',
       );
 
       if (response.statusCode == 200) {
@@ -50,8 +51,8 @@ class RecentActivityController extends ChangeNotifier {
             _activities.addAll(newActivities);
           }
 
-          _pagination =
-              HistoryPagination.fromJson(jsonResponse['data']['pagination']);
+          final paginationData = jsonResponse['data']['pagination'];
+          _pagination = HistoryPagination.fromJson(paginationData);
           _hasMoreData = _pagination!.hasNext;
 
           if (_hasMoreData) _currentPage++;
@@ -73,8 +74,48 @@ class RecentActivityController extends ChangeNotifier {
   }
 
   Future<void> loadMoreActivities() async {
-    if (!_isLoading && _hasMoreData) {
-      await loadRecentActivities(refresh: false);
+    if (_isLoading || !_hasMoreData) return;
+
+    _isLoading = true;
+    notifyListeners();
+
+    try {
+      final nextPage = _currentPage + 1;
+      final response = await ApiService.get(
+        '/asset-histories/activities/user/1?limit=$_limit&page=$nextPage',
+      );
+
+      if (response.statusCode == 200) {
+        final jsonResponse = json.decode(response.body);
+
+        if (jsonResponse['status'] == true) {
+          final List<dynamic> historiesJson = jsonResponse['data']['histories'];
+          final newActivities =
+              historiesJson.map((json) => HistoryModel.fromJson(json)).toList();
+
+          _activities.addAll(newActivities);
+          final paginationData = jsonResponse['data']['pagination'];
+          _pagination = HistoryPagination.fromJson(paginationData);
+          _hasMoreData = _pagination!.hasNext;
+          _currentPage = nextPage;
+
+          _isLoading = false;
+          notifyListeners();
+        } else {
+          _error = jsonResponse['message'] ?? 'Failed to load more activities';
+          _isLoading = false;
+          notifyListeners();
+        }
+      } else {
+        _error =
+            'Failed to load more activities. Status: ${response.statusCode}';
+        _isLoading = false;
+        notifyListeners();
+      }
+    } catch (e) {
+      _error = e.toString();
+      _isLoading = false;
+      notifyListeners();
     }
   }
 
@@ -82,7 +123,7 @@ class RecentActivityController extends ChangeNotifier {
     _activitiesByMonth = {};
 
     for (var activity in _activities) {
-      final monthYear = activity.monthYearString;
+      final monthYear = _getIndonesianMonthName(activity.actionDate);
 
       if (!_activitiesByMonth.containsKey(monthYear)) {
         _activitiesByMonth[monthYear] = [];
@@ -90,6 +131,24 @@ class RecentActivityController extends ChangeNotifier {
 
       _activitiesByMonth[monthYear]!.add(activity);
     }
+  }
+
+  String _getIndonesianMonthName(DateTime date) {
+    const months = [
+      'Januari',
+      'Februari',
+      'Maret',
+      'April',
+      'Mei',
+      'Juni',
+      'Juli',
+      'Agustus',
+      'September',
+      'Oktober',
+      'November',
+      'Desember'
+    ];
+    return '${months[date.month - 1]} ${date.year}';
   }
 
   void clearError() {

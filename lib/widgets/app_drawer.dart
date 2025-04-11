@@ -37,7 +37,7 @@ class AppDrawer extends StatelessWidget {
                   ),
                 ),
                 Text(
-                  'Maintenance & Procurement',
+                  'Pemeliharaan & Pengadaan',
                   style: TextStyle(
                     color: Colors.white.withOpacity(0.8),
                     fontSize: 14,
@@ -48,7 +48,7 @@ class AppDrawer extends StatelessWidget {
           ),
           ListTile(
             leading: const Icon(Icons.home),
-            title: const Text('Home'),
+            title: const Text('Beranda'),
             onTap: () {
               Navigator.pop(context);
               Navigator.pushReplacementNamed(context, '/home');
@@ -56,7 +56,7 @@ class AppDrawer extends StatelessWidget {
           ),
           ListTile(
             leading: const Icon(Icons.engineering),
-            title: const Text('Maintenance'),
+            title: const Text('Pemeliharaan'),
             onTap: () {
               Navigator.pop(context);
               Navigator.pushNamed(context, '/maintenance');
@@ -64,7 +64,7 @@ class AppDrawer extends StatelessWidget {
           ),
           ListTile(
             leading: const Icon(Icons.shopping_cart),
-            title: const Text('Procurement'),
+            title: const Text('Pengadaan'),
             onTap: () {
               Navigator.pop(context);
               Navigator.pushNamed(context, '/procurement');
@@ -72,7 +72,7 @@ class AppDrawer extends StatelessWidget {
           ),
           ListTile(
             leading: const Icon(Icons.person),
-            title: const Text('Profile'),
+            title: const Text('Profil'),
             onTap: () {
               Navigator.pop(context);
               Navigator.pushNamed(context, '/profile');
@@ -81,7 +81,7 @@ class AppDrawer extends StatelessWidget {
           const Divider(),
           ListTile(
             leading: const Icon(Icons.logout, color: Colors.red),
-            title: const Text('Logout', style: TextStyle(color: Colors.red)),
+            title: const Text('Keluar', style: TextStyle(color: Colors.red)),
             onTap: () => _confirmLogout(context),
           ),
         ],
@@ -93,12 +93,12 @@ class AppDrawer extends StatelessWidget {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Logout'),
-        content: const Text('Are you sure you want to logout?'),
+        title: const Text('Keluar'),
+        content: const Text('Apakah Anda yakin ingin keluar?'),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel'),
+            child: const Text('Batal'),
           ),
           TextButton(
             onPressed: () async {
@@ -125,11 +125,11 @@ class AppDrawer extends StatelessWidget {
                 // Show error message
                 ScaffoldMessenger.of(context).showSnackBar(
                   SnackBar(
-                      content: Text('Error during logout: ${e.toString()}')),
+                      content: Text('Kesalahan saat keluar: ${e.toString()}')),
                 );
               }
             },
-            child: const Text('Logout', style: TextStyle(color: Colors.red)),
+            child: const Text('Keluar', style: TextStyle(color: Colors.red)),
           ),
         ],
       ),

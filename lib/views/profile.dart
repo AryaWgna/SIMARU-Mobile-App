@@ -63,7 +63,7 @@ class _ProfileScreenState extends State<ProfileScreen>
       // Add timeout to prevent app hanging
       final response = await ApiService.get('/users/profile', context: context)
           .timeout(const Duration(seconds: 10), onTimeout: () {
-        throw Exception('Connection timeout. Please try again later.');
+        throw Exception('Koneksi timeout. Silakan coba lagi nanti.');
       });
 
       if (!_mounted) return;
@@ -84,10 +84,10 @@ class _ProfileScreenState extends State<ProfileScreen>
             });
           }
         } else {
-          throw Exception(responseData['message'] ?? 'Failed to load profile');
+          throw Exception(responseData['message'] ?? 'Gagal memuat profil');
         }
       } else {
-        throw Exception('Failed to load profile: ${response.statusCode}');
+        throw Exception('Gagal memuat profil: ${response.statusCode}');
       }
     } catch (e) {
       if (_mounted) {
@@ -105,12 +105,12 @@ class _ProfileScreenState extends State<ProfileScreen>
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Logout'),
-        content: const Text('Are you sure you want to logout?'),
+        title: const Text('Keluar'),
+        content: const Text('Apakah Anda yakin ingin keluar?'),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel'),
+            child: const Text('Batal'),
           ),
           TextButton(
             onPressed: () async {
@@ -140,12 +140,13 @@ class _ProfileScreenState extends State<ProfileScreen>
                 if (_mounted) {
                   ScaffoldMessenger.of(context).showSnackBar(
                     SnackBar(
-                        content: Text('Error during logout: ${e.toString()}')),
+                        content:
+                            Text('Kesalahan saat keluar: ${e.toString()}')),
                   );
                 }
               }
             },
-            child: const Text('Logout', style: TextStyle(color: Colors.red)),
+            child: const Text('Keluar', style: TextStyle(color: Colors.red)),
           ),
         ],
       ),
@@ -156,13 +157,13 @@ class _ProfileScreenState extends State<ProfileScreen>
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Profile'),
+        title: const Text('Profil'),
         backgroundColor: const Color(0xFF213268),
         actions: [
           IconButton(
             icon: const Icon(Icons.logout),
             onPressed: _logout,
-            tooltip: 'Logout',
+            tooltip: 'Keluar',
           ),
         ],
       ),
@@ -181,7 +182,7 @@ class _ProfileScreenState extends State<ProfileScreen>
           // Main content area (empty or grayed out when error occurs)
           const Center(
             child: Text(
-              'Unable to load profile',
+              'Tidak dapat memuat profil',
               style: TextStyle(color: Colors.grey),
             ),
           ),
@@ -195,7 +196,7 @@ class _ProfileScreenState extends State<ProfileScreen>
               color: Colors.red.shade900,
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
               child: Text(
-                'Error: $_errorMessage',
+                'Kesalahan: $_errorMessage',
                 textAlign: TextAlign.center,
                 style: const TextStyle(color: Colors.white),
               ),
@@ -210,7 +211,7 @@ class _ProfileScreenState extends State<ProfileScreen>
             child: Center(
               child: ElevatedButton(
                 onPressed: _loadProfile,
-                child: const Text('Retry'),
+                child: const Text('Coba Lagi'),
               ),
             ),
           ),
@@ -348,7 +349,8 @@ class _ProfileScreenState extends State<ProfileScreen>
     final employeeId = employee['employee_id']?.toString() ?? '-';
     final position = employee['position'] ?? '-';
     final roleName = role['role_name'] ?? '-';
-    final isActive = _profileData['is_active'] == true ? 'Active' : 'Inactive';
+    final isActive =
+        _profileData['is_active'] == true ? 'Aktif' : 'Tidak Aktif';
 
     return Card(
       elevation: 4,
@@ -360,10 +362,10 @@ class _ProfileScreenState extends State<ProfileScreen>
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            _buildProfileItem('User ID', userId),
-            _buildProfileItem('Employee ID', employeeId),
-            _buildProfileItem('Position', position),
-            _buildProfileItem('Role', roleName),
+            _buildProfileItem('ID Pengguna', userId),
+            _buildProfileItem('ID Karyawan', employeeId),
+            _buildProfileItem('Posisi', position),
+            _buildProfileItem('Peran', roleName),
             _buildProfileItem('Status', isActive),
           ],
         ),
