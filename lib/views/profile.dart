@@ -23,12 +23,15 @@ class _ProfileScreenState extends State<ProfileScreen>
   String _errorMessage = '';
   String _fullName = '';
 
+  // Added to prevent memory leaks
+  bool _mounted = true;
+
   @override
   String? get errorMessage => _errorMessage.isEmpty ? null : _errorMessage;
 
   @override
   void clearError() {
-    if (_errorMessage.isNotEmpty) {
+    if (_errorMessage.isNotEmpty && _mounted) {
       setState(() {
         _errorMessage = '';
       });
@@ -38,38 +41,48 @@ class _ProfileScreenState extends State<ProfileScreen>
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      _loadProfile();
-    });
+    // Use Future.microtask to avoid calling setState during build
+    Future.microtask(() => _loadProfile());
+  }
+
+  @override
+  void dispose() {
+    _mounted = false;
+    super.dispose();
   }
 
   Future<void> _loadProfile() async {
-    if (!mounted) return;
-
-    setState(() {
-      _isLoading = true;
-      _errorMessage = '';
-    });
+    if (!_mounted) return;
 
     try {
-      final response = await ApiService.get('/users/profile', context: context);
+      setState(() {
+        _isLoading = true;
+        _errorMessage = '';
+      });
+
+      // Add timeout to prevent app hanging
+      final response = await ApiService.get('/users/profile', context: context)
+          .timeout(const Duration(seconds: 10), onTimeout: () {
+        throw Exception('Connection timeout. Please try again later.');
+      });
+
+      if (!_mounted) return;
 
       if (response.statusCode == 200) {
         final responseData = json.decode(response.body);
 
         if (responseData['status'] == true) {
-          if (!mounted) return;
-
           final employee = responseData['data']['employee'] ?? {};
-
           final firstName = employee['first_name'] ?? '';
           final lastName = employee['last_name'] ?? '';
 
-          setState(() {
-            _profileData = responseData['data'];
-            _fullName = '$firstName $lastName'.trim();
-            _isLoading = false;
-          });
+          if (_mounted) {
+            setState(() {
+              _profileData = responseData['data'];
+              _fullName = '$firstName $lastName'.trim();
+              _isLoading = false;
+            });
+          }
         } else {
           throw Exception(responseData['message'] ?? 'Failed to load profile');
         }
@@ -77,18 +90,18 @@ class _ProfileScreenState extends State<ProfileScreen>
         throw Exception('Failed to load profile: ${response.statusCode}');
       }
     } catch (e) {
-      if (!mounted) return;
-
-      setState(() {
-        _errorMessage = e.toString();
-        _isLoading = false;
-      });
-
-      // No need to call widget._errorState.setError
+      if (_mounted) {
+        setState(() {
+          _errorMessage = e.toString();
+          _isLoading = false;
+        });
+      }
     }
   }
 
   Future<void> _logout() async {
+    if (!_mounted) return;
+
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
@@ -104,25 +117,27 @@ class _ProfileScreenState extends State<ProfileScreen>
               Navigator.pop(context); // Close dialog
 
               // Show loading indicator
-              showDialog(
-                context: context,
-                barrierDismissible: false,
-                builder: (context) => const Center(
-                  child: CircularProgressIndicator(),
-                ),
-              );
+              if (_mounted) {
+                showDialog(
+                  context: context,
+                  barrierDismissible: false,
+                  builder: (context) => const Center(
+                    child: CircularProgressIndicator(),
+                  ),
+                );
+              }
 
               try {
                 await ApiService.logout(context);
                 // No need to navigate here as it's handled in ApiService.logout
               } catch (e) {
                 // If there's an error, still close loading dialog
-                if (mounted && Navigator.canPop(context)) {
+                if (_mounted && Navigator.canPop(context)) {
                   Navigator.pop(context);
                 }
 
                 // Show error message
-                if (mounted) {
+                if (_mounted) {
                   ScaffoldMessenger.of(context).showSnackBar(
                     SnackBar(
                         content: Text('Error during logout: ${e.toString()}')),
@@ -203,19 +218,23 @@ class _ProfileScreenState extends State<ProfileScreen>
       );
     }
 
+    // Extract this data once to avoid repeated lookups
     final employee = _profileData['employee'] ?? {};
     final firstName = employee['first_name'] ?? '';
     final lastName = employee['last_name'] ?? '';
     final fullName = '$firstName $lastName'.trim();
+    final email = _profileData['email'] ?? '';
+    final phone = employee['phone'] ?? '-';
 
+    // Use Builder to improve performance
     return SingleChildScrollView(
       padding: const EdgeInsets.all(16),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           // Profile Image
-          Center(
-            child: const CircleAvatar(
+          const Center(
+            child: CircleAvatar(
               radius: 50,
               backgroundColor: Color(0xFF213268),
               child: Icon(Icons.person, size: 50, color: Colors.white),
@@ -235,12 +254,20 @@ class _ProfileScreenState extends State<ProfileScreen>
             margin: const EdgeInsets.only(top: 8, bottom: 16),
             child: TextFormField(
               initialValue: fullName,
+              readOnly: true,
+              enabled: false,
               decoration: InputDecoration(
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(8),
                 ),
                 contentPadding:
                     const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                filled: true,
+                fillColor: Colors.grey[200],
+                disabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8),
+                  borderSide: BorderSide(color: Colors.grey[400]!),
+                ),
               ),
             ),
           ),
@@ -256,18 +283,26 @@ class _ProfileScreenState extends State<ProfileScreen>
           Container(
             margin: const EdgeInsets.only(top: 8, bottom: 16),
             child: TextFormField(
-              initialValue: _profileData['email'] ?? '',
+              initialValue: email,
+              readOnly: true,
+              enabled: false,
               decoration: InputDecoration(
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(8),
                 ),
                 contentPadding:
                     const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                filled: true,
+                fillColor: Colors.grey[200],
+                disabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8),
+                  borderSide: BorderSide(color: Colors.grey[400]!),
+                ),
               ),
             ),
           ),
 
-          // No. Telepon Field
+          // No. Telepon Field - If displayed, make it read-only too
           const Text(
             'No. Telepon',
             style: TextStyle(
@@ -278,48 +313,42 @@ class _ProfileScreenState extends State<ProfileScreen>
           Container(
             margin: const EdgeInsets.only(top: 8, bottom: 24),
             child: TextFormField(
+              initialValue: phone,
+              readOnly: true,
+              enabled: false,
               decoration: InputDecoration(
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(8),
                 ),
                 contentPadding:
                     const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                filled: true,
+                fillColor: Colors.grey[200],
+                disabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8),
+                  borderSide: BorderSide(color: Colors.grey[400]!),
+                ),
               ),
             ),
           ),
 
-          // Update Button
-          SizedBox(
-            width: double.infinity,
-            child: ElevatedButton(
-              onPressed: () {
-                // TODO: Implement update logic
-              },
-              style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF213268),
-                padding: const EdgeInsets.symmetric(vertical: 12),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(8),
-                ),
-              ),
-              child: const Text(
-                'UPDATE',
-                style: TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w600,
-                  color: Colors.white,
-                ),
-              ),
-            ),
-          ),
+          // Add additional profile information
+          const SizedBox(height: 16),
+          _buildProfileCard(),
         ],
       ),
     );
   }
 
   Widget _buildProfileCard() {
+    // Extract once to avoid repeated lookups
     final employee = _profileData['employee'] ?? {};
     final role = _profileData['role'] ?? {};
+    final userId = _profileData['user_id']?.toString() ?? '-';
+    final employeeId = employee['employee_id']?.toString() ?? '-';
+    final position = employee['position'] ?? '-';
+    final roleName = role['role_name'] ?? '-';
+    final isActive = _profileData['is_active'] == true ? 'Active' : 'Inactive';
 
     return Card(
       elevation: 4,
@@ -331,14 +360,11 @@ class _ProfileScreenState extends State<ProfileScreen>
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            _buildProfileItem(
-                'User ID', _profileData['user_id']?.toString() ?? '-'),
-            _buildProfileItem(
-                'Employee ID', employee['employee_id']?.toString() ?? '-'),
-            _buildProfileItem('Position', employee['position'] ?? '-'),
-            _buildProfileItem('Role', role['role_name'] ?? '-'),
-            _buildProfileItem('Status',
-                _profileData['is_active'] == true ? 'Active' : 'Inactive'),
+            _buildProfileItem('User ID', userId),
+            _buildProfileItem('Employee ID', employeeId),
+            _buildProfileItem('Position', position),
+            _buildProfileItem('Role', roleName),
+            _buildProfileItem('Status', isActive),
           ],
         ),
       ),

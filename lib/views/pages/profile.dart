@@ -12,19 +12,29 @@ class ProfileScreen extends StatefulWidget {
 class _ProfileScreenState extends State<ProfileScreen> {
   Map<String, dynamic>? _profile;
   bool _isLoading = true;
+  bool _mounted = true;
 
   @override
   void initState() {
     super.initState();
-    // Menunda pemanggilan _loadProfile hingga widget sepenuhnya diinisialisasi
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      _loadProfile();
-    });
+    // Use Future.microtask for better performance
+    Future.microtask(() => _loadProfile());
+  }
+
+  @override
+  void dispose() {
+    _mounted = false;
+    super.dispose();
   }
 
   Future<void> _loadProfile() async {
+    if (!_mounted) return;
+
     try {
-      final profile = await ApiService.getProfile(context);
+      final profile = await ApiService.getProfile(context)
+          .timeout(const Duration(seconds: 10), onTimeout: () {
+        throw Exception('Connection timeout. Please try again later.');
+      });
 
       // Extract first_name and last_name from employee data if available
       String fullName = '';
@@ -38,15 +48,17 @@ class _ProfileScreenState extends State<ProfileScreen> {
         fullName = profile['name'] ?? '';
       }
 
-      setState(() {
-        _profile = profile;
-        // Add the full name to the profile object for easy access
-        _profile!['fullName'] = fullName;
-        _isLoading = false;
-      });
+      if (_mounted) {
+        setState(() {
+          _profile = profile;
+          // Add the full name to the profile object for easy access
+          _profile!['fullName'] = fullName;
+          _isLoading = false;
+        });
+      }
     } catch (e) {
-      setState(() => _isLoading = false);
-      if (mounted) {
+      if (_mounted) {
+        setState(() => _isLoading = false);
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Error: ${e.toString()}'),
@@ -58,6 +70,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   Future<void> _logout() async {
+    if (!_mounted) return;
+
     final shouldLogout = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
@@ -84,33 +98,35 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
     if (shouldLogout == true) {
       // Tampilkan loading indicator
-      showDialog(
-        context: context,
-        barrierDismissible: false,
-        builder: (BuildContext context) {
-          return const Center(
-            child: CircularProgressIndicator(),
-          );
-        },
-      );
+      if (_mounted) {
+        showDialog(
+          context: context,
+          barrierDismissible: false,
+          builder: (BuildContext context) {
+            return const Center(
+              child: CircularProgressIndicator(),
+            );
+          },
+        );
+      }
 
       try {
         // Gunakan context pada fungsi logout yang sudah diperbarui
         await ApiService.logout(context);
         // Tutup dialog loading
-        if (mounted && Navigator.canPop(context)) {
+        if (_mounted && Navigator.canPop(context)) {
           Navigator.pop(context);
         }
         // Navigasi ke login screen
-        if (mounted) {
+        if (_mounted) {
           Navigator.pushReplacementNamed(context, '/');
         }
       } catch (e) {
         // Tutup dialog loading
-        if (mounted && Navigator.canPop(context)) {
+        if (_mounted && Navigator.canPop(context)) {
           Navigator.pop(context);
         }
-        if (mounted) {
+        if (_mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(content: Text('Error: ${e.toString()}')),
           );
@@ -121,28 +137,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   @override
   Widget build(BuildContext context) {
-    // Calculate the initials from the full name
-    String initials = '';
-    if (_profile != null && (_profile!['fullName'] ?? '').isNotEmpty) {
-      final fullName = _profile!['fullName'] as String;
-      final nameParts = fullName.split(' ');
-
-      // Get first letter of first name
-      if (nameParts.isNotEmpty && nameParts[0].isNotEmpty) {
-        initials += nameParts[0][0].toUpperCase();
-      }
-
-      // Get first letter of last name (if exists)
-      if (nameParts.length > 1 && nameParts[nameParts.length - 1].isNotEmpty) {
-        initials += nameParts[nameParts.length - 1][0].toUpperCase();
-      }
-
-      // Fallback if we couldn't get two initials
-      if (initials.isEmpty) {
-        initials = fullName[0].toUpperCase();
-      }
-    }
-
     return Scaffold(
       backgroundColor: Colors.white,
       appBar: const CustomAppBar(),
@@ -155,68 +149,36 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 child: Column(
                   children: [
                     const SizedBox(height: 24),
-                    // Profile Image with initials
+                    // Profile Image with person icon
                     Container(
                       width: 150,
                       height: 150,
-                      decoration: BoxDecoration(
+                      decoration: const BoxDecoration(
                         shape: BoxShape.circle,
-                        color: const Color(0xFF213268),
-                        image: _profile?['image'] != null
-                            ? DecorationImage(
-                                image: NetworkImage(_profile!['image']),
-                                fit: BoxFit.cover,
-                              )
-                            : null,
-                      ),
-                      child: _profile?['image'] == null
-                          ? Center(
-                              child: Text(
-                                initials,
-                                style: const TextStyle(
-                                  fontSize: 50,
-                                  fontWeight: FontWeight.bold,
-                                  color: Colors.white,
-                                  fontFamily: 'Inter',
-                                ),
-                              ),
-                            )
-                          : null,
-                    ),
-                    const SizedBox(height: 24),
-
-                    // Form Contact
-                    _buildFormContainer([
-                      _buildInputField('Nama', _profile?['fullName'] ?? ''),
-                      _buildInputField('Email', _profile?['email'] ?? ''),
-                      _buildInputField('No. Telepon', _profile?['phone'] ?? ''),
-                      _buildButton('UPDATE',
-                          onPressed: () {}, color: const Color(0xFF213268)),
-                    ]),
-
-                    const SizedBox(height: 24),
-
-                    // Reset Password Text
-                    const Text(
-                      'Reset Password',
-                      style: TextStyle(
                         color: Color(0xFF213268),
-                        fontSize: 16,
-                        fontFamily: 'Inter',
-                        fontWeight: FontWeight.w400,
+                      ),
+                      child: const Center(
+                        child: Icon(
+                          Icons.person,
+                          size: 80,
+                          color: Colors.white,
+                        ),
                       ),
                     ),
-                    const SizedBox(height: 8),
+                    const SizedBox(height: 24),
 
-                    // Password Form
+                    // Form Contact - Read-only fields
                     _buildFormContainer([
-                      _buildInputField('Password Lama', '', isPassword: true),
-                      _buildInputField('Password Baru', '', isPassword: true),
-                      _buildButton('Ubah Password',
-                          onPressed: () {}, color: const Color(0xFF213268)),
+                      _buildReadOnlyField('Nama', _profile?['fullName'] ?? ''),
+                      _buildReadOnlyField('Email', _profile?['email'] ?? ''),
+                      _buildReadOnlyField(
+                          'No. Telepon', _profile?['phone'] ?? ''),
+                      // UPDATE button removed
                     ]),
 
                     const SizedBox(height: 24),
+
+                    // Reset Password section removed
 
                     // Logout Form
                     _buildFormContainer([
@@ -252,58 +214,49 @@ class _ProfileScreenState extends State<ProfileScreen> {
         ],
       ),
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: children,
       ),
     );
   }
 
-  Widget _buildInputField(String label, String value,
-      {bool isPassword = false}) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          label,
-          style: const TextStyle(
-            fontSize: 16,
-            height: 1.4, // line-height: 140%
-            color: Color(0xFF1E1E1E),
-            fontFamily: 'Inter',
-            fontWeight: FontWeight.w400,
-          ),
-        ),
-        const SizedBox(height: 8),
-        Container(
-          height: 40,
-          decoration: BoxDecoration(
-            border: Border.all(color: const Color(0xFFD9D9D9)),
-            borderRadius: BorderRadius.circular(8),
-          ),
-          child: TextField(
-            obscureText: isPassword,
+  Widget _buildReadOnlyField(String label, String value) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            label,
             style: const TextStyle(
-              fontSize: 16,
-              height: 1.0, // line-height: 100%
-              color: Color(0xFF1E1E1E),
+              color: Color(0xFF213268),
+              fontSize: 14,
               fontFamily: 'Inter',
-              fontWeight: FontWeight.w400,
+              fontWeight: FontWeight.w500,
             ),
-            decoration: InputDecoration(
-              contentPadding: const EdgeInsets.symmetric(horizontal: 16),
-              border: InputBorder.none,
-              hintText: value,
-              hintStyle: const TextStyle(
-                color: Color(0xFF1E1E1E),
-                fontSize: 16,
+          ),
+          const SizedBox(height: 8),
+          Container(
+            width: double.infinity,
+            height: 48,
+            padding: const EdgeInsets.symmetric(horizontal: 12),
+            decoration: BoxDecoration(
+              color: Colors.grey[200],
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: Colors.grey[400]!),
+            ),
+            alignment: Alignment.centerLeft,
+            child: Text(
+              value,
+              style: const TextStyle(
+                color: Colors.black87,
+                fontSize: 14,
                 fontFamily: 'Inter',
-                fontWeight: FontWeight.w400,
               ),
             ),
           ),
-        ),
-        const SizedBox(height: 24),
-      ],
+        ],
+      ),
     );
   }
 
@@ -313,23 +266,23 @@ class _ProfileScreenState extends State<ProfileScreen> {
     required Color color,
     IconData? icon,
   }) {
-    return SizedBox(
-      height: 40,
+    return Container(
+      width: double.infinity,
+      height: 48,
+      margin: const EdgeInsets.only(top: 8),
       child: ElevatedButton(
         onPressed: onPressed,
         style: ElevatedButton.styleFrom(
           backgroundColor: color,
-          padding: const EdgeInsets.symmetric(horizontal: 12),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(8),
           ),
-          elevation: 0,
         ),
         child: Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             if (icon != null) ...[
-              Icon(icon, color: Colors.white, size: 16),
+              Icon(icon, color: Colors.white),
               const SizedBox(width: 8),
             ],
             Text(
@@ -337,9 +290,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
               style: const TextStyle(
                 color: Colors.white,
                 fontSize: 16,
-                height: 1.0,
                 fontFamily: 'Inter',
-                fontWeight: FontWeight.w400,
+                fontWeight: FontWeight.w500,
               ),
             ),
           ],
