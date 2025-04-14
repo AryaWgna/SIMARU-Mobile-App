@@ -1,12 +1,15 @@
 class ApiConfig {
   // Base URL untuk API
-  static const String baseUrl = 'http://localhost:8026';
+  static const String baseUrl =
+      'http://10.0.2.2:8026'; // Special IP for Android Emulator to access host machine
 
   // Endpoint URLs
   static String get loginUrl => '$baseUrl/auth/login';
   static String get refreshTokenUrl => '$baseUrl/auth/refresh-token';
   static String get profileUrl => '$baseUrl/user/profile';
   static String get logoutUrl => '$baseUrl/auth/logout';
+  static String get complaintsUrl => '$baseUrl/complaints';
+  static String getComplaintByIdUrl(String id) => '$baseUrl/complaints/$id';
 
   // Add new endpoint for history
   static String getHistoryUrl(String date) =>

@@ -3,9 +3,63 @@ import 'package:google_fonts/google_fonts.dart';
 import '../../widgets/custom_app_bar.dart';
 import 'complain_form_screen.dart';
 import 'complain_detail_screen.dart';
+import '../../controllers/auth_controller.dart';
+import '../../core/config/api_config.dart';
+import 'dart:convert';
 
-class ComplainListScreen extends StatelessWidget {
+class ComplainListScreen extends StatefulWidget {
   const ComplainListScreen({super.key});
+
+  @override
+  State<ComplainListScreen> createState() => _ComplainListScreenState();
+}
+
+class _ComplainListScreenState extends State<ComplainListScreen> {
+  List<dynamic> complaints = [];
+  bool isLoading = true;
+  String? errorMessage;
+
+  @override
+  void initState() {
+    super.initState();
+    _fetchComplaints();
+  }
+
+  Future<void> _fetchComplaints() async {
+    try {
+      setState(() {
+        isLoading = true;
+        errorMessage = null;
+      });
+
+      final response = await ApiService.get('/complaints', context: context);
+
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        if (data['status'] == true) {
+          setState(() {
+            complaints = data['data'];
+            isLoading = false;
+          });
+        } else {
+          setState(() {
+            errorMessage = data['message'] ?? 'Failed to load complaints';
+            isLoading = false;
+          });
+        }
+      } else {
+        setState(() {
+          errorMessage = 'Failed to load complaints: ${response.statusCode}';
+          isLoading = false;
+        });
+      }
+    } catch (e) {
+      setState(() {
+        errorMessage = 'Error: $e';
+        isLoading = false;
+      });
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -35,63 +89,69 @@ class ComplainListScreen extends StatelessWidget {
               ),
             ),
           ),
-          Expanded(
-            child: ListView(
-              padding: const EdgeInsets.symmetric(vertical: 8),
-              children: [
-                _buildComplainItem(
-                  context: context,
-                  date: '06 March 2025 16:02:02',
-                  timeAgo: '2 Minutes ago',
-                  assetCode: 'Asset Code',
-                  assetName: 'Asset Name',
-                  brandName: 'Brand Name',
-                  serialNumber: '12345678',
-                  location: 'Location',
-                  performedBy: 'Jhon Doe',
-                  complainDesc: 'Complaint Desc',
+          if (isLoading)
+            const Expanded(
+              child: Center(child: CircularProgressIndicator()),
+            )
+          else if (errorMessage != null)
+            Expanded(
+              child: Center(
+                child: Padding(
+                  padding: const EdgeInsets.all(16.0),
+                  child: Text(
+                    errorMessage!,
+                    style: const TextStyle(color: Colors.red),
+                  ),
                 ),
-                _buildComplainItem(
-                  context: context,
-                  date: '06 March 2025 16:02:02',
-                  timeAgo: '2 Minutes ago',
-                  assetCode: 'Asset Code',
-                  assetName: 'Asset Name',
-                  brandName: 'Brand Name',
-                  serialNumber: '12345678',
-                  location: 'Location',
-                  performedBy: 'Jhon Doe',
-                  complainDesc: 'Complaint Desc',
+              ),
+            )
+          else if (complaints.isEmpty)
+            const Expanded(
+              child: Center(
+                child: Padding(
+                  padding: EdgeInsets.all(16.0),
+                  child: Text('No complaints found'),
                 ),
-              ],
+              ),
+            )
+          else
+            Expanded(
+              child: ListView.builder(
+                padding: const EdgeInsets.symmetric(vertical: 8),
+                itemCount: complaints.length,
+                itemBuilder: (context, index) {
+                  final complaint = complaints[index];
+                  return _buildComplainItem(
+                    context: context,
+                    complaint: complaint,
+                  );
+                },
+              ),
             ),
-          ),
         ],
       ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: () {
-          Navigator.push(
-            context,
-            MaterialPageRoute(builder: (context) => const ComplainFormScreen()),
-          );
-        },
-        backgroundColor: const Color(0xFF213268),
-        child: const Icon(Icons.add),
+      floatingActionButton: Padding(
+        padding: const EdgeInsets.only(bottom: 64.0),
+        child: FloatingActionButton(
+          heroTag: 'complain_list_fab',
+          onPressed: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                  builder: (context) => const ComplainFormScreen()),
+            ).then((_) => _fetchComplaints());
+          },
+          backgroundColor: const Color(0xFF213268),
+          child: const Icon(Icons.add),
+        ),
       ),
+      floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
     );
   }
 
   Widget _buildComplainItem({
     required BuildContext context,
-    required String date,
-    required String timeAgo,
-    required String assetCode,
-    required String assetName,
-    required String brandName,
-    required String serialNumber,
-    required String location,
-    required String performedBy,
-    required String complainDesc,
+    required Map<String, dynamic> complaint,
   }) {
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
@@ -115,7 +175,7 @@ class ComplainListScreen extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  date,
+                  complaint['complaint_date'] ?? '',
                   style: GoogleFonts.inter(
                     fontSize: 14,
                     fontWeight: FontWeight.w600,
@@ -123,7 +183,7 @@ class ComplainListScreen extends StatelessWidget {
                   ),
                 ),
                 Text(
-                  timeAgo,
+                  _getTimeAgo(complaint['complaint_date'] ?? ''),
                   style: GoogleFonts.inter(
                     fontSize: 12,
                     color: Colors.grey,
@@ -138,31 +198,17 @@ class ComplainListScreen extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  assetCode,
+                  complaint['asset_id']?.toString() ?? '',
                   style: GoogleFonts.inter(
                     fontSize: 12,
                     color: Colors.grey[600],
                   ),
                 ),
                 Text(
-                  assetName,
+                  complaint['asset_name'] ?? '',
                   style: GoogleFonts.inter(
                     fontSize: 14,
                     fontWeight: FontWeight.w600,
-                  ),
-                ),
-                Text(
-                  '$brandName | SN : $serialNumber',
-                  style: GoogleFonts.inter(
-                    fontSize: 12,
-                    color: Colors.grey[600],
-                  ),
-                ),
-                Text(
-                  location,
-                  style: GoogleFonts.inter(
-                    fontSize: 12,
-                    color: Colors.grey[600],
                   ),
                 ),
               ],
@@ -174,14 +220,14 @@ class ComplainListScreen extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  performedBy,
+                  complaint['reporter_name'] ?? '',
                   style: GoogleFonts.inter(
                     fontSize: 12,
                     color: Colors.black87,
                   ),
                 ),
                 Text(
-                  complainDesc,
+                  complaint['description'] ?? '',
                   style: GoogleFonts.inter(
                     fontSize: 14,
                     fontWeight: FontWeight.w600,
@@ -197,10 +243,7 @@ class ComplainListScreen extends StatelessWidget {
                 context,
                 MaterialPageRoute(
                   builder: (context) => ComplainDetailScreen(
-                    assetCode: assetCode,
-                    assetName: assetName,
-                    performedBy: performedBy,
-                    complainDesc: complainDesc,
+                    complaint: complaint,
                   ),
                 ),
               );
@@ -230,5 +273,25 @@ class ComplainListScreen extends StatelessWidget {
         ],
       ),
     );
+  }
+
+  String _getTimeAgo(String dateString) {
+    try {
+      final date = DateTime.parse(dateString);
+      final now = DateTime.now();
+      final difference = now.difference(date);
+
+      if (difference.inDays > 0) {
+        return '${difference.inDays} days ago';
+      } else if (difference.inHours > 0) {
+        return '${difference.inHours} hours ago';
+      } else if (difference.inMinutes > 0) {
+        return '${difference.inMinutes} minutes ago';
+      } else {
+        return 'Just now';
+      }
+    } catch (e) {
+      return dateString;
+    }
   }
 }

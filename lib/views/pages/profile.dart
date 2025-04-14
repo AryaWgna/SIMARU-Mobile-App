@@ -183,7 +183,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     // Logout Form
                     _buildFormContainer([
                       _buildButton(
-                        'Logout',
+                        'Keluar',
                         onPressed: _logout,
                         color: const Color(0xFFFF0004),
                         icon: Icons.logout,

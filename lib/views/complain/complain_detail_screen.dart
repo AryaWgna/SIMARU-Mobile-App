@@ -4,18 +4,12 @@ import '../../widgets/custom_app_bar.dart';
 import 'complain_work_form_screen.dart';
 
 class ComplainDetailScreen extends StatelessWidget {
-  final String assetCode;
-  final String assetName;
-  final String performedBy;
-  final String complainDesc;
+  final Map<String, dynamic> complaint;
 
   const ComplainDetailScreen({
-    super.key,
-    required this.assetCode,
-    required this.assetName,
-    required this.performedBy,
-    required this.complainDesc,
-  });
+    Key? key,
+    required this.complaint,
+  }) : super(key: key);
 
   @override
   Widget build(BuildContext context) {
@@ -45,7 +39,6 @@ class ComplainDetailScreen extends StatelessWidget {
               ),
             ),
           ),
-
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16),
             child: Text(
@@ -57,7 +50,6 @@ class ComplainDetailScreen extends StatelessWidget {
               ),
             ),
           ),
-
           Expanded(
             child: SingleChildScrollView(
               child: Padding(
@@ -80,7 +72,7 @@ class ComplainDetailScreen extends StatelessWidget {
 
                     // Asset Code
                     Text(
-                      assetCode,
+                      complaint['asset_id']?.toString() ?? '-',
                       style: GoogleFonts.inter(
                         fontSize: 14,
                         fontWeight: FontWeight.w600,
@@ -90,7 +82,7 @@ class ComplainDetailScreen extends StatelessWidget {
 
                     // Asset Name
                     Text(
-                      assetName,
+                      complaint['asset_name'] ?? '-',
                       style: GoogleFonts.inter(
                         fontSize: 16,
                         fontWeight: FontWeight.w600,
@@ -102,7 +94,7 @@ class ComplainDetailScreen extends StatelessWidget {
 
                     // Performed By
                     Text(
-                      performedBy,
+                      complaint['reporter_name'] ?? '-',
                       style: GoogleFonts.inter(
                         fontSize: 14,
                         fontWeight: FontWeight.w500,
@@ -112,7 +104,7 @@ class ComplainDetailScreen extends StatelessWidget {
 
                     // Complaint Description
                     Text(
-                      complainDesc,
+                      complaint['description'] ?? '-',
                       style: GoogleFonts.inter(
                         fontSize: 14,
                         color: Colors.grey[600],
@@ -156,25 +148,20 @@ class ComplainDetailScreen extends StatelessWidget {
               height: 48,
               child: ElevatedButton(
                 onPressed: () {
-                  // Navigate to ComplainWorkFormScreen
                   Navigator.push(
                     context,
                     MaterialPageRoute(
                       builder: (context) => ComplainWorkFormScreen(
-                        assetCode: assetCode,
-                        assetName: assetName,
+                        assetCode: complaint['asset_id']?.toString() ?? '-',
+                        assetName: complaint['asset_name'] ?? '-',
                       ),
                     ),
                   );
                 },
-                style: ButtonStyle(
-                  backgroundColor: WidgetStateProperty.all(
-                    Colors.blue,
-                  ),
-                  shape: WidgetStateProperty.all(
-                    RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(4),
-                    ),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.blue,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(4),
                   ),
                 ),
                 child: Text(

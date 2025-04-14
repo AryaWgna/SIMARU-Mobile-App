@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import '../pages/profile.dart';
 import '../pages/home_screen.dart';
-import '../pages/history_screen.dart';
 import '../pages/qr_scanner_screen.dart';
 import '../stockopname/stockopname_task_list.dart';
 import '../complain/complain_list_screen.dart';

@@ -5,8 +5,6 @@ import '../../widgets/custom_app_bar.dart';
 import '../../controllers/total_asset_controller.dart';
 import '../../controllers/asset_under_repair_controller.dart';
 import '../../controllers/net_asset_value_controller.dart';
-import '../../views/complain/complain_list_screen.dart';
-import '../../views/stockopname/stockopname_task_list.dart';
 import '../pages/history_screen.dart';
 
 class HomeScreen extends StatefulWidget {

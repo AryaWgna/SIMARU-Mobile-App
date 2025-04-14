@@ -187,7 +187,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
             ),
           ),
         ),
-        ...activities.map((activity) => _buildHistoryItem(activity)).toList(),
+        ...activities.map((activity) => _buildHistoryItem(activity)),
       ],
     );
   }

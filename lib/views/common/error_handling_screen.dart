@@ -13,11 +13,11 @@ class ErrorHandlingScreen extends StatefulWidget {
   final VoidCallback? onRetry;
 
   const ErrorHandlingScreen({
-    Key? key,
+    super.key,
     required this.child,
     this.errorMessage,
     this.onRetry,
-  }) : super(key: key);
+  });
 
   @override
   State<ErrorHandlingScreen> createState() => ErrorHandlingScreenState();

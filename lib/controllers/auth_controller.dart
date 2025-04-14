@@ -54,7 +54,7 @@ class ApiService {
   // Gunakan URL publik Anda untuk perangkat fisik, misalnya: 'https://api.example.com'
 
   // Membuat instance untuk flutter_secure_storage
-  static final _secureStorage = const FlutterSecureStorage();
+  static const _secureStorage = FlutterSecureStorage();
 
   // Variabel untuk menyimpan token sementara jika flutter_secure_storage gagal
   static String? _tempAccessToken;
@@ -699,6 +699,15 @@ class ApiService {
     } catch (e, s) {
       print("Navigation error in ApiService: $e");
       print("Stack trace: $s");
+    }
+  }
+
+  static Future<String?> getAccessToken() async {
+    try {
+      return await _secureStorage.read(key: 'accessToken') ?? _tempAccessToken;
+    } catch (e) {
+      print('Error getting access token from Secure Storage: $e');
+      return _tempAccessToken;
     }
   }
 }
