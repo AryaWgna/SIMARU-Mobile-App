@@ -93,7 +93,7 @@ class _LoginScreenState extends State<LoginScreen> {
     // Validasi dasar
     if (_emailController.text.isEmpty || _passwordController.text.isEmpty) {
       setState(() {
-        _errorMessage = 'Email dan password tidak boleh kosong';
+        _errorMessage = 'Nomor karyawan dan password tidak boleh kosong';
       });
       return;
     }
@@ -291,10 +291,10 @@ class _LoginScreenState extends State<LoginScreen> {
                       children: [
                         _buildTextField(
                           controller: _emailController,
-                          label: 'Email',
-                          hint: 'Masukkan Email Anda',
-                          icon: Icons.email_outlined,
-                          keyboardType: TextInputType.emailAddress,
+                          label: 'Nomor Karyawan',
+                          hint: 'Masukkan Nomor Karyawan Anda',
+                          icon: Icons.person_outline,
+                          keyboardType: TextInputType.text,
                           onChanged: (_) {
                             if (_errorMessage != null) {
                               setState(() => _errorMessage = null);

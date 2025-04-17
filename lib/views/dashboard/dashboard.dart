@@ -140,8 +140,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
                         label: '',
                       ),
                       BottomNavigationBarItem(
-                        icon: Icon(Icons.build),
-                        label: 'Perbaikan',
+                        icon: Icon(Icons.report_problem),
+                        label: 'Komplain dan Laporan',
                       ),
                       BottomNavigationBarItem(
                         icon: Icon(Icons.person),

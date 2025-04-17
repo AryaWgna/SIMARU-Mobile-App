@@ -84,7 +84,9 @@ class _ComplainListScreenState extends State<ComplainListScreen> {
 
     // Check if repair exists and has approval_by
     if (complaint['repair'] != null &&
-        complaint['repair']['approval_by'] != null) {
+        complaint['repair']['approval_by'] != null &&
+        complaint['repair']['approval_by'].toString() != "" &&
+        complaint['repair']['approval_by'] != 0) {
       backgroundColor = Colors.green;
       statusText = 'APPROVED';
     } else {
@@ -375,9 +377,22 @@ class _ComplainListScreenState extends State<ComplainListScreen> {
                                         ),
                                         child: Center(
                                           child: Text(
-                                            complaint['status']
-                                                        ?.toLowerCase() ==
-                                                    'finished'
+                                            (complaint['status']?.toLowerCase() == 'finished' &&
+                                                    complaint['status']
+                                                            ?.toLowerCase() !=
+                                                        'approved' &&
+                                                    complaint['repair'] !=
+                                                        null &&
+                                                    (complaint['repair'][
+                                                                'approval_by'] ==
+                                                            null ||
+                                                        complaint['repair'][
+                                                                    'approval_by']
+                                                                .toString() ==
+                                                            "" ||
+                                                        complaint['repair'][
+                                                                'approval_by'] ==
+                                                            0))
                                                 ? 'Approve'
                                                 : 'Lihat Detail',
                                             style: GoogleFonts.inter(

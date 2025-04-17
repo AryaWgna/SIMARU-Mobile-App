@@ -98,12 +98,22 @@ class _ComplainDetailScreenState extends State<ComplainDetailScreen> {
           if (mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
               const SnackBar(
-                content: Text('Repair approved successfully'),
+                content: Text('Perbaikan berhasil disetujui'),
                 backgroundColor: Colors.green,
               ),
             );
-            // Refresh the complaint details
-            _fetchComplaintDetail();
+
+            // Update the repair's approval_by locally without having to fetch again
+            if (_complaintDetail != null &&
+                _complaintDetail!['repair'] != null) {
+              setState(() {
+                _complaintDetail!['repair']['approval_by'] = 2;
+                _complaintDetail!['status'] = 'approved';
+              });
+            } else {
+              // If local update not possible, refresh the complaint details
+              _fetchComplaintDetail();
+            }
           }
         } else {
           throw Exception(data['message'] ?? 'Failed to approve repair');
@@ -172,18 +182,31 @@ class _ComplainDetailScreenState extends State<ComplainDetailScreen> {
     Color textColor = Colors.white;
     String statusText = status?.toUpperCase() ?? 'UNKNOWN';
 
-    switch (status?.toLowerCase()) {
-      case 'approved':
-        backgroundColor = Colors.green;
-        break;
-      case 'pending':
-        backgroundColor = Colors.orange;
-        break;
-      case 'rejected':
-        backgroundColor = Colors.red;
-        break;
-      default:
-        backgroundColor = Colors.grey;
+    // Check if repair exists and has approval_by
+    if (_complaintDetail != null &&
+        _complaintDetail?['repair'] != null &&
+        _complaintDetail?['repair']['approval_by'] != null &&
+        _complaintDetail?['repair']['approval_by'].toString() != "" &&
+        _complaintDetail?['repair']['approval_by'] != 0) {
+      backgroundColor = Colors.green;
+      statusText = 'APPROVED';
+    } else {
+      switch (status?.toLowerCase()) {
+        case 'approved':
+          backgroundColor = Colors.green;
+          break;
+        case 'pending':
+          backgroundColor = Colors.orange;
+          break;
+        case 'rejected':
+          backgroundColor = Colors.red;
+          break;
+        case 'finished':
+          backgroundColor = Colors.blue;
+          break;
+        default:
+          backgroundColor = Colors.grey;
+      }
     }
 
     return Container(
@@ -405,12 +428,19 @@ class _ComplainDetailScreenState extends State<ComplainDetailScreen> {
                                     ['approval_date'])),
                           ],
 
-                          // Add Approve button if status is 'finished' and approval_by is null
-                          if (_complaintDetail?['status']?.toLowerCase() ==
-                                  'finished' &&
+                          // Add Approve button if status is 'finished' and approval_by is null/empty
+                          // and status is not already 'approved'
+                          if (_complaintDetail?['status']?.toLowerCase() == 'finished' &&
+                              _complaintDetail?['status']?.toLowerCase() !=
+                                  'approved' &&
                               _complaintDetail?['repair'] != null &&
-                              _complaintDetail?['repair']['approval_by'] ==
-                                  null)
+                              (_complaintDetail?['repair']['approval_by'] ==
+                                      null ||
+                                  _complaintDetail?['repair']['approval_by']
+                                          .toString() ==
+                                      "" ||
+                                  _complaintDetail?['repair']['approval_by'] ==
+                                      0))
                             Padding(
                               padding:
                                   const EdgeInsets.symmetric(vertical: 16.0),
@@ -443,32 +473,7 @@ class _ComplainDetailScreenState extends State<ComplainDetailScreen> {
                                 ),
                               ),
                             ),
-                          // Show approved status if approval_by exists
-                          if (_complaintDetail?['repair'] != null &&
-                              _complaintDetail?['repair']['approval_by'] !=
-                                  null)
-                            Padding(
-                              padding:
-                                  const EdgeInsets.symmetric(vertical: 16.0),
-                              child: Container(
-                                width: double.infinity,
-                                height: 45,
-                                decoration: BoxDecoration(
-                                  color: Colors.green,
-                                  borderRadius: BorderRadius.circular(8),
-                                ),
-                                child: const Center(
-                                  child: Text(
-                                    'Repair Approved',
-                                    style: TextStyle(
-                                      fontSize: 16,
-                                      fontWeight: FontWeight.bold,
-                                      color: Colors.white,
-                                    ),
-                                  ),
-                                ),
-                              ),
-                            ),
+                          // Remove this entire section - we don't need to show any button when already approved
                         ],
                       ),
                     ),
