@@ -10,6 +10,8 @@ class ApiConfig {
   static String get logoutUrl => '$baseUrl/auth/logout';
   static String get complaintsUrl => '$baseUrl/complaints';
   static String getComplaintByIdUrl(String id) => '$baseUrl/complaints/$id';
+  static String getUserComplaintsUrl(String userId) =>
+      '$baseUrl/complaints/user/$userId';
 
   // Add new endpoint for history
   static String getHistoryUrl(String date) =>

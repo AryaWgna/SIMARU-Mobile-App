@@ -31,7 +31,7 @@ class ApiException implements Exception {
     if (statusCode == 401) {
       return 'Sesi Anda telah berakhir. Silakan login kembali.';
     } else if (statusCode == 403) {
-      return 'Email atau password salah. Silakan periksa kembali.';
+      return 'employee_number atau password salah. Silakan periksa kembali.';
     } else if (statusCode == 404) {
       return 'Layanan tidak ditemukan. Silakan hubungi administrator.';
     } else if (statusCode == 500) {
@@ -59,7 +59,7 @@ class ApiService {
   // Variabel untuk menyimpan token sementara jika flutter_secure_storage gagal
   static String? _tempAccessToken;
   static String? _tempRefreshToken;
-  static String? _tempEmail;
+  static String? _tempemployee_number;
   static String? _tempPassword;
 
   // Callback untuk navigasi ke halaman login
@@ -205,20 +205,20 @@ class ApiService {
     developer.log('--------------------------------', name: 'API_RESPONSE');
   }
 
-  static Future<void> login(String email, String password) async {
-    if (email.isEmpty || password.isEmpty) {
+  static Future<void> login(String employee_number, String password) async {
+    if (employee_number.isEmpty || password.isEmpty) {
       throw ApiException(
-          message: 'Email dan password tidak boleh kosong',
+          message: 'employee_number dan password tidak boleh kosong',
           code: 'VALIDATION_ERROR');
     }
 
     try {
       final url = '$baseUrl/auth/login';
       print('Attempting login to: $url');
-      print('Email: $email');
+      print('employee_number: $employee_number');
 
       final requestBody = {
-        'email': email,
+        'employee_number': employee_number,
         'password': password,
       };
 
@@ -279,7 +279,7 @@ class ApiService {
                   key: 'accessToken', value: accessToken);
               await _secureStorage.write(
                   key: 'refreshToken', value: refreshToken);
-              await _secureStorage.write(key: 'email', value: email);
+              await _secureStorage.write(key: 'employee_number', value: employee_number);
               await _secureStorage.write(key: 'password', value: password);
               print('Credentials stored successfully');
             } catch (e) {
@@ -287,7 +287,7 @@ class ApiService {
               // Backup ke variabel memori jika gagal
               _tempAccessToken = accessToken;
               _tempRefreshToken = refreshToken;
-              _tempEmail = email;
+              _tempemployee_number = employee_number;
               _tempPassword = password;
               print('Credentials stored in temporary variables');
             }
@@ -333,13 +333,13 @@ class ApiService {
         try {
           final jsonResponse = jsonDecode(response.body);
           throw ApiException(
-              message: jsonResponse['message'] ?? 'Email atau password salah',
+              message: jsonResponse['message'] ?? 'employee_number atau password salah',
               code: 'FORBIDDEN',
               statusCode: 403);
         } catch (e) {
           if (e is ApiException) rethrow;
           throw ApiException(
-              message: 'Email atau password salah',
+              message: 'employee_number atau password salah',
               code: 'FORBIDDEN',
               statusCode: 403);
         }
@@ -357,29 +357,29 @@ class ApiService {
   }
 
   static Future<bool> refreshToken() async {
-    String? email;
+    String? employee_number;
     String? password;
 
     print('Attempting to refresh token...');
 
     try {
-      email = await _secureStorage.read(key: 'email');
+      employee_number = await _secureStorage.read(key: 'employee_number');
       password = await _secureStorage.read(key: 'password');
       print('Retrieved credentials from Secure Storage');
     } catch (e) {
       // Jika gagal mengakses Secure Storage, gunakan variabel sementara
-      email = _tempEmail;
+      employee_number = _tempemployee_number;
       password = _tempPassword;
       print('Retrieved credentials from temporary variables');
     }
 
-    if (email == null || password == null) {
+    if (employee_number == null || password == null) {
       print('No credentials found for token refresh');
       return false;
     }
 
     try {
-      print('Sending refresh token request for user: $email');
+      print('Sending refresh token request for user: $employee_number');
 
       final response = await http.post(
         Uri.parse('$baseUrl/auth/refresh-token'),
@@ -387,7 +387,7 @@ class ApiService {
           'Content-Type': 'application/json',
         },
         body: jsonEncode({
-          'email': email,
+          'employee_number': employee_number,
           'password': password,
         }),
       );
@@ -534,7 +534,7 @@ class ApiService {
     // Clear memory variables as well
     _tempAccessToken = null;
     _tempRefreshToken = null;
-    _tempEmail = null;
+    _tempemployee_number = null;
     _tempPassword = null;
   }
 
