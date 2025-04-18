@@ -9,7 +9,16 @@ import 'asset_details.dart';
 import 'package:dotted_border/dotted_border.dart';
 
 class AssetDocument extends StatefulWidget {
-  const AssetDocument({super.key});
+  final Map<String, dynamic>? assetData;
+  final String qrData;
+  final String previousScreen;
+
+  const AssetDocument({
+    super.key,
+    this.assetData,
+    this.qrData = '',
+    this.previousScreen = 'home',
+  });
 
   @override
   State<AssetDocument> createState() => _AssetDocumentState();
@@ -98,7 +107,7 @@ class _AssetDocumentState extends State<AssetDocument> {
                       children: [
                         // Header - dengan ukuran font yang responsif
                         Text(
-                          'ADD NEW DOCUMENT',
+                          'TAMBAH DOKUMEN BARU',
                           style: TextStyle(
                             fontSize: isSmallScreen ? 24 : 32,
                             fontWeight: FontWeight.w600,
@@ -114,7 +123,7 @@ class _AssetDocumentState extends State<AssetDocument> {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             const Text(
-                              'Title',
+                              'Judul',
                               style: TextStyle(
                                 fontSize: 16,
                                 fontWeight: FontWeight.w600,
@@ -131,7 +140,7 @@ class _AssetDocumentState extends State<AssetDocument> {
                                 color: Color(0xFF666666),
                               ),
                               decoration: InputDecoration(
-                                hintText: 'Type here',
+                                hintText: 'Ketik di sini',
                                 hintStyle: const TextStyle(
                                   color: Color(0xFF666666),
                                   fontSize: 16,
@@ -170,7 +179,7 @@ class _AssetDocumentState extends State<AssetDocument> {
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 Text(
-                                  'Insert Your File',
+                                  'Masukkan File Anda',
                                   style: TextStyle(
                                     fontSize: 16,
                                     fontWeight: FontWeight.w600,
@@ -180,7 +189,7 @@ class _AssetDocumentState extends State<AssetDocument> {
                                 ),
                                 SizedBox(height: 4),
                                 Text(
-                                  'Maximum file size allowed: 10 MB',
+                                  'Ukuran file maksimal: 10 MB',
                                   style: TextStyle(
                                     fontSize: 12,
                                     fontWeight: FontWeight.w400,
@@ -227,7 +236,7 @@ class _AssetDocumentState extends State<AssetDocument> {
                                               MainAxisAlignment.center,
                                           children: [
                                             Text(
-                                              'Drag your file(s) or ',
+                                              'Seret file Anda atau ',
                                               style: TextStyle(
                                                 fontSize: 14,
                                                 color: Color(0xFF1C1C1C),
@@ -235,7 +244,7 @@ class _AssetDocumentState extends State<AssetDocument> {
                                               ),
                                             ),
                                             Text(
-                                              'browse',
+                                              'pilih',
                                               style: TextStyle(
                                                 fontSize: 14,
                                                 fontWeight: FontWeight.w600,
@@ -250,7 +259,7 @@ class _AssetDocumentState extends State<AssetDocument> {
                                           padding: EdgeInsets.symmetric(
                                               horizontal: 8),
                                           child: Text(
-                                            'jpg, png, pdf, doc, docx, xls, xlsx or csv',
+                                            'jpg, png, pdf, doc, docx, xls, xlsx atau csv',
                                             style: TextStyle(
                                               fontSize: 12,
                                               color: Color(0xFFAFAFAF),
@@ -293,7 +302,7 @@ class _AssetDocumentState extends State<AssetDocument> {
                                             });
                                           },
                                           child: const Text(
-                                            'Remove',
+                                            'Hapus',
                                             style: TextStyle(
                                               fontSize: 14,
                                               color: Colors.red,
@@ -324,7 +333,7 @@ class _AssetDocumentState extends State<AssetDocument> {
                                     ScaffoldMessenger.of(context).showSnackBar(
                                       const SnackBar(
                                         content:
-                                            Text('Document saved successfully'),
+                                            Text('Dokumen berhasil disimpan'),
                                         backgroundColor: Color(0xFF213268),
                                       ),
                                     );
@@ -342,7 +351,7 @@ class _AssetDocumentState extends State<AssetDocument> {
                               elevation: 0,
                             ),
                             child: const Text(
-                              'Save',
+                              'Simpan',
                               style: TextStyle(
                                 fontSize: 16,
                                 fontFamily: 'Inter',
@@ -404,7 +413,7 @@ class _AssetDocumentState extends State<AssetDocument> {
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
                           Text(
-                            'Document Title',
+                            'Judul Dokumen',
                             style: TextStyle(
                               fontFamily: 'Inter',
                               fontSize: 14,
@@ -435,11 +444,11 @@ class _AssetDocumentState extends State<AssetDocument> {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           const SizedBox(height: 12),
-                          _buildDetailRow('File Name'),
+                          _buildDetailRow('Nama File'),
                           const SizedBox(height: 12),
-                          _buildDetailRow('Type'),
+                          _buildDetailRow('Tipe'),
                           const SizedBox(height: 12),
-                          _buildDetailRow('Upload Date'),
+                          _buildDetailRow('Tanggal Unggah'),
                         ],
                       ),
                     ),
@@ -538,11 +547,19 @@ class _AssetDocumentState extends State<AssetDocument> {
                 IconButton(
                   icon: const Icon(Icons.arrow_back,
                       color: Colors.white, size: 32),
-                  onPressed: () => Navigator.pushReplacement(
-                    context,
-                    MaterialPageRoute(
-                        builder: (context) => const AssetDetails(qrData: '')),
-                  ),
+                  onPressed: () {
+                    // Navigasi langsung ke halaman AssetDetails ketika tombol kembali ditekan
+                    Navigator.pushReplacement(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => AssetDetails(
+                          qrData: widget.qrData,
+                          previousScreen: widget.previousScreen,
+                          assetData: widget.assetData,
+                        ),
+                      ),
+                    );
+                  },
                 ),
                 Expanded(
                   child: Center(
@@ -584,26 +601,22 @@ class _AssetDocumentState extends State<AssetDocument> {
         children: [
           _buildNavItem(
             Icons.folder,
-            'Document',
+            'Dokumen',
             activePage == 'document',
             () {},
           ),
           _buildNavItem(
             Icons.history,
-            'History',
+            'Riwayat',
             false,
             () => Navigator.push(
               context,
-              MaterialPageRoute(builder: (context) => const AssetHistory()),
-            ),
-          ),
-          _buildNavItem(
-            Icons.calendar_today,
-            'Schedule',
-            false,
-            () => Navigator.push(
-              context,
-              MaterialPageRoute(builder: (context) => const AssetSchedule()),
+              MaterialPageRoute(
+                  builder: (context) => AssetHistory(
+                        assetData: widget.assetData,
+                        qrData: widget.qrData,
+                        previousScreen: widget.previousScreen,
+                      )),
             ),
           ),
           _buildNavItem(
@@ -612,17 +625,12 @@ class _AssetDocumentState extends State<AssetDocument> {
             false,
             () => Navigator.push(
               context,
-              MaterialPageRoute(builder: (context) => const AssetMutation()),
-            ),
-          ),
-          _buildNavItem(
-            Icons.trending_down,
-            'Depreciation',
-            false,
-            () => Navigator.push(
-              context,
               MaterialPageRoute(
-                  builder: (context) => const AssetDepreciation()),
+                  builder: (context) => AssetMutation(
+                        assetData: widget.assetData,
+                        qrData: widget.qrData,
+                        previousScreen: widget.previousScreen,
+                      )),
             ),
           ),
         ],

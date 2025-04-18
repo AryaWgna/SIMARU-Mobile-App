@@ -1,8 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import '../../controllers/auth_controller.dart';
+import 'dart:convert';
 
 class LostScreen extends StatefulWidget {
-  const LostScreen({super.key});
+  final Map<String, dynamic>? assetData;
+
+  const LostScreen({super.key, this.assetData});
 
   @override
   State<LostScreen> createState() => _LostScreenState();
@@ -11,6 +15,8 @@ class LostScreen extends StatefulWidget {
 class _LostScreenState extends State<LostScreen> {
   DateTime? selectedDate;
   final TextEditingController notesController = TextEditingController();
+  bool isLoading = false;
+  String? errorMessage;
 
   @override
   void dispose() {
@@ -36,9 +42,9 @@ class _LostScreenState extends State<LostScreen> {
     final DateTime? picked = await showDatePicker(
       context: context,
       initialDate: selectedDate ?? currentDate,
-      firstDate: currentDate,
-      lastDate:
-          DateTime(currentDate.year + 1, currentDate.month, currentDate.day),
+      firstDate:
+          DateTime(currentDate.year - 1, currentDate.month, currentDate.day),
+      lastDate: currentDate,
       builder: (context, child) {
         return Theme(
           data: theme,
@@ -50,9 +56,9 @@ class _LostScreenState extends State<LostScreen> {
           ),
         );
       },
-      helpText: 'SELECT LOST DATE',
-      cancelText: 'CANCEL',
-      confirmText: 'SELECT',
+      helpText: 'PILIH TANGGAL KEHILANGAN',
+      cancelText: 'BATAL',
+      confirmText: 'PILIH',
       useRootNavigator: true,
     );
 
@@ -63,12 +69,90 @@ class _LostScreenState extends State<LostScreen> {
 
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content:
-              Text('Lost date: ${DateFormat('MM/dd/yyyy').format(picked)}'),
+          content: Text(
+              'Tanggal kehilangan: ${DateFormat('dd/MM/yyyy').format(picked)}'),
           duration: const Duration(seconds: 2),
           backgroundColor: const Color(0xFF213268),
         ),
       );
+    }
+  }
+
+  Future<void> _reportLost() async {
+    if (selectedDate == null) {
+      setState(() {
+        errorMessage = 'Tanggal kehilangan harus dipilih';
+      });
+      return;
+    }
+
+    if (notesController.text.isEmpty) {
+      setState(() {
+        errorMessage = 'Catatan tidak boleh kosong';
+      });
+      return;
+    }
+
+    final assetId = widget.assetData?['asset_id'];
+    if (assetId == null) {
+      setState(() {
+        errorMessage = 'ID aset tidak ditemukan';
+      });
+      return;
+    }
+
+    setState(() {
+      isLoading = true;
+      errorMessage = null;
+    });
+
+    try {
+      final requestBody = {
+        "asset_id": assetId,
+        "lost_date": DateFormat('yyyy-MM-dd').format(selectedDate!),
+        "lost_notes": notesController.text,
+      };
+
+      print('Sending lost report: $requestBody');
+
+      final response = await ApiService.post(
+        '/asset-transfers/lost',
+        body: requestBody,
+        context: context,
+      );
+
+      if (response.statusCode == 200 || response.statusCode == 201) {
+        final data = json.decode(response.body);
+        if (data['status'] == true) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Laporan kehilangan berhasil dikirim'),
+              backgroundColor: Color(0xFF213268),
+            ),
+          );
+          Navigator.pop(context, true); // Return true for success
+        } else {
+          throw Exception(data['message'] ?? 'Laporan kehilangan gagal');
+        }
+      } else {
+        final data = json.decode(response.body);
+        throw Exception(data['message'] ??
+            'Laporan kehilangan gagal: ${response.statusCode}');
+      }
+    } catch (e) {
+      setState(() {
+        errorMessage = 'Error: ${e.toString()}';
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(errorMessage!),
+          backgroundColor: Colors.red,
+        ),
+      );
+    } finally {
+      setState(() {
+        isLoading = false;
+      });
     }
   }
 
@@ -112,7 +196,7 @@ class _LostScreenState extends State<LostScreen> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               const Text(
-                'LOST',
+                'LAPORKAN KEHILANGAN',
                 style: TextStyle(
                   fontSize: 24,
                   fontWeight: FontWeight.w600,
@@ -122,12 +206,68 @@ class _LostScreenState extends State<LostScreen> {
               ),
               const SizedBox(height: 25),
 
+              // Asset Info
+              if (widget.assetData != null)
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Colors.grey[100],
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Asset: ${widget.assetData!['asset_name'] ?? 'Tidak diketahui'}',
+                        style: const TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w500,
+                          color: Color(0xFF213268),
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        'Kode: ${widget.assetData!['asset_code'] ?? '-'}',
+                        style: const TextStyle(
+                          fontSize: 14,
+                          color: Color(0xFF666666),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              const SizedBox(height: 25),
+
+              // Error message if any
+              if (errorMessage != null)
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  margin: const EdgeInsets.only(bottom: 16),
+                  decoration: BoxDecoration(
+                    color: Colors.red[50],
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: Colors.red),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(Icons.error_outline, color: Colors.red[700]),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          errorMessage!,
+                          style: TextStyle(color: Colors.red[700]),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+
               // Lost Date - border dihilangkan
               Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   const Text(
-                    'Lost Date',
+                    'Tanggal Kehilangan',
                     style: TextStyle(
                       fontSize: 16,
                       fontWeight: FontWeight.w600,
@@ -162,8 +302,8 @@ class _LostScreenState extends State<LostScreen> {
                           Expanded(
                             child: Text(
                               selectedDate == null
-                                  ? 'Choose Date'
-                                  : DateFormat('MM/dd/yyyy')
+                                  ? 'Pilih Tanggal'
+                                  : DateFormat('dd/MM/yyyy')
                                       .format(selectedDate!),
                               style: TextStyle(
                                 fontSize: 16,
@@ -199,7 +339,7 @@ class _LostScreenState extends State<LostScreen> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   const Text(
-                    'Notes',
+                    'Catatan Kehilangan',
                     style: TextStyle(
                       fontSize: 16,
                       fontWeight: FontWeight.w600,
@@ -211,7 +351,7 @@ class _LostScreenState extends State<LostScreen> {
                   TextField(
                     controller: notesController,
                     decoration: InputDecoration(
-                      hintText: 'Enter Notes',
+                      hintText: 'Masukkan detail kehilangan',
                       hintStyle: const TextStyle(color: Color(0xFF666666)),
                       fillColor: Colors.white,
                       filled: true,
@@ -245,16 +385,7 @@ class _LostScreenState extends State<LostScreen> {
         ),
         padding: const EdgeInsets.only(left: 21, right: 21, bottom: 18),
         child: ElevatedButton(
-          onPressed: selectedDate == null
-              ? null
-              : () {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text('Lost report successful'),
-                      backgroundColor: Color(0xFF213268),
-                    ),
-                  );
-                },
+          onPressed: isLoading ? null : _reportLost,
           style: ElevatedButton.styleFrom(
             backgroundColor: const Color(0xFF213268),
             foregroundColor: Colors.white,
@@ -266,13 +397,22 @@ class _LostScreenState extends State<LostScreen> {
             padding: const EdgeInsets.symmetric(vertical: 12),
             elevation: 0,
           ),
-          child: const Text(
-            'Lost',
-            style: TextStyle(
-              fontSize: 16,
-              fontFamily: 'Inter',
-            ),
-          ),
+          child: isLoading
+              ? const SizedBox(
+                  height: 20,
+                  width: 20,
+                  child: CircularProgressIndicator(
+                    color: Colors.white,
+                    strokeWidth: 2,
+                  ),
+                )
+              : const Text(
+                  'Laporkan Kehilangan',
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontFamily: 'Inter',
+                  ),
+                ),
         ),
       ),
     );

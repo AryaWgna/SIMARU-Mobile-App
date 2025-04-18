@@ -1,21 +1,44 @@
 class ApiConfig {
-  // Base URL untuk API
+  // URL API untuk lingkungan pengembangan
+  static const String devApiUrl = 'http://api-dev.assets-tracker.com';
+
+  // URL API untuk lingkungan produksi
+  static const String prodApiUrl = 'https://api.assets-tracker.com';
+
+  // Base URL untuk API lokal di emulator
   static const String baseUrl =
-      'http://10.0.2.2:8026'; // Special IP for Android Emulator to access host machine
+      'http://192.168.43.133:8026'; // Special IP for Android Emulator to access host machine
+
+  // API URL aktif berdasarkan mode (development/production)
+  static String get activeApiUrl {
+    // Untuk pengembangan, gunakan localhost
+    // Dalam produksi, ganti dengan URL server yang sebenarnya
+    const bool isProduction = false;
+    return isProduction ? prodApiUrl : baseUrl;
+  }
+
+  // Endpoint API
+  static const String loginEndpoint = '/auth/login';
+  static const String assetsEndpoint = '/assets';
+
+  // Timeout untuk permintaan API (dalam detik)
+  static const int connectionTimeout = 30;
+  static const int receiveTimeout = 30;
 
   // Endpoint URLs
-  static String get loginUrl => '$baseUrl/auth/login';
-  static String get refreshTokenUrl => '$baseUrl/auth/refresh-token';
-  static String get profileUrl => '$baseUrl/user/profile';
-  static String get logoutUrl => '$baseUrl/auth/logout';
-  static String get complaintsUrl => '$baseUrl/complaints';
-  static String getComplaintByIdUrl(String id) => '$baseUrl/complaints/$id';
+  static String get loginUrl => '$activeApiUrl/auth/login';
+  static String get refreshTokenUrl => '$activeApiUrl/auth/refresh-token';
+  static String get profileUrl => '$activeApiUrl/user/profile';
+  static String get logoutUrl => '$activeApiUrl/auth/logout';
+  static String get complaintsUrl => '$activeApiUrl/complaints';
+  static String getComplaintByIdUrl(String id) =>
+      '$activeApiUrl/complaints/$id';
   static String getUserComplaintsUrl(String userId) =>
-      '$baseUrl/complaints/user/$userId';
+      '$activeApiUrl/complaints/user/$userId';
 
   // Add new endpoint for history
   static String getHistoryUrl(String date) =>
-      '$baseUrl/asset-histories/activities/user/1?date=$date';
+      '$activeApiUrl/asset-histories/activities/user/1?date=$date';
 
   // Tambahkan endpoint lain sesuai kebutuhan aplikasi Anda
   // static String get maintenanceUrl => '$baseUrl/maintenance';
@@ -23,6 +46,6 @@ class ApiConfig {
 
   // Helper untuk endpoint dinamis
   static String getEndpointUrl(String endpoint) {
-    return '$baseUrl/$endpoint';
+    return '$activeApiUrl/$endpoint';
   }
 }

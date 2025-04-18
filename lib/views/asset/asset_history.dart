@@ -6,7 +6,16 @@ import 'asset_depreciation.dart';
 import 'asset_details.dart';
 
 class AssetHistory extends StatefulWidget {
-  const AssetHistory({super.key});
+  final Map<String, dynamic>? assetData;
+  final String qrData;
+  final String previousScreen;
+
+  const AssetHistory({
+    super.key,
+    this.assetData,
+    this.qrData = '',
+    this.previousScreen = 'home',
+  });
 
   @override
   State<AssetHistory> createState() => _AssetHistoryState();
@@ -17,35 +26,35 @@ class _AssetHistoryState extends State<AssetHistory> {
 
   // Format tanggal
   String formatDate(DateTime date) {
-    // Format untuk Inggris: DD Month YYYY
+    // Format untuk Indonesia: DD Bulan YYYY
     List<String> months = [
-      'January',
-      'February',
-      'March',
+      'Januari',
+      'Februari',
+      'Maret',
       'April',
-      'May',
-      'June',
-      'July',
-      'August',
+      'Mei',
+      'Juni',
+      'Juli',
+      'Agustus',
       'September',
-      'October',
+      'Oktober',
       'November',
-      'December'
+      'Desember'
     ];
     return '${date.day} ${months[date.month - 1]} ${date.year}';
   }
 
   // Format hari
   String formatDay(DateTime date) {
-    // Nama hari dalam bahasa Inggris
+    // Nama hari dalam bahasa Indonesia
     List<String> days = [
-      'Sunday',
-      'Monday',
-      'Tuesday',
-      'Wednesday',
-      'Thursday',
-      'Friday',
-      'Saturday'
+      'Minggu',
+      'Senin',
+      'Selasa',
+      'Rabu',
+      'Kamis',
+      'Jumat',
+      'Sabtu'
     ];
     return days[date.weekday % 7];
   }
@@ -86,6 +95,15 @@ class _AssetHistoryState extends State<AssetHistory> {
       },
       // Gunakan root navigator untuk menghindari masalah layout
       useRootNavigator: true,
+      // Lokalisasi kalender dalam bahasa Indonesia
+      locale: const Locale('id', 'ID'),
+      // Label teks dalam bahasa Indonesia
+      confirmText: 'PILIH',
+      cancelText: 'BATAL',
+      helpText: 'PILIH TANGGAL',
+      fieldLabelText: 'Masukkan Tanggal',
+      errorFormatText: 'Format tanggal tidak valid',
+      errorInvalidText: 'Tanggal tidak valid',
     );
 
     if (picked != null && picked != selectedDate) {
@@ -157,11 +175,19 @@ class _AssetHistoryState extends State<AssetHistory> {
                 IconButton(
                   icon: const Icon(Icons.arrow_back,
                       color: Colors.white, size: 32),
-                  onPressed: () => Navigator.pushReplacement(
-                    context,
-                    MaterialPageRoute(
-                        builder: (context) => const AssetDetails(qrData: '')),
-                  ),
+                  onPressed: () {
+                    // Navigasi langsung ke halaman AssetDetails ketika tombol kembali ditekan
+                    Navigator.pushReplacement(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => AssetDetails(
+                          qrData: widget.qrData,
+                          previousScreen: widget.previousScreen,
+                          assetData: widget.assetData,
+                        ),
+                      ),
+                    );
+                  },
                 ),
                 Expanded(
                   child: Center(
@@ -233,7 +259,7 @@ class _AssetHistoryState extends State<AssetHistory> {
                               ),
                               SizedBox(width: 12),
                               Text(
-                                'Change Date',
+                                'Ubah Tanggal',
                                 style: TextStyle(
                                   fontFamily: 'Inter',
                                   fontSize: 16,
@@ -350,24 +376,24 @@ class _AssetHistoryState extends State<AssetHistory> {
                             Column(
                               children: [
                                 _buildTimelineItem(
-                                  'Jhon Doe change the status from ',
-                                  'Available',
-                                  ' to ',
-                                  'Check Out',
+                                  'Jhon Doe mengubah status dari ',
+                                  'Tersedia',
+                                  ' ke ',
+                                  'Dipinjam',
                                 ),
                                 const SizedBox(height: 20),
                                 _buildTimelineItem(
-                                  'Jane Doe change the status from ',
-                                  'Check Out',
-                                  ' to ',
-                                  'Available',
+                                  'Jane Doe mengubah status dari ',
+                                  'Dipinjam',
+                                  ' ke ',
+                                  'Tersedia',
                                 ),
                                 const SizedBox(height: 20),
                                 _buildTimelineItem(
-                                  'Jane Doe change the status from ',
-                                  'Available',
-                                  ' to ',
-                                  'Check Out',
+                                  'Jane Doe mengubah status dari ',
+                                  'Tersedia',
+                                  ' ke ',
+                                  'Dipinjam',
                                 ),
                               ],
                             ),
@@ -428,7 +454,7 @@ class _AssetHistoryState extends State<AssetHistory> {
                     TextSpan(
                       text: status1,
                       style: TextStyle(
-                        color: status1 == 'Available'
+                        color: status1 == 'Tersedia'
                             ? Colors.green
                             : Colors.orange,
                         fontWeight: FontWeight.bold,
@@ -438,7 +464,7 @@ class _AssetHistoryState extends State<AssetHistory> {
                     TextSpan(
                       text: status2,
                       style: TextStyle(
-                        color: status2 == 'Available'
+                        color: status2 == 'Tersedia'
                             ? Colors.green
                             : Colors.orange,
                         fontWeight: FontWeight.bold,
@@ -473,27 +499,23 @@ class _AssetHistoryState extends State<AssetHistory> {
         children: [
           _buildNavItem(
             Icons.folder,
-            'Document',
+            'Dokumen',
             false,
             () => Navigator.push(
               context,
-              MaterialPageRoute(builder: (context) => const AssetDocument()),
+              MaterialPageRoute(
+                  builder: (context) => AssetDocument(
+                        assetData: widget.assetData,
+                        qrData: widget.qrData,
+                        previousScreen: widget.previousScreen,
+                      )),
             ),
           ),
           _buildNavItem(
             Icons.history,
-            'History',
+            'Riwayat',
             true,
             () {},
-          ),
-          _buildNavItem(
-            Icons.calendar_today,
-            'Schedule',
-            false,
-            () => Navigator.push(
-              context,
-              MaterialPageRoute(builder: (context) => const AssetSchedule()),
-            ),
           ),
           _buildNavItem(
             Icons.swap_horiz,
@@ -501,17 +523,12 @@ class _AssetHistoryState extends State<AssetHistory> {
             false,
             () => Navigator.push(
               context,
-              MaterialPageRoute(builder: (context) => const AssetMutation()),
-            ),
-          ),
-          _buildNavItem(
-            Icons.trending_down,
-            'Depreciation',
-            false,
-            () => Navigator.push(
-              context,
               MaterialPageRoute(
-                  builder: (context) => const AssetDepreciation()),
+                  builder: (context) => AssetMutation(
+                        assetData: widget.assetData,
+                        qrData: widget.qrData,
+                        previousScreen: widget.previousScreen,
+                      )),
             ),
           ),
         ],

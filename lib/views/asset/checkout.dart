@@ -1,8 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import '../../controllers/auth_controller.dart';
+import 'dart:convert';
+import '../../core/config/api_config.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
 class CheckoutScreen extends StatefulWidget {
-  const CheckoutScreen({super.key});
+  final Map<String, dynamic>? assetData;
+
+  const CheckoutScreen({super.key, this.assetData});
 
   @override
   State<CheckoutScreen> createState() => _CheckoutScreenState();
@@ -14,6 +20,34 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
   String? selectedRoom;
   TextEditingController notesController = TextEditingController();
   bool isEmployeeSelected = true; // Default ke Employee
+  bool isLoading = false;
+  String? errorMessage;
+  final _storage = const FlutterSecureStorage();
+  List<Map<String, dynamic>> roomList = [];
+
+  @override
+  void initState() {
+    super.initState();
+    _fetchRooms();
+  }
+
+  Future<void> _fetchRooms() async {
+    try {
+      final response = await ApiService.get('/rooms', context: context);
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        if (data['status'] == true && data['data'] != null) {
+          setState(() {
+            if (data['data'] is List) {
+              roomList = List<Map<String, dynamic>>.from(data['data']);
+            }
+          });
+        }
+      }
+    } catch (e) {
+      print('Error fetching rooms: $e');
+    }
+  }
 
   @override
   void dispose() {
@@ -75,6 +109,96 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
     }
   }
 
+  Future<void> _processCheckout() async {
+    if (notesController.text.isEmpty) {
+      setState(() {
+        errorMessage = 'Catatan tidak boleh kosong';
+      });
+      return;
+    }
+
+    final assetId = widget.assetData?['asset_id'];
+    if (assetId == null) {
+      setState(() {
+        errorMessage = 'ID aset tidak ditemukan';
+      });
+      return;
+    }
+
+    setState(() {
+      isLoading = true;
+      errorMessage = null;
+    });
+
+    try {
+      Map<String, dynamic> requestBody;
+
+      if (isEmployeeSelected) {
+        // Checkout ke karyawan
+        requestBody = {
+          "asset_id": assetId,
+          "checkout_notes": notesController.text,
+        };
+      } else {
+        // Checkout ke lokasi
+        if (selectedRoom == null) {
+          setState(() {
+            isLoading = false;
+            errorMessage = 'Silakan pilih ruangan';
+          });
+          return;
+        }
+
+        requestBody = {
+          "asset_id": assetId,
+          "room_id": int.parse(selectedRoom!),
+          "checkout_notes": notesController.text,
+        };
+      }
+
+      print('Sending checkout request: $requestBody');
+
+      final response = await ApiService.post(
+        '/asset-transfers/checkout',
+        body: requestBody,
+        context: context,
+      );
+
+      if (response.statusCode == 200 || response.statusCode == 201) {
+        final data = json.decode(response.body);
+        if (data['status'] == true) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Checkout berhasil'),
+              backgroundColor: Color(0xFF213268),
+            ),
+          );
+          Navigator.pop(context, true); // Return true for success
+        } else {
+          throw Exception(data['message'] ?? 'Checkout gagal');
+        }
+      } else {
+        final data = json.decode(response.body);
+        throw Exception(
+            data['message'] ?? 'Checkout gagal: ${response.statusCode}');
+      }
+    } catch (e) {
+      setState(() {
+        errorMessage = 'Error: ${e.toString()}';
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(errorMessage!),
+          backgroundColor: Colors.red,
+        ),
+      );
+    } finally {
+      setState(() {
+        isLoading = false;
+      });
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -124,6 +248,62 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                 ),
               ),
               const SizedBox(height: 25),
+
+              // Asset Info
+              if (widget.assetData != null)
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Colors.grey[100],
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Asset: ${widget.assetData!['asset_name'] ?? 'Tidak diketahui'}',
+                        style: const TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w500,
+                          color: Color(0xFF213268),
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        'Kode: ${widget.assetData!['asset_code'] ?? '-'}',
+                        style: const TextStyle(
+                          fontSize: 14,
+                          color: Color(0xFF666666),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              const SizedBox(height: 25),
+
+              // Error message if any
+              if (errorMessage != null)
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  margin: const EdgeInsets.only(bottom: 16),
+                  decoration: BoxDecoration(
+                    color: Colors.red[50],
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: Colors.red),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(Icons.error_outline, color: Colors.red[700]),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          errorMessage!,
+                          style: TextStyle(color: Colors.red[700]),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
 
               // Date Picker with border removed
               Column(
@@ -262,60 +442,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
 
               // Conditional content berdasarkan pemilihan
               if (!isEmployeeSelected) ...[
-                // Building Dropdown - border nyambung
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Text(
-                      'Building',
-                      style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w600,
-                        color: Color(0xFF666666),
-                        fontFamily: 'Inter',
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    Container(
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        border: Border.all(color: Colors.black, width: 0.5),
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: DropdownButtonFormField<String>(
-                        dropdownColor: Colors.white,
-                        decoration: const InputDecoration(
-                          contentPadding: EdgeInsets.symmetric(horizontal: 16),
-                          border: InputBorder.none,
-                          fillColor: Colors.white,
-                          filled: true,
-                        ),
-                        hint: const Text('Select Building'),
-                        value: selectedBuilding,
-                        icon: const Icon(Icons.arrow_drop_down),
-                        isExpanded: true,
-                        onChanged: (String? newValue) {
-                          setState(() {
-                            selectedBuilding = newValue;
-                          });
-                        },
-                        items: <String>[
-                          'Building A',
-                          'Building B',
-                          'Building C'
-                        ].map<DropdownMenuItem<String>>((String value) {
-                          return DropdownMenuItem<String>(
-                            value: value,
-                            child: Text(value),
-                          );
-                        }).toList(),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 18),
-
-                // Room Dropdown - border nyambung
+                // Room Dropdown
                 Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -343,7 +470,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                           fillColor: Colors.white,
                           filled: true,
                         ),
-                        hint: const Text('Select Room'),
+                        hint: const Text('Pilih Ruangan'),
                         value: selectedRoom,
                         icon: const Icon(Icons.arrow_drop_down),
                         isExpanded: true,
@@ -352,11 +479,11 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                             selectedRoom = newValue;
                           });
                         },
-                        items: <String>['Room 101', 'Room 102', 'Room 103']
-                            .map<DropdownMenuItem<String>>((String value) {
+                        items: roomList.map<DropdownMenuItem<String>>((room) {
                           return DropdownMenuItem<String>(
-                            value: value,
-                            child: Text(value),
+                            value: room['room_id'].toString(),
+                            child: Text(
+                                room['room_name'] ?? 'Ruangan Tidak Diketahui'),
                           );
                         }).toList(),
                       ),
@@ -417,16 +544,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
         ),
         padding: const EdgeInsets.only(left: 21, right: 21, bottom: 18),
         child: ElevatedButton(
-          onPressed: selectedDate == null
-              ? null
-              : () {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text('Checkout process successful'),
-                      backgroundColor: Color(0xFF213268),
-                    ),
-                  );
-                },
+          onPressed: isLoading ? null : _processCheckout,
           style: ElevatedButton.styleFrom(
             backgroundColor: const Color(0xFF213268),
             foregroundColor: Colors.white,
@@ -438,13 +556,22 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
             padding: const EdgeInsets.symmetric(vertical: 12),
             elevation: 0,
           ),
-          child: const Text(
-            'Check Out',
-            style: TextStyle(
-              fontSize: 16,
-              fontFamily: 'Inter',
-            ),
-          ),
+          child: isLoading
+              ? const SizedBox(
+                  height: 20,
+                  width: 20,
+                  child: CircularProgressIndicator(
+                    color: Colors.white,
+                    strokeWidth: 2,
+                  ),
+                )
+              : const Text(
+                  'Check Out',
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontFamily: 'Inter',
+                  ),
+                ),
         ),
       ),
     );

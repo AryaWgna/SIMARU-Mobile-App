@@ -1,7 +1,122 @@
 import 'dart:io';
+import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:qr_code_scanner/qr_code_scanner.dart';
+import 'package:provider/provider.dart';
 import '../asset/asset_details.dart';
+import '../../services/socket_service.dart';
+import 'package:http/http.dart' as http;
+import 'dart:convert';
+import '../../core/config/api_config.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import '../../controllers/auth_controller.dart' as auth;
+
+// Impor QR code scanner dengan conditional import
+import 'qr_mobile_implementation.dart'
+    if (dart.library.html) 'qr_web_implementation.dart';
+
+// Widget toast sederhana
+class ToastOverlay extends StatefulWidget {
+  final String message;
+  final Color backgroundColor;
+  final VoidCallback? onShown; // Callback saat toast ditampilkan
+
+  const ToastOverlay({
+    Key? key,
+    required this.message,
+    this.backgroundColor = Colors.red,
+    this.onShown,
+  }) : super(key: key);
+
+  @override
+  State<ToastOverlay> createState() => _ToastOverlayState();
+}
+
+class _ToastOverlayState extends State<ToastOverlay>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _controller;
+  late Animation<double> _opacityAnimation;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 300),
+    );
+    _opacityAnimation =
+        Tween<double>(begin: 0.0, end: 1.0).animate(_controller);
+
+    // Play fadeIn animation and then automatically dismiss after delay
+    _controller.forward().then((_) {
+      // Callback ketika toast sudah sepenuhnya muncul
+      widget.onShown?.call();
+    });
+
+    Future.delayed(const Duration(seconds: 1), () {
+      if (mounted) {
+        _controller.reverse().then((_) {
+          if (mounted) {
+            Navigator.of(context).pop();
+          }
+        });
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      type: MaterialType.transparency,
+      child: SafeArea(
+        child: FadeTransition(
+          opacity: _opacityAnimation,
+          child: Center(
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 40.0),
+              child: Container(
+                padding: const EdgeInsets.symmetric(
+                    horizontal: 24.0, vertical: 16.0),
+                decoration: BoxDecoration(
+                  color: widget.backgroundColor.withOpacity(0.9),
+                  borderRadius: BorderRadius.circular(10.0),
+                ),
+                child: Text(
+                  widget.message,
+                  style: const TextStyle(color: Colors.white),
+                  textAlign: TextAlign.center,
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// Fungsi helper untuk menampilkan toast
+void showToast(BuildContext context, String message,
+    {Color backgroundColor = Colors.red, VoidCallback? onShown}) {
+  // Tampilkan overlay toast yang menutup sendiri
+  Navigator.of(context).push(
+    PageRouteBuilder(
+      opaque: false,
+      pageBuilder: (_, __, ___) => ToastOverlay(
+        message: message,
+        backgroundColor: backgroundColor,
+        onShown: onShown,
+      ),
+    ),
+  );
+}
 
 class QRScannerScreen extends StatefulWidget {
   final String previousScreen;
@@ -12,316 +127,551 @@ class QRScannerScreen extends StatefulWidget {
   State<QRScannerScreen> createState() => _QRScannerScreenState();
 }
 
-class _QRScannerScreenState extends State<QRScannerScreen> {
+class _QRScannerScreenState extends State<QRScannerScreen>
+    with WidgetsBindingObserver {
   final GlobalKey qrKey = GlobalKey(debugLabel: 'QR');
-  QRViewController? controller;
-  Barcode? result;
+  dynamic controller;
+  String? scannedCode;
+  String? lastScannedCode;
+  Timer? debounceTimer;
+  bool isProcessing = false;
+  bool flashOn = false;
+  final _storage = const FlutterSecureStorage();
+
+  // Pengaturan kamera untuk efisiensi
+  QRViewController? qrViewController;
+  bool isCameraInitialized = false;
+  bool isPaused = false;
+
+  @override
+  void initState() {
+    super.initState();
+    // Mendaftarkan observer untuk lifecycle aplikasi
+    WidgetsBinding.instance.addObserver(this);
+
+    // Koneksikan socket saat layar dibuka
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final socketService = Provider.of<SocketService>(context, listen: false);
+      if (!socketService.isConnected) {
+        socketService.connect();
+      }
+    });
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    // Mengelola siklus hidup kamera berdasarkan state aplikasi
+    if (qrViewController == null || !isCameraInitialized) return;
+
+    // Jika aplikasi di background/tidak terlihat, pause kamera
+    if (state == AppLifecycleState.paused ||
+        state == AppLifecycleState.inactive) {
+      pauseCamera();
+    }
+    // Jika aplikasi kembali ke foreground, resume kamera
+    else if (state == AppLifecycleState.resumed && isPaused) {
+      resumeCamera();
+    }
+  }
+
+  void pauseCamera() {
+    if (qrViewController != null && !isPaused) {
+      qrViewController!.pauseCamera();
+      isPaused = true;
+    }
+  }
+
+  void resumeCamera() {
+    if (qrViewController != null && isPaused) {
+      qrViewController!.resumeCamera();
+      isPaused = false;
+    }
+  }
+
+  void _onQRViewCreated(QRViewController controller) {
+    setState(() {
+      this.qrViewController = controller;
+      this.controller = controller;
+      isCameraInitialized = true;
+    });
+
+    // Konfigurasi scanning yang efisien
+    controller.scannedDataStream.listen((scanData) {
+      if (scanData.code != null && !isProcessing) {
+        // Pemrosesan kode QR dengan debounce untuk mencegah pemrosesan ganda
+        if (scanData.code != lastScannedCode) {
+          setState(() {
+            scannedCode = scanData.code;
+          });
+
+          // Debounce menunggu 500ms sebelum memproses QR untuk menghindari multiple scans
+          debounceTimer?.cancel();
+          debounceTimer = Timer(const Duration(milliseconds: 500), () {
+            if (mounted && !isProcessing) {
+              final socketService =
+                  Provider.of<SocketService>(context, listen: false);
+              _processScannedQR(scanData.code!, socketService);
+            }
+          });
+        }
+      }
+    });
+  }
 
   @override
   void reassemble() {
     super.reassemble();
-    if (Platform.isAndroid) {
-      controller?.pauseCamera();
-    } else if (Platform.isIOS) {
-      controller?.resumeCamera();
+    if (!kIsWeb && qrViewController != null) {
+      if (Platform.isAndroid) {
+        qrViewController!.pauseCamera();
+      }
+      qrViewController!.resumeCamera();
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      // Penting: set false agar layout tidak berubah saat keyboard muncul
-      resizeToAvoidBottomInset: false,
-      backgroundColor: Colors.black,
-      body: Stack(
-        fit: StackFit.expand,
-        children: [
-          // QR Camera View sebagai background
-          QRView(
-            key: qrKey,
-            onQRViewCreated: _onQRViewCreated,
-            overlay: QrScannerOverlayShape(
-              borderColor: Colors.transparent,
-              borderRadius: 4,
-              borderLength: 0,
-              borderWidth: 0,
-              cutOutSize: 200,
-            ),
-          ),
+    final socketService = Provider.of<SocketService>(context, listen: false);
 
-          // Judul di bagian atas
-          const Positioned(
-            top: 80,
-            left: 0,
-            right: 0,
-            child: Center(
-              child: Text(
-                'Pindai Kode QR',
-                style: TextStyle(
-                  fontSize: 22,
-                  fontWeight: FontWeight.w400,
-                  color: Colors.white,
-                ),
-              ),
-            ),
-          ),
+    return WillPopScope(
+      onWillPop: () async {
+        // Matikan kamera sebelum kembali ke halaman sebelumnya
+        if (qrViewController != null) {
+          qrViewController!.pauseCamera();
+          isPaused = true;
+        }
 
-          // Frame scanner di tengah
-          Center(
-            child: Container(
-              width: 230,
-              height: 230,
-              decoration: BoxDecoration(
-                border: Border.all(color: Colors.transparent),
-              ),
-              child: Stack(
-                children: [
-                  Positioned(
-                    top: 0,
-                    left: 0,
-                    child: _buildCornerLine(true, true),
-                  ),
-                  Positioned(
-                    top: 0,
-                    right: 0,
-                    child: _buildCornerLine(false, true),
-                  ),
-                  Positioned(
-                    bottom: 0,
-                    left: 0,
-                    child: _buildCornerLine(true, false),
-                  ),
-                  Positioned(
-                    bottom: 0,
-                    right: 0,
-                    child: _buildCornerLine(false, false),
-                  ),
-                ],
-              ),
-            ),
-          ),
+        // Kembali ke halaman sebelumnya
+        Navigator.pop(context);
+        return false;
+      },
+      child: Scaffold(
+        resizeToAvoidBottomInset: false,
+        backgroundColor: Colors.black,
+        body: Stack(
+          fit: StackFit.expand,
+          children: [
+            // QR Camera View sebagai background dengan kontrol pemindaian efisien
+            kIsWeb
+                ? buildQRView(context, qrKey, (code) {
+                    // Callback ketika QR terdeteksi untuk web
+                    if (code != null && !isProcessing) {
+                      setState(() {
+                        scannedCode = code;
+                      });
 
-          // Hasil scan
-          if (result != null)
-            Positioned(
-              bottom: 140,
+                      // Proses QR langsung tanpa debounce jika berbeda
+                      if (code != lastScannedCode) {
+                        _processScannedQR(code, socketService);
+                      }
+                    }
+                  }, (controller) {
+                    this.controller = controller;
+                  })
+                : QRView(
+                    key: qrKey,
+                    onQRViewCreated: _onQRViewCreated,
+                    overlay: QrScannerOverlayShape(
+                      borderColor: const Color(0xFFFFFFFF),
+                      borderRadius: 20,
+                      borderLength: 40,
+                      borderWidth: 12,
+                      cutOutSize: 250,
+                      cutOutBottomOffset: 0,
+                      overlayColor: Colors.black.withOpacity(0.8),
+                    ),
+                    // Pengaturan optimal untuk efisiensi baterai dan performa
+                    formatsAllowed: const [BarcodeFormat.qrcode],
+                  ),
+
+            // Judul di bagian atas
+            const Positioned(
+              top: 80,
               left: 0,
               right: 0,
               child: Center(
-                child: Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                  decoration: BoxDecoration(
-                    color: Colors.white.withOpacity(0.8),
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: Text(
-                    'Data: ${result!.code}',
-                    style: const TextStyle(
-                      color: Colors.black87,
-                      fontSize: 14,
-                      fontFamily: 'Inter',
-                    ),
+                child: Text(
+                  'Pindai Kode QR',
+                  style: TextStyle(
+                    fontSize: 22,
+                    fontWeight: FontWeight.w500,
+                    color: Colors.white,
                   ),
                 ),
               ),
             ),
 
-          // Tombol flash
-          Positioned(
-            top: 20,
-            right: 20,
-            child: Container(
-              decoration: BoxDecoration(
-                color: Colors.black.withOpacity(0.5),
-                borderRadius: BorderRadius.circular(30),
-              ),
-              child: IconButton(
-                icon: const Icon(Icons.flash_on, color: Colors.white),
-                onPressed: () async {
-                  await controller?.toggleFlash();
-                },
-              ),
-            ),
-          ),
-
-          // Tombol flip kamera
-          Positioned(
-            top: 20,
-            left: 20,
-            child: Container(
-              decoration: BoxDecoration(
-                color: Colors.black.withOpacity(0.5),
-                borderRadius: BorderRadius.circular(30),
-              ),
-              child: IconButton(
-                icon: const Icon(Icons.flip_camera_ios, color: Colors.white),
-                onPressed: () async {
-                  await controller?.flipCamera();
-                },
-              ),
-            ),
-          ),
-        ],
-      ),
-
-      // KUNCI SOLUSI: Tambahkan bottomNavigationBar agar floatingActionButton centerDocked bisa berfungsi
-      // dengan benar dan menghilang saat keyboard muncul
-      bottomNavigationBar: Container(
-        // Atur height minimal untuk invisible bottomNavigationBar
-        height: 1,
-        color: Colors.transparent,
-      ),
-
-      // Gunakan floatingActionButtonLocation yang sama dengan Dashboard
-      floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
-
-      // Pindahkan tombol Scan ke floatingActionButton
-      floatingActionButton: Container(
-        width: 220, // Sesuaikan dengan lebar button asli
-        height: 50, // Sesuaikan dengan tinggi button asli
-        margin: const EdgeInsets.only(bottom: 30), // Untuk posisi yang tepat
-        child: FloatingActionButton.extended(
-          elevation: 2,
-          backgroundColor: const Color(0xFF2A3F7E),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(8),
-          ),
-          onPressed: () {
-            FocusScope.of(context).unfocus();
-
-            if (result != null && result!.code != null) {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (context) => AssetDetails(
-                    qrData: result!.code!,
-                    previousScreen: widget.previousScreen,
-                  ),
-                ),
-              );
-            } else {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text('Silakan scan QR code terlebih dahulu'),
-                  backgroundColor: Color(0xFF213268),
-                  duration: Duration(seconds: 2),
-                ),
-              );
-            }
-          },
-          icon: SizedBox(
-            width: 24,
-            height: 24,
-            child: Stack(
-              children: [
-                Container(
-                  width: 24,
-                  height: 24,
-                  decoration: BoxDecoration(
-                    border: Border.all(
-                      color: Colors.white,
-                      width: 1.5,
-                      style: BorderStyle.solid,
-                    ),
-                    borderRadius: BorderRadius.circular(2),
-                  ),
-                ),
-                Positioned(
-                  top: 6,
-                  left: 6,
-                  right: 6,
-                  bottom: 6,
+            // Hasil scan
+            if (scannedCode != null)
+              Positioned(
+                bottom: 140,
+                left: 0,
+                right: 0,
+                child: Center(
                   child: Container(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                     decoration: BoxDecoration(
-                      border: Border.all(
-                        color: Colors.white,
-                        width: 1,
-                        style: BorderStyle.solid,
+                      color: Colors.white.withOpacity(0.8),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Text(
+                      'Data: $scannedCode',
+                      style: const TextStyle(
+                        color: Colors.black87,
+                        fontSize: 14,
+                        fontFamily: 'Inter',
                       ),
-                      borderRadius: BorderRadius.circular(1),
                     ),
                   ),
                 ),
-              ],
-            ),
-          ),
-          label: const Text(
-            'Pindai Kode QR',
-            style: TextStyle(
-              fontSize: 16,
-              color: Colors.white,
-              fontWeight: FontWeight.w400,
-            ),
-          ),
+              ),
+
+            // Indikator proses
+            if (isProcessing)
+              Positioned(
+                bottom: 210,
+                left: 0,
+                right: 0,
+                child: Center(
+                  child: Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF213268).withOpacity(0.8),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: const Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        SizedBox(
+                          width: 16,
+                          height: 16,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            valueColor:
+                                AlwaysStoppedAnimation<Color>(Colors.white),
+                          ),
+                        ),
+                        SizedBox(width: 8),
+                        Text(
+                          'Memproses QR...',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 12,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+
+            // Tombol flash - hanya ditampilkan di mobile
+            if (!kIsWeb)
+              Positioned(
+                top: 20,
+                right: 20,
+                child: Container(
+                  decoration: BoxDecoration(
+                    color: Colors.black.withOpacity(0.5),
+                    borderRadius: BorderRadius.circular(30),
+                  ),
+                  child: IconButton(
+                    icon: Icon(flashOn ? Icons.flash_off : Icons.flash_on,
+                        color: Colors.white),
+                    onPressed: () {
+                      if (qrViewController != null) {
+                        qrViewController!.toggleFlash();
+                        setState(() {
+                          flashOn = !flashOn;
+                        });
+                      }
+                    },
+                  ),
+                ),
+              ),
+          ],
+        ),
+        bottomNavigationBar: Container(
+          height: 1,
+          color: Colors.transparent,
         ),
       ),
     );
   }
 
-  Widget _buildCornerLine(bool isLeft, bool isTop) {
-    return SizedBox(
-      width: 40,
-      height: 40,
-      child: CustomPaint(
-        painter: CornerLinePainter(isLeft, isTop),
-      ),
-    );
+  // Mendapatkan token akses dari secure storage
+  Future<String?> _getAccessToken() async {
+    try {
+      return await _storage.read(key: 'accessToken');
+    } catch (e) {
+      print('Error getting access token: $e');
+      return null;
+    }
   }
 
-  void _onQRViewCreated(QRViewController controller) {
-    this.controller = controller;
-    controller.scannedDataStream.listen((scanData) {
-      setState(() {
-        result = scanData;
-      });
+  Future<void> _processScannedQR(
+      String qrCode, SocketService socketService) async {
+    // Jika sedang memproses, batalkan
+    if (isProcessing) return;
+
+    // Set state processing untuk mencegah multiple scans
+    setState(() {
+      isProcessing = true;
     });
+
+    try {
+      // Pause kamera saat memproses untuk menghemat baterai
+      if (qrViewController != null) {
+        qrViewController!.pauseCamera();
+        isPaused = true;
+      }
+
+      // Ekstrak ID aset dari QR code
+      final assetCode = qrCode.trim();
+
+      // Log QR yang dipindai untuk debugging
+      print('[DEBUG] QR Code dipindai: $assetCode');
+
+      // Kirim ke server melalui WebSocket jika berbeda dari scan terakhir
+      if (assetCode != lastScannedCode) {
+        socketService.sendMessage(assetCode, context);
+        lastScannedCode = assetCode;
+      }
+
+      // Helper function untuk mengaktifkan kamera kembali secara langsung
+      void resumeCameraImmediately() {
+        if (qrViewController != null && isPaused) {
+          qrViewController!.resumeCamera();
+          isPaused = false;
+        }
+        setState(() {
+          isProcessing = false;
+          scannedCode = null; // Reset kode QR yang ditampilkan setelah error
+          lastScannedCode =
+              null; // Reset lastScannedCode agar bisa memindai kode yang sama lagi
+        });
+      }
+
+      // Cek apakah QR code sesuai dengan format ANMD-YYMMDD-XXXX
+      bool isValidFormat =
+          assetCode.startsWith('ANMD-') || RegExp(r'^\d+$').hasMatch(assetCode);
+
+      if (!isValidFormat) {
+        print('[DEBUG] Format QR tidak valid: $assetCode');
+        if (mounted) {
+          showToast(context,
+              'Format kode QR tidak valid. Gunakan QR code aset yang benar.',
+              onShown: resumeCameraImmediately); // Aktifkan kamera segera
+        }
+        return;
+      }
+
+      // Ekstrak ID dari kode QR dengan pendekatan yang lebih fleksibel
+      String assetId;
+
+      // Cek apakah QR code sesuai dengan format ANMD-YYMMDD-XXXX
+      if (assetCode.startsWith('ANMD-') && assetCode.contains('-')) {
+        final parts = assetCode.split('-');
+        print('[DEBUG] QR dipecah menjadi: $parts');
+
+        // Format diketahui dari tabel: ANMD-250324-0001, ANMD-250324-0002, ANMD-250324-0003
+        if (parts.length == 3) {
+          // Ambil bagian terakhir (0001, 0002, dll) dan hapus leading zeros
+          var numericId = parts[2].replaceAll(RegExp(r'^0+(?=\d)'), '');
+          if (numericId.isEmpty) numericId = '0';
+          assetId = numericId;
+          print('[DEBUG] ID diekstrak dari ANMD-YYMMDD-XXXX: $assetId');
+        } else {
+          // Format tidak sesuai, gunakan seluruh kode QR
+          assetId = assetCode;
+          print(
+              '[DEBUG] Format ANMD- tidak standar, gunakan QR lengkap: $assetId');
+        }
+      } else if (RegExp(r'^\d+$').hasMatch(assetCode)) {
+        // Jika QR code hanya berisi angka, gunakan langsung sebagai ID
+        assetId = assetCode;
+        print('[DEBUG] QR adalah ID numerik: $assetId');
+      } else {
+        // Format lain, gunakan QR code lengkap
+        assetId = assetCode;
+        print('[DEBUG] Format QR tidak dikenali, gunakan QR lengkap: $assetId');
+      }
+
+      // Mencoba mendapatkan aset dengan endpoint yang benar
+      try {
+        // Pendekatan utama: Cari berdasarkan ID aset dari tabel
+        var endpoint = '/assets/${assetId}';
+        print(
+            '[DEBUG] PENDEKATAN 1: Mencoba endpoint: $endpoint dengan assetId: $assetId');
+
+        var response = await auth.ApiService.get(endpoint, context: context);
+        print('[DEBUG] PENDEKATAN 1: Status response: ${response.statusCode}');
+
+        // Jika gagal dengan pendekatan ID, coba dengan pendekatan asset_code
+        if (response.statusCode != 200) {
+          print(
+              '[DEBUG] PENDEKATAN 1 gagal, mencoba PENDEKATAN 2 dengan asset_code');
+
+          // Pendekatan 2: Cari berdasarkan asset_code di tabel
+          endpoint = '/assets/by-code/${Uri.encodeComponent(assetCode)}';
+          print(
+              '[DEBUG] PENDEKATAN 2: Mencoba endpoint: $endpoint dengan asset_code: $assetCode');
+
+          response = await auth.ApiService.get(endpoint, context: context);
+          print(
+              '[DEBUG] PENDEKATAN 2: Status response: ${response.statusCode}');
+
+          // Jika gagal lagi, coba dengan parameter query
+          if (response.statusCode != 200) {
+            print(
+                '[DEBUG] PENDEKATAN 2 gagal, mencoba PENDEKATAN 3 dengan parameter query');
+
+            // Pendekatan 3: Gunakan parameter query
+            endpoint = '/assets?qr_code=${Uri.encodeComponent(assetCode)}';
+            print('[DEBUG] PENDEKATAN 3: Mencoba endpoint: $endpoint');
+
+            response = await auth.ApiService.get(endpoint, context: context);
+            print(
+                '[DEBUG] PENDEKATAN 3: Status response: ${response.statusCode}');
+          }
+        }
+
+        if (response.statusCode == 200) {
+          print('[DEBUG] Response berhasil diterima');
+          final responseData = jsonDecode(response.body);
+          print('[DEBUG] Response data: $responseData');
+
+          // Cek tipe data respons untuk menghindari error tipe
+          if (responseData['status'] == true && responseData['data'] != null) {
+            var assetData = responseData['data'];
+            print('[DEBUG] Tipe data aset: ${assetData.runtimeType}');
+
+            // Jika data adalah List, periksa apakah list kosong
+            if (assetData is List) {
+              if (assetData.isEmpty) {
+                print('[DEBUG] Data adalah List kosong');
+                if (mounted) {
+                  showToast(context, 'Tidak ada data aset yang ditemukan',
+                      onShown: resumeCameraImmediately);
+                }
+                return;
+              } else {
+                print('[DEBUG] Data adalah List, mengambil item pertama');
+                assetData = assetData.first;
+              }
+            }
+
+            // Periksa apakah data valid dan memiliki semua field yang diperlukan
+            bool isValidAssetData = assetData is Map<String, dynamic> &&
+                assetData.containsKey('asset_id') &&
+                assetData.containsKey('asset_code') &&
+                assetData.containsKey('asset_name');
+
+            if (isValidAssetData) {
+              print(
+                  '[DEBUG] Data aset berhasil ditemukan dan valid! Data: $assetData');
+
+              // Navigasi ke halaman detail aset dengan data aset dari API
+              if (mounted) {
+                Navigator.pushReplacement(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => AssetDetails(
+                      qrData: assetCode,
+                      previousScreen: widget.previousScreen,
+                      assetData: assetData, // Kirim data aset ke halaman detail
+                    ),
+                  ),
+                );
+              }
+            } else {
+              print('[DEBUG] Data aset tidak lengkap: $assetData');
+              if (mounted) {
+                showToast(context, 'Data aset tidak lengkap atau tidak valid',
+                    onShown: resumeCameraImmediately);
+              }
+              return;
+            }
+          } else {
+            print('[DEBUG] API mengembalikan status false atau data null');
+            // Tampilkan pesan dari API dalam bentuk toast
+            final message =
+                responseData['message'] ?? 'Data aset tidak ditemukan';
+            if (mounted) {
+              showToast(context, message, onShown: resumeCameraImmediately);
+            }
+            return;
+          }
+        } else if (response.statusCode == 403) {
+          print(
+              '[DEBUG] Error 403: Tidak memiliki izin untuk mengakses aset ini');
+          if (mounted) {
+            showToast(
+                context, 'Anda tidak memiliki izin untuk mengakses aset ini',
+                onShown: resumeCameraImmediately);
+          }
+          return;
+        } else if (response.statusCode == 404) {
+          print('[DEBUG] Error 404: Asset tidak ditemukan');
+          if (mounted) {
+            showToast(context,
+                'Aset tidak ditemukan. Pastikan QR code yang dipindai valid.',
+                onShown: resumeCameraImmediately);
+          }
+          return;
+        } else {
+          print('[DEBUG] Error tidak dikenal: ${response.statusCode}');
+          if (mounted) {
+            showToast(
+                context, 'Gagal mendapatkan data aset: ${response.statusCode}',
+                onShown: resumeCameraImmediately);
+          }
+          return;
+        }
+      } catch (e) {
+        print('[DEBUG] Error saat mengambil data aset: $e');
+        if (mounted) {
+          showToast(context,
+              'Error: ${e is ApiException ? e.getUserFriendlyMessage() : "Gagal mendapatkan data aset"}',
+              onShown: resumeCameraImmediately);
+        }
+        return;
+      }
+    } catch (e) {
+      print('[DEBUG] Error keseluruhan: $e');
+      if (mounted) {
+        showToast(context, 'Error: $e', onShown: () {
+          if (qrViewController != null && isPaused) {
+            qrViewController!.resumeCamera();
+            isPaused = false;
+          }
+          setState(() {
+            isProcessing = false;
+            scannedCode = null; // Reset kode QR yang ditampilkan setelah error
+            lastScannedCode =
+                null; // Reset lastScannedCode agar bisa memindai kode yang sama lagi
+          });
+        });
+      }
+      return;
+    }
   }
 
   @override
   void dispose() {
-    controller?.dispose();
+    // Hapus observer lifecycle aplikasi
+    WidgetsBinding.instance.removeObserver(this);
+
+    // Hapus kamera secara bersih
+    qrViewController?.dispose();
+
+    // Hapus controller lama jika ada
+    disposeController(controller);
+
+    // Hapus timer
+    debounceTimer?.cancel();
+
     super.dispose();
   }
-}
-
-class CornerLinePainter extends CustomPainter {
-  final bool isLeft;
-  final bool isTop;
-
-  CornerLinePainter(this.isLeft, this.isTop);
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final paint = Paint()
-      ..color = Colors.white
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 3.0;
-
-    final path = Path();
-    final length = size.width * 0.8;
-
-    if (isLeft && isTop) {
-      path.moveTo(0, length);
-      path.lineTo(0, 0);
-      path.lineTo(length, 0);
-    } else if (!isLeft && isTop) {
-      path.moveTo(size.width - length, 0);
-      path.lineTo(size.width, 0);
-      path.lineTo(size.width, length);
-    } else if (isLeft && !isTop) {
-      path.moveTo(0, size.height - length);
-      path.lineTo(0, size.height);
-      path.lineTo(length, size.height);
-    } else {
-      path.moveTo(size.width - length, size.height);
-      path.lineTo(size.width, size.height);
-      path.lineTo(size.width, size.height - length);
-    }
-
-    canvas.drawPath(path, paint);
-  }
-
-  @override
-  bool shouldRepaint(CustomPainter oldDelegate) => false;
 }

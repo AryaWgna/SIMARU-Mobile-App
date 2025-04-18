@@ -49,7 +49,7 @@ class ApiException implements Exception {
 
 class ApiService {
   // Base URL untuk perangkat fisik
-  static String baseUrl = 'http://10.0.2.2:8026';
+  static String baseUrl = 'http://192.168.43.133:8026';
   // Alternatif: 'http://localhost:3000' untuk iOS simulator
   // Gunakan URL publik Anda untuk perangkat fisik, misalnya: 'https://api.example.com'
 

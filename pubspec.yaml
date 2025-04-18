@@ -30,6 +30,8 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
+  flutter_localizations:
+    sdk: flutter
   provider: ^6.1.1
   http: ^1.1.0
   flutter_secure_storage: ^9.0.0
@@ -49,6 +51,8 @@ dependencies:
   dotted_border: ^2.0.0+3
   image_picker: ^1.0.7
   app_settings: ^5.1.1
+  web_socket_channel: ^2.4.0
+  http_parser: ^4.0.2
 
 dev_dependencies:
   flutter_test:

@@ -198,7 +198,13 @@ class _DashboardScreenState extends State<DashboardScreen> {
                           builder: (context) =>
                               QRScannerScreen(previousScreen: previousScreen),
                         ),
-                      );
+                      ).then((_) {
+                        // Jika kembali langsung dari QR Scanner (bukan dari asset details),
+                        // maka state tetap sama
+                        setState(() {
+                          // Refresh state jika diperlukan
+                        });
+                      });
                     },
                     child: const Icon(
                       Icons.qr_code_scanner,

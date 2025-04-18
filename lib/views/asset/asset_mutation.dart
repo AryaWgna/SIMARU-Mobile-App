@@ -6,7 +6,16 @@ import 'asset_depreciation.dart';
 import 'asset_details.dart';
 
 class AssetMutation extends StatefulWidget {
-  const AssetMutation({super.key});
+  final Map<String, dynamic>? assetData;
+  final String qrData;
+  final String previousScreen;
+
+  const AssetMutation({
+    super.key,
+    this.assetData,
+    this.qrData = '',
+    this.previousScreen = 'home',
+  });
 
   @override
   State<AssetMutation> createState() => _AssetMutationState();
@@ -70,7 +79,7 @@ class _AssetMutationState extends State<AssetMutation> {
                           ),
                           // Teks CHECK OUT
                           const Text(
-                            'CHECK OUT',
+                            'PEMINJAMAN',
                             style: TextStyle(
                               fontFamily: 'Roboto',
                               fontSize: 20,
@@ -95,14 +104,14 @@ class _AssetMutationState extends State<AssetMutation> {
                       padding: const EdgeInsets.all(16),
                       child: Column(
                         children: [
-                          _buildInfoRow('Checked Out Date:', '04/03/2025'),
+                          _buildInfoRow('Tanggal Dipinjam:', '04/03/2025'),
                           const SizedBox(height: 12),
-                          _buildInfoRow('Assigned to:', 'Jhon Doe'),
+                          _buildInfoRow('Dipinjam oleh:', 'Jhon Doe'),
                           const SizedBox(height: 12),
                           _buildInfoRow(
-                              'Location:', 'Building A, Thalasemia Room 1'),
+                              'Lokasi:', 'Gedung A, Ruang Thalasemia 1'),
                           const SizedBox(height: 12),
-                          _buildInfoRow('Due Date:', 'NA'),
+                          _buildInfoRow('Batas Waktu:', 'Tidak Ada'),
                         ],
                       ),
                     ),
@@ -191,11 +200,19 @@ class _AssetMutationState extends State<AssetMutation> {
                 IconButton(
                   icon: const Icon(Icons.arrow_back,
                       color: Colors.white, size: 32),
-                  onPressed: () => Navigator.pushReplacement(
-                    context,
-                    MaterialPageRoute(
-                        builder: (context) => const AssetDetails(qrData: '')),
-                  ),
+                  onPressed: () {
+                    // Navigasi langsung ke halaman AssetDetails ketika tombol kembali ditekan
+                    Navigator.pushReplacement(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => AssetDetails(
+                          qrData: widget.qrData,
+                          previousScreen: widget.previousScreen,
+                          assetData: widget.assetData,
+                        ),
+                      ),
+                    );
+                  },
                 ),
                 Expanded(
                   child: Center(
@@ -237,29 +254,30 @@ class _AssetMutationState extends State<AssetMutation> {
         children: [
           _buildNavItem(
             Icons.folder,
-            'Document',
+            'Dokumen',
             false,
             () => Navigator.push(
               context,
-              MaterialPageRoute(builder: (context) => const AssetDocument()),
+              MaterialPageRoute(
+                  builder: (context) => AssetDocument(
+                        assetData: widget.assetData,
+                        qrData: widget.qrData,
+                        previousScreen: widget.previousScreen,
+                      )),
             ),
           ),
           _buildNavItem(
             Icons.history,
-            'History',
+            'Riwayat',
             false,
             () => Navigator.push(
               context,
-              MaterialPageRoute(builder: (context) => const AssetHistory()),
-            ),
-          ),
-          _buildNavItem(
-            Icons.calendar_today,
-            'Schedule',
-            false,
-            () => Navigator.push(
-              context,
-              MaterialPageRoute(builder: (context) => const AssetSchedule()),
+              MaterialPageRoute(
+                  builder: (context) => AssetHistory(
+                        assetData: widget.assetData,
+                        qrData: widget.qrData,
+                        previousScreen: widget.previousScreen,
+                      )),
             ),
           ),
           _buildNavItem(
@@ -267,16 +285,6 @@ class _AssetMutationState extends State<AssetMutation> {
             'Mutasi',
             activePage == 'mutation',
             () {},
-          ),
-          _buildNavItem(
-            Icons.trending_down,
-            'Depreciation',
-            false,
-            () => Navigator.push(
-              context,
-              MaterialPageRoute(
-                  builder: (context) => const AssetDepreciation()),
-            ),
           ),
         ],
       ),
