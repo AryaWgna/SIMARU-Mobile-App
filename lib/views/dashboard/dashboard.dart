@@ -45,15 +45,40 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
   Widget _buildScreenWithErrorHandling(Function builder, String screenName) {
     try {
-      return builder();
+      Widget screen = builder();
+      // Wrap each screen with a Container that has bottom padding to prevent content from being hidden by navbar
+      return Container(
+        padding: const EdgeInsets.only(bottom: 80),
+        child: screen,
+      );
     } catch (e, s) {
       print("Error building $screenName: $e");
       print("Stack trace: $s");
       return Center(
-        child: Text(
-          'Kesalahan memuat $screenName: $e',
-          style: const TextStyle(color: Colors.red),
-          textAlign: TextAlign.center,
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Text(
+              'Kesalahan memuat $screenName: $e',
+              style: const TextStyle(color: Colors.red),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 16),
+            ElevatedButton.icon(
+              onPressed: () {
+                // Refresh screen by rebuilding it
+                setState(() {});
+              },
+              icon: const Icon(Icons.refresh),
+              label: const Text('Refresh'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF213268),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8),
+                ),
+              ),
+            ),
+          ],
         ),
       );
     }

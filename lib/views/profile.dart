@@ -229,7 +229,7 @@ class _ProfileScreenState extends State<ProfileScreen>
 
     // Use Builder to improve performance
     return SingleChildScrollView(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(16).copyWith(bottom: 100),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [

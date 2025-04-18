@@ -139,59 +139,81 @@ class _ProfileScreenState extends State<ProfileScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.white,
-      appBar: const CustomAppBar(),
+      appBar: AppBar(
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back, color: Colors.white),
+          onPressed: () => Navigator.pop(context),
+        ),
+        flexibleSpace: const CustomAppBar(),
+        toolbarHeight: 82,
+        actions: [
+          // Add refresh button in AppBar
+          IconButton(
+            icon: const Icon(Icons.refresh, color: Colors.white),
+            onPressed: _loadProfile,
+            tooltip: 'Refresh',
+          ),
+        ],
+      ),
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
-          : SingleChildScrollView(
-              child: Container(
-                width: 440,
+          : RefreshIndicator(
+              onRefresh: _loadProfile,
+              color: const Color(0xFF213268),
+              child: SingleChildScrollView(
                 padding: const EdgeInsets.symmetric(horizontal: 12),
-                child: Column(
-                  children: [
-                    const SizedBox(height: 24),
-                    // Profile Image with person icon
-                    Container(
-                      width: 150,
-                      height: 150,
-                      decoration: const BoxDecoration(
-                        shape: BoxShape.circle,
-                        color: Color(0xFF213268),
-                      ),
-                      child: const Center(
-                        child: Icon(
-                          Icons.person,
-                          size: 80,
-                          color: Colors.white,
+                child: Container(
+                  width: 440,
+                  padding: const EdgeInsets.only(bottom: 100),
+                  child: Column(
+                    children: [
+                      const SizedBox(height: 24),
+                      // Profile Image with person icon
+                      Container(
+                        width: 150,
+                        height: 150,
+                        decoration: const BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: Color(0xFF213268),
+                        ),
+                        child: const Center(
+                          child: Icon(
+                            Icons.person,
+                            size: 80,
+                            color: Colors.white,
+                          ),
                         ),
                       ),
-                    ),
-                    const SizedBox(height: 24),
+                      const SizedBox(height: 24),
 
-                    // Form Contact - Read-only fields
-                    _buildFormContainer([
-                      _buildReadOnlyField('Nama', _profile?['fullName'] ?? ''),
-                      _buildReadOnlyField('Email', _profile?['email'] ?? ''),
-                      _buildReadOnlyField(
-                          'No. Telepon', _profile?['phone'] ?? ''),
-                      // UPDATE button removed
-                    ]),
+                      // Form Contact - Read-only fields
+                      _buildFormContainer([
+                        _buildReadOnlyField('Nama', _profile?['fullName'] ?? ''),
+                        _buildReadOnlyField('Email', _profile?['email'] ?? ''),
+                        _buildReadOnlyField(
+                            'No. Telepon', _profile?['phone'] ?? ''),
+                        // UPDATE button removed
+                      ]),
 
-                    const SizedBox(height: 24),
+                      const SizedBox(height: 24),
 
-                    // Reset Password section removed
+                      // Reset Password section removed
 
-                    // Logout Form
-                    _buildFormContainer([
-                      _buildButton(
-                        'Keluar',
-                        onPressed: _logout,
-                        color: const Color(0xFFFF0004),
-                        icon: Icons.logout,
-                      ),
-                    ]),
+                      // Logout Form
+                      _buildFormContainer([
+                        _buildButton(
+                          'Keluar',
+                          onPressed: _logout,
+                          color: const Color(0xFFFF0004),
+                          icon: Icons.logout,
+                        ),
+                      ]),
 
-                    const SizedBox(height: 24),
-                  ],
+                      const SizedBox(height: 24),
+                    ],
+                  ),
                 ),
               ),
             ),

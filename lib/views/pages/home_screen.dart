@@ -57,7 +57,22 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.white,
-      appBar: const CustomAppBar(),
+      appBar: AppBar(
+        title: const Text('Beranda'),
+        backgroundColor: const Color(0xFF213268),
+        actions: [
+          // Add refresh button in AppBar
+          IconButton(
+            icon: const Icon(Icons.refresh),
+            onPressed: () {
+              setState(() {
+                // Refresh the home screen
+              });
+            },
+            tooltip: 'Refresh',
+          ),
+        ],
+      ),
       body: SingleChildScrollView(
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,

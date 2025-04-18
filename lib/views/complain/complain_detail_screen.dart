@@ -279,6 +279,14 @@ class _ComplainDetailScreenState extends State<ComplainDetailScreen> {
         ),
         flexibleSpace: const CustomAppBar(),
         toolbarHeight: 82,
+        actions: [
+          // Add refresh button in AppBar
+          IconButton(
+            icon: const Icon(Icons.refresh, color: Colors.white),
+            onPressed: _fetchComplaintDetail,
+            tooltip: 'Refresh',
+          ),
+        ],
       ),
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
@@ -300,35 +308,78 @@ class _ComplainDetailScreenState extends State<ComplainDetailScreen> {
                     ],
                   ),
                 )
-              : Stack(
-                  children: [
-                    SingleChildScrollView(
-                      padding: const EdgeInsets.all(16),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          // Complaint Information
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            children: [
-                              Text(
-                                'Detail Keluhan',
-                                style: GoogleFonts.inter(
-                                  fontSize: 18,
-                                  fontWeight: FontWeight.w600,
-                                  color: const Color(0xFF213268),
-                                ),
+              : RefreshIndicator(
+                  onRefresh: _fetchComplaintDetail,
+                  color: const Color(0xFF213268),
+                  child: SingleChildScrollView(
+                    padding: const EdgeInsets.all(16),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        // Complaint Information
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Text(
+                              'Detail Keluhan',
+                              style: GoogleFonts.inter(
+                                fontSize: 18,
+                                fontWeight: FontWeight.w600,
+                                color: const Color(0xFF213268),
                               ),
-                              _buildStatusBadge(_complaintDetail?['status']),
-                            ],
+                            ),
+                            _buildStatusBadge(_complaintDetail?['status']),
+                          ],
+                        ),
+                        const SizedBox(height: 16),
+                        if (_complaintDetail?['complaint_picture_path'] != null)
+                          Container(
+                            width: double.infinity,
+                            height: 200,
+                            margin: const EdgeInsets.only(bottom: 16),
+                            decoration: BoxDecoration(
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(color: Colors.grey.shade200),
+                            ),
+                            child: ClipRRect(
+                              borderRadius: BorderRadius.circular(12),
+                              child: Image.network(
+                                '${ApiConfig.baseUrl}/public${_complaintDetail?['complaint_picture_path']}',
+                                fit: BoxFit.cover,
+                                errorBuilder: (context, error, stackTrace) {
+                                  return Center(
+                                    child: Icon(
+                                      Icons.error_outline,
+                                      color: Colors.grey[400],
+                                      size: 50,
+                                    ),
+                                  );
+                                },
+                              ),
+                            ),
                           ),
-                          const SizedBox(height: 16),
-                          if (_complaintDetail?['complaint_picture_path'] !=
+                        _buildDetailItem('Tanggal Keluhan',
+                            _formatDate(_complaintDetail?['complaint_date'])),
+                        _buildDetailItem('Asset Code',
+                            _complaintDetail?['asset_id'].toString() ?? '-'),
+                        _buildDetailItem('Asset Name',
+                            _complaintDetail?['asset_name'] ?? '-'),
+                        _buildDetailItem('Deskripsi',
+                            _complaintDetail?['description'] ?? '-'),
+                        _buildDetailItem('Pelapor',
+                            'ID: ${_complaintDetail?['reporter_number'] ?? '-'}'),
+
+                        // Repair Information
+                        if (_complaintDetail?['repair'] != null) ...[
+                          const SizedBox(height: 24),
+                          _buildSectionTitle('Informasi Perbaikan'),
+                          if (_complaintDetail?['repair']
+                                  ['repair_picture_path'] !=
                               null)
                             Container(
                               width: double.infinity,
                               height: 200,
-                              margin: const EdgeInsets.only(bottom: 16),
+                              margin: const EdgeInsets.symmetric(vertical: 16),
                               decoration: BoxDecoration(
                                 borderRadius: BorderRadius.circular(12),
                                 border: Border.all(color: Colors.grey.shade200),
@@ -336,7 +387,7 @@ class _ComplainDetailScreenState extends State<ComplainDetailScreen> {
                               child: ClipRRect(
                                 borderRadius: BorderRadius.circular(12),
                                 child: Image.network(
-                                  '${ApiConfig.baseUrl}/public${_complaintDetail?['complaint_picture_path']}',
+                                  '${ApiConfig.baseUrl}/public${_complaintDetail?['repair']['repair_picture_path']}',
                                   fit: BoxFit.cover,
                                   errorBuilder: (context, error, stackTrace) {
                                     return Center(
@@ -350,134 +401,88 @@ class _ComplainDetailScreenState extends State<ComplainDetailScreen> {
                                 ),
                               ),
                             ),
-                          _buildDetailItem('Tanggal Keluhan',
-                              _formatDate(_complaintDetail?['complaint_date'])),
-                          _buildDetailItem('Asset Code',
-                              _complaintDetail?['asset_id'].toString() ?? '-'),
-                          _buildDetailItem('Asset Name',
-                              _complaintDetail?['asset_name'] ?? '-'),
-                          _buildDetailItem('Deskripsi',
-                              _complaintDetail?['description'] ?? '-'),
-                          _buildDetailItem('Pelapor',
-                              'ID: ${_complaintDetail?['reporter_number'] ?? '-'}'),
+                          _buildDetailItem(
+                              'Tanggal Perbaikan',
+                              _formatDate(
+                                  _complaintDetail?['repair']['repair_date'])),
+                          _buildDetailItem(
+                              'Hasil Akhir',
+                              _complaintDetail?['repair']['final_result'] ??
+                                  '-'),
+                          _buildDetailItem(
+                              'Deskripsi Perbaikan',
+                              _complaintDetail?['repair']
+                                      ['repair_description'] ??
+                                  '-'),
+                          _buildDetailItem('Biaya Perbaikan',
+                              'Rp ${_complaintDetail?['repair']['repair_cost'] ?? '0'}'),
+                          _buildDetailItem('Teknisi',
+                              'ID: ${_complaintDetail?['repair']['technician_number'] ?? '-'}'),
+                          _buildDetailItem(
+                              'Part yang Diganti',
+                              _complaintDetail?['repair']['parts_replaced'] ??
+                                  '-'),
+                          _buildDetailItem(
+                              'Tanggal Selesai',
+                              _formatDate(_complaintDetail?['repair']
+                                  ['completion_date'])),
+                          _buildDetailItem('Disetujui Oleh',
+                              'ID: ${_complaintDetail?['repair']['approver_number'] ?? '-'}'),
+                          _buildDetailItem(
+                              'Tanggal Persetujuan',
+                              _formatDate(_complaintDetail?['repair']
+                                  ['approval_date'])),
+                        ],
 
-                          // Repair Information
-                          if (_complaintDetail?['repair'] != null) ...[
-                            const SizedBox(height: 24),
-                            _buildSectionTitle('Informasi Perbaikan'),
-                            if (_complaintDetail?['repair']
-                                    ['repair_picture_path'] !=
-                                null)
-                              Container(
-                                width: double.infinity,
-                                height: 200,
-                                margin:
-                                    const EdgeInsets.symmetric(vertical: 16),
-                                decoration: BoxDecoration(
-                                  borderRadius: BorderRadius.circular(12),
-                                  border:
-                                      Border.all(color: Colors.grey.shade200),
-                                ),
-                                child: ClipRRect(
-                                  borderRadius: BorderRadius.circular(12),
-                                  child: Image.network(
-                                    '${ApiConfig.baseUrl}/public${_complaintDetail?['repair']['repair_picture_path']}',
-                                    fit: BoxFit.cover,
-                                    errorBuilder: (context, error, stackTrace) {
-                                      return Center(
-                                        child: Icon(
-                                          Icons.error_outline,
-                                          color: Colors.grey[400],
-                                          size: 50,
-                                        ),
-                                      );
-                                    },
+                        // Add Approve button if status is 'finished' and approval_by is null/empty
+                        // and status is not already 'approved'
+                        if (_complaintDetail?['status']?.toLowerCase() == 'finished' &&
+                            _complaintDetail?['status']?.toLowerCase() !=
+                                'approved' &&
+                            _complaintDetail?['repair'] != null &&
+                            (_complaintDetail?['repair']['approval_by'] ==
+                                    null ||
+                                _complaintDetail?['repair']['approval_by']
+                                        .toString() ==
+                                    "" ||
+                                _complaintDetail?['repair']['approval_by'] ==
+                                    0))
+                          Padding(
+                            padding: const EdgeInsets.symmetric(vertical: 16.0),
+                            child: SizedBox(
+                              width: double.infinity,
+                              height: 45,
+                              child: ElevatedButton(
+                                onPressed: _isApproving
+                                    ? null
+                                    : () => _showApprovalConfirmation(
+                                        _complaintDetail!['repair']['id']),
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: const Color(0xFF213268),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(8),
                                   ),
                                 ),
-                              ),
-                            _buildDetailItem(
-                                'Tanggal Perbaikan',
-                                _formatDate(_complaintDetail?['repair']
-                                    ['repair_date'])),
-                            _buildDetailItem(
-                                'Hasil Akhir',
-                                _complaintDetail?['repair']['final_result'] ??
-                                    '-'),
-                            _buildDetailItem(
-                                'Deskripsi Perbaikan',
-                                _complaintDetail?['repair']
-                                        ['repair_description'] ??
-                                    '-'),
-                            _buildDetailItem('Biaya Perbaikan',
-                                'Rp ${_complaintDetail?['repair']['repair_cost'] ?? '0'}'),
-                            _buildDetailItem('Teknisi',
-                                'ID: ${_complaintDetail?['repair']['technician_number'] ?? '-'}'),
-                            _buildDetailItem(
-                                'Part yang Diganti',
-                                _complaintDetail?['repair']['parts_replaced'] ??
-                                    '-'),
-                            _buildDetailItem(
-                                'Tanggal Selesai',
-                                _formatDate(_complaintDetail?['repair']
-                                    ['completion_date'])),
-                            _buildDetailItem('Disetujui Oleh',
-                                'ID: ${_complaintDetail?['repair']['approver_number'] ?? '-'}'),
-                            _buildDetailItem(
-                                'Tanggal Persetujuan',
-                                _formatDate(_complaintDetail?['repair']
-                                    ['approval_date'])),
-                          ],
-
-                          // Add Approve button if status is 'finished' and approval_by is null/empty
-                          // and status is not already 'approved'
-                          if (_complaintDetail?['status']?.toLowerCase() == 'finished' &&
-                              _complaintDetail?['status']?.toLowerCase() !=
-                                  'approved' &&
-                              _complaintDetail?['repair'] != null &&
-                              (_complaintDetail?['repair']['approval_by'] ==
-                                      null ||
-                                  _complaintDetail?['repair']['approval_by']
-                                          .toString() ==
-                                      "" ||
-                                  _complaintDetail?['repair']['approval_by'] ==
-                                      0))
-                            Padding(
-                              padding:
-                                  const EdgeInsets.symmetric(vertical: 16.0),
-                              child: SizedBox(
-                                width: double.infinity,
-                                height: 45,
-                                child: ElevatedButton(
-                                  onPressed: _isApproving
-                                      ? null
-                                      : () => _showApprovalConfirmation(
-                                          _complaintDetail!['repair']['id']),
-                                  style: ElevatedButton.styleFrom(
-                                    backgroundColor: const Color(0xFF213268),
-                                    shape: RoundedRectangleBorder(
-                                      borderRadius: BorderRadius.circular(8),
-                                    ),
-                                  ),
-                                  child: _isApproving
-                                      ? const CircularProgressIndicator(
+                                child: _isApproving
+                                    ? const CircularProgressIndicator(
+                                        color: Colors.white,
+                                      )
+                                    : const Text(
+                                        'Approve Repair',
+                                        style: TextStyle(
+                                          fontSize: 16,
+                                          fontWeight: FontWeight.bold,
                                           color: Colors.white,
-                                        )
-                                      : const Text(
-                                          'Approve Repair',
-                                          style: TextStyle(
-                                            fontSize: 16,
-                                            fontWeight: FontWeight.bold,
-                                            color: Colors.white,
-                                          ),
                                         ),
-                                ),
+                                      ),
                               ),
                             ),
-                          // Remove this entire section - we don't need to show any button when already approved
-                        ],
-                      ),
+                          ),
+                        // Add additional padding at the bottom for safe area
+                        const SizedBox(height: 20),
+                      ],
                     ),
-                  ],
+                  ),
                 ),
     );
   }

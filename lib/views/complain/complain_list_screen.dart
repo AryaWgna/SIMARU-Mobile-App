@@ -165,269 +165,283 @@ class _ComplainListScreenState extends State<ComplainListScreen> {
                         ),
                       )
                     : _complaints.isEmpty
-                        ? const Center(
-                            child: Text('Tidak ada keluhan yang ditemukan'),
-                          )
-                        : ListView.builder(
-                            padding: const EdgeInsets.symmetric(vertical: 8),
-                            itemCount: _complaints.length,
-                            itemBuilder: (context, index) {
-                              final complaint = _complaints[index];
-                              return Card(
-                                elevation: 3,
-                                margin: const EdgeInsets.symmetric(
-                                    horizontal: 16, vertical: 8),
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(12),
+                        ? Center(
+                            child: Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                const Text('Tidak ada keluhan yang ditemukan'),
+                                const SizedBox(height: 16),
+                                ElevatedButton.icon(
+                                  onPressed: _fetchComplaints,
+                                  icon: const Icon(Icons.refresh),
+                                  label: const Text('Refresh'),
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: const Color(0xFF213268),
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(8),
+                                    ),
+                                  ),
                                 ),
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Padding(
-                                      padding: const EdgeInsets.all(16),
-                                      child: Row(
-                                        crossAxisAlignment:
-                                            CrossAxisAlignment.start,
-                                        children: [
-                                          if (complaint[
-                                                  'complaint_picture_path'] !=
-                                              null)
-                                            Container(
-                                              width: 100,
-                                              height: 100,
-                                              decoration: BoxDecoration(
-                                                borderRadius:
-                                                    BorderRadius.circular(8),
-                                                border: Border.all(
-                                                  color: Colors.grey.shade200,
+                              ],
+                            ),
+                          )
+                        : RefreshIndicator(
+                            onRefresh: _fetchComplaints,
+                            color: const Color(0xFF213268),
+                            child: ListView.builder(
+                              padding: const EdgeInsets.symmetric(vertical: 8)
+                                  .copyWith(bottom: 80),
+                              itemCount: _complaints.length,
+                              itemBuilder: (context, index) {
+                                final complaint = _complaints[index];
+                                return Card(
+                                  elevation: 3,
+                                  margin: const EdgeInsets.symmetric(
+                                      horizontal: 16, vertical: 8),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(12),
+                                  ),
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Padding(
+                                        padding: const EdgeInsets.all(16),
+                                        child: Row(
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.start,
+                                          children: [
+                                            if (complaint[
+                                                    'complaint_picture_path'] !=
+                                                null)
+                                              Container(
+                                                width: 100,
+                                                height: 100,
+                                                decoration: BoxDecoration(
+                                                  borderRadius:
+                                                      BorderRadius.circular(8),
+                                                  border: Border.all(
+                                                    color: Colors.grey.shade200,
+                                                  ),
+                                                ),
+                                                child: ClipRRect(
+                                                  borderRadius:
+                                                      BorderRadius.circular(8),
+                                                  child: Image.network(
+                                                    ApiService.baseUrl +
+                                                        '/public' +
+                                                        (complaint[
+                                                                'complaint_picture_path'] ??
+                                                            ''),
+                                                    fit: BoxFit.cover,
+                                                    errorBuilder: (context,
+                                                        error, stackTrace) {
+                                                      print(
+                                                          'Error loading image: $error');
+                                                      return Center(
+                                                        child: Icon(
+                                                          Icons.error_outline,
+                                                          color:
+                                                              Colors.grey[400],
+                                                          size: 40,
+                                                        ),
+                                                      );
+                                                    },
+                                                    loadingBuilder: (context,
+                                                        child,
+                                                        loadingProgress) {
+                                                      if (loadingProgress ==
+                                                          null) return child;
+                                                      return Center(
+                                                        child:
+                                                            CircularProgressIndicator(
+                                                          value: loadingProgress
+                                                                      .expectedTotalBytes !=
+                                                                  null
+                                                              ? loadingProgress
+                                                                      .cumulativeBytesLoaded /
+                                                                  loadingProgress
+                                                                      .expectedTotalBytes!
+                                                              : null,
+                                                        ),
+                                                      );
+                                                    },
+                                                  ),
                                                 ),
                                               ),
-                                              child: ClipRRect(
-                                                borderRadius:
-                                                    BorderRadius.circular(8),
-                                                child: Image.network(
-                                                  ApiService.baseUrl +
-                                                      '/public' +
-                                                      (complaint[
-                                                              'complaint_picture_path'] ??
-                                                          ''),
-                                                  fit: BoxFit.cover,
-                                                  errorBuilder: (context, error,
-                                                      stackTrace) {
-                                                    print(
-                                                        'Error loading image: $error');
-                                                    return Center(
-                                                      child: Icon(
-                                                        Icons.error_outline,
-                                                        color: Colors.grey[400],
-                                                        size: 40,
-                                                      ),
-                                                    );
-                                                  },
-                                                  loadingBuilder: (context,
-                                                      child, loadingProgress) {
-                                                    if (loadingProgress == null)
-                                                      return child;
-                                                    return Center(
-                                                      child:
-                                                          CircularProgressIndicator(
-                                                        value: loadingProgress
-                                                                    .expectedTotalBytes !=
-                                                                null
-                                                            ? loadingProgress
-                                                                    .cumulativeBytesLoaded /
-                                                                loadingProgress
-                                                                    .expectedTotalBytes!
-                                                            : null,
-                                                      ),
-                                                    );
-                                                  },
-                                                ),
-                                              ),
-                                            ),
-                                          const SizedBox(width: 12),
-                                          Expanded(
-                                            child: Column(
-                                              crossAxisAlignment:
-                                                  CrossAxisAlignment.start,
-                                              children: [
-                                                Row(
-                                                  mainAxisAlignment:
-                                                      MainAxisAlignment
-                                                          .spaceBetween,
-                                                  children: [
-                                                    Expanded(
-                                                      child: Text(
-                                                        _formatDate(complaint[
-                                                            'complaint_date']),
-                                                        style:
-                                                            GoogleFonts.inter(
-                                                          fontSize: 14,
-                                                          fontWeight:
-                                                              FontWeight.w600,
-                                                          color: Colors.black,
+                                            const SizedBox(width: 12),
+                                            Expanded(
+                                              child: Column(
+                                                crossAxisAlignment:
+                                                    CrossAxisAlignment.start,
+                                                children: [
+                                                  Row(
+                                                    mainAxisAlignment:
+                                                        MainAxisAlignment
+                                                            .spaceBetween,
+                                                    children: [
+                                                      Expanded(
+                                                        child: Text(
+                                                          _formatDate(complaint[
+                                                              'complaint_date']),
+                                                          style:
+                                                              GoogleFonts.inter(
+                                                            fontSize: 14,
+                                                            fontWeight:
+                                                                FontWeight.w600,
+                                                            color: Colors.black,
+                                                          ),
                                                         ),
                                                       ),
+                                                      _buildStatusBadge(
+                                                          complaint['status'],
+                                                          complaint),
+                                                    ],
+                                                  ),
+                                                  const SizedBox(height: 4),
+                                                  Text(
+                                                    '2 Minutes ago',
+                                                    style: GoogleFonts.inter(
+                                                      fontSize: 12,
+                                                      color: Colors.grey,
                                                     ),
-                                                    _buildStatusBadge(
-                                                        complaint['status'],
-                                                        complaint),
-                                                  ],
-                                                ),
-                                                const SizedBox(height: 4),
-                                                Text(
-                                                  '2 Minutes ago',
-                                                  style: GoogleFonts.inter(
-                                                    fontSize: 12,
-                                                    color: Colors.grey,
                                                   ),
-                                                ),
-                                                const SizedBox(height: 8),
-                                                Text(
-                                                  'Asset Code:',
-                                                  style: GoogleFonts.inter(
-                                                    fontSize: 12,
-                                                    color: Colors.grey[600],
+                                                  const SizedBox(height: 8),
+                                                  Text(
+                                                    'Asset Code:',
+                                                    style: GoogleFonts.inter(
+                                                      fontSize: 12,
+                                                      color: Colors.grey[600],
+                                                    ),
                                                   ),
-                                                ),
-                                                Text(
-                                                  complaint['asset_id']
-                                                          ?.toString() ??
-                                                      '',
-                                                  style: GoogleFonts.inter(
-                                                    fontSize: 14,
-                                                    fontWeight: FontWeight.w500,
+                                                  Text(
+                                                    complaint['asset_id']
+                                                            ?.toString() ??
+                                                        '',
+                                                    style: GoogleFonts.inter(
+                                                      fontSize: 14,
+                                                      fontWeight:
+                                                          FontWeight.w500,
+                                                    ),
                                                   ),
-                                                ),
-                                                const SizedBox(height: 4),
-                                                Text(
-                                                  'Asset Name:',
-                                                  style: GoogleFonts.inter(
-                                                    fontSize: 12,
-                                                    color: Colors.grey[600],
+                                                  const SizedBox(height: 4),
+                                                  Text(
+                                                    'Asset Name:',
+                                                    style: GoogleFonts.inter(
+                                                      fontSize: 12,
+                                                      color: Colors.grey[600],
+                                                    ),
                                                   ),
-                                                ),
-                                                Text(
-                                                  complaint['asset_name'] ?? '',
-                                                  style: GoogleFonts.inter(
-                                                    fontSize: 14,
-                                                    fontWeight: FontWeight.w500,
+                                                  Text(
+                                                    complaint['asset_name'] ??
+                                                        '',
+                                                    style: GoogleFonts.inter(
+                                                      fontSize: 14,
+                                                      fontWeight:
+                                                          FontWeight.w500,
+                                                    ),
                                                   ),
-                                                ),
-                                              ],
+                                                ],
+                                              ),
                                             ),
-                                          ),
-                                        ],
-                                      ),
-                                    ),
-                                    Container(
-                                      padding: const EdgeInsets.symmetric(
-                                          horizontal: 16, vertical: 8),
-                                      decoration: BoxDecoration(
-                                        border: Border(
-                                          top: BorderSide(
-                                            color: Colors.grey.shade200,
-                                            width: 1,
-                                          ),
+                                          ],
                                         ),
                                       ),
-                                      child: Column(
-                                        crossAxisAlignment:
-                                            CrossAxisAlignment.start,
-                                        children: [
-                                          Text(
-                                            'Complaint Desc:',
-                                            style: GoogleFonts.inter(
-                                              fontSize: 12,
-                                              color: Colors.grey[600],
+                                      Container(
+                                        padding: const EdgeInsets.symmetric(
+                                            horizontal: 16, vertical: 8),
+                                        decoration: BoxDecoration(
+                                          border: Border(
+                                            top: BorderSide(
+                                              color: Colors.grey.shade200,
+                                              width: 1,
                                             ),
-                                          ),
-                                          const SizedBox(height: 4),
-                                          Text(
-                                            complaint['description'] ?? '',
-                                            style: GoogleFonts.inter(
-                                              fontSize: 14,
-                                              fontWeight: FontWeight.w500,
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                    ),
-                                    InkWell(
-                                      onTap: () {
-                                        Navigator.push(
-                                          context,
-                                          MaterialPageRoute(
-                                            builder: (context) =>
-                                                ComplainDetailScreen(
-                                              complaint: complaint,
-                                            ),
-                                          ),
-                                        ).then((_) => _fetchComplaints());
-                                      },
-                                      child: Container(
-                                        width: double.infinity,
-                                        height: 45,
-                                        decoration: const BoxDecoration(
-                                          color: Color(0xFF213268),
-                                          borderRadius: BorderRadius.only(
-                                            bottomLeft: Radius.circular(12),
-                                            bottomRight: Radius.circular(12),
                                           ),
                                         ),
-                                        child: Center(
-                                          child: Text(
-                                            (complaint['status']?.toLowerCase() == 'finished' &&
-                                                    complaint['status']
-                                                            ?.toLowerCase() !=
-                                                        'approved' &&
-                                                    complaint['repair'] !=
-                                                        null &&
-                                                    (complaint['repair'][
-                                                                'approval_by'] ==
-                                                            null ||
-                                                        complaint['repair'][
-                                                                    'approval_by']
-                                                                .toString() ==
-                                                            "" ||
-                                                        complaint['repair'][
-                                                                'approval_by'] ==
-                                                            0))
-                                                ? 'Approve'
-                                                : 'Lihat Detail',
-                                            style: GoogleFonts.inter(
-                                              fontSize: 14,
-                                              fontWeight: FontWeight.w600,
-                                              color: Colors.white,
+                                        child: Column(
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.start,
+                                          children: [
+                                            Text(
+                                              'Complaint Desc:',
+                                              style: GoogleFonts.inter(
+                                                fontSize: 12,
+                                                color: Colors.grey[600],
+                                              ),
+                                            ),
+                                            const SizedBox(height: 4),
+                                            Text(
+                                              complaint['description'] ?? '',
+                                              style: GoogleFonts.inter(
+                                                fontSize: 14,
+                                                fontWeight: FontWeight.w500,
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                      InkWell(
+                                        onTap: () {
+                                          Navigator.push(
+                                            context,
+                                            MaterialPageRoute(
+                                              builder: (context) =>
+                                                  ComplainDetailScreen(
+                                                complaint: complaint,
+                                              ),
+                                            ),
+                                          ).then((_) => _fetchComplaints());
+                                        },
+                                        child: Container(
+                                          width: double.infinity,
+                                          height: 45,
+                                          decoration: const BoxDecoration(
+                                            color: Color(0xFF213268),
+                                            borderRadius: BorderRadius.only(
+                                              bottomLeft: Radius.circular(12),
+                                              bottomRight: Radius.circular(12),
+                                            ),
+                                          ),
+                                          child: Center(
+                                            child: Text(
+                                              (complaint['status']?.toLowerCase() == 'finished' &&
+                                                      complaint['status']
+                                                              ?.toLowerCase() !=
+                                                          'approved' &&
+                                                      complaint[
+                                                              'repair'] !=
+                                                          null &&
+                                                      (complaint[
+                                                                      'repair'][
+                                                                  'approval_by'] ==
+                                                              null ||
+                                                          complaint['repair'][
+                                                                      'approval_by']
+                                                                  .toString() ==
+                                                              "" ||
+                                                          complaint['repair'][
+                                                                  'approval_by'] ==
+                                                              0))
+                                                  ? 'Approve'
+                                                  : 'Lihat Detail',
+                                              style: GoogleFonts.inter(
+                                                fontSize: 14,
+                                                fontWeight: FontWeight.w600,
+                                                color: Colors.white,
+                                              ),
                                             ),
                                           ),
                                         ),
                                       ),
-                                    ),
-                                  ],
-                                ),
-                              );
-                            },
+                                    ],
+                                  ),
+                                );
+                              },
+                            ),
                           ),
           ),
         ],
       ),
-      floatingActionButton: Padding(
-        padding: const EdgeInsets.only(bottom: 64.0),
-        child: FloatingActionButton(
-          heroTag: 'complain_list_fab',
-          onPressed: () {
-            Navigator.push(
-              context,
-              MaterialPageRoute(
-                  builder: (context) => const ComplainFormScreen()),
-            ).then((_) => _fetchComplaints());
-          },
-          backgroundColor: const Color(0xFF213268),
-          child: const Icon(Icons.add),
-        ),
-      ),
-      floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
     );
   }
 }
