@@ -145,16 +145,16 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     ),
                     const SizedBox(height: 32),
 
-                    // Name Field
+                    // Name Field changed to Employee Number
                     _buildProfileField(
-                      label: 'Name',
+                      label: 'Nomor Karyawan',
                       value: _profile?['employee_number'] ?? '',
                     ),
 
-                    // Phone Number Field
+                    // Phone Number Field changed to Role
                     _buildProfileField(
-                      label: 'Phone Number',
-                      value: '123456789',
+                      label: 'Role',
+                      value: _getRoleNameFromRoles(_profile?['roles']),
                     ),
 
                     const SizedBox(height: 24),
@@ -232,5 +232,24 @@ class _ProfileScreenState extends State<ProfileScreen> {
     } else {
       return employeeNumber.toUpperCase();
     }
+  }
+
+  String _getRoleNameFromRoles(dynamic roles) {
+    // If roles is null or empty, return Unknown
+    if (roles == null || (roles is List && roles.isEmpty)) {
+      return 'Unknown';
+    }
+
+    try {
+      // Extract the first role's name (assuming users typically have one primary role)
+      if (roles is List && roles.isNotEmpty) {
+        final firstRole = roles[0];
+        return firstRole['role_name'] ?? 'Unknown';
+      }
+    } catch (e) {
+      print('Error extracting role name: $e');
+    }
+
+    return 'Unknown';
   }
 }

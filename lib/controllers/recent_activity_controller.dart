@@ -210,4 +210,19 @@ class RecentActivityController extends ChangeNotifier {
     _error = null;
     notifyListeners();
   }
+
+  // Get today's activities only
+  List<HistoryModel> getTodayActivities() {
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    
+    return _activities.where((activity) {
+      final activityDate = DateTime(
+        activity.actionDate.year,
+        activity.actionDate.month,
+        activity.actionDate.day,
+      );
+      return activityDate.isAtSameMomentAs(today);
+    }).toList();
+  }
 }

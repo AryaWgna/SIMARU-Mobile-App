@@ -37,6 +37,24 @@ class ApiConfig {
   static String getUserComplaintsUrl(String userId) =>
       '$activeApiUrl/complaints/user/$userId';
 
+  // Add endpoint for dashboard summary
+  static String get dashboardSummaryUrl => '$activeApiUrl/dashboard/summary';
+
+  // Add new endpoint for depreciation total value
+  static String getDepreciationTotalUrl({int? year, int? month}) {
+    String url = '$activeApiUrl/depreciations/total-value';
+    List<String> params = [];
+
+    if (year != null) params.add('year=$year');
+    if (month != null) params.add('month=$month');
+
+    if (params.isNotEmpty) {
+      url += '?' + params.join('&');
+    }
+
+    return url;
+  }
+
   // Add new endpoint for history
   static String getHistoryUrl(String date, {String? page, String? limit}) {
     String url = '$activeApiUrl/asset-histories/activities/user/1';

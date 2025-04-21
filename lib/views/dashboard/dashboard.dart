@@ -6,6 +6,7 @@ import '../stockopname/stockopname_task_list.dart';
 import '../complain/complain_list_screen.dart';
 import '../../widgets/custom_app_bar.dart';
 import '../../widgets/app_drawer.dart';
+import '../../widgets/today_activities_widget.dart';
 
 class DashboardScreen extends StatefulWidget {
   final int initialIndex;
@@ -48,11 +49,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
   Widget _buildScreenWithErrorHandling(Function builder, String screenName) {
     try {
       Widget screen = builder();
-      // Wrap each screen with a Container that has bottom padding to prevent content from being hidden by navbar
-      return Container(
-        padding: const EdgeInsets.only(bottom: 80),
-        child: screen,
-      );
+      // No need for bottom padding now that we're using bottomNavigationBar
+      return screen;
     } catch (e, s) {
       print("Error building $screenName: $e");
       print("Stack trace: $s");
@@ -139,59 +137,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 ),
               ),
             ),
-          Positioned(
-            left: 0,
-            right: 0,
-            bottom: 0,
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Container(
-                  color: Colors.white,
-                  child: BottomNavigationBar(
-                    currentIndex: _selectedIndex,
-                    onTap: _onItemTapped,
-                    type: BottomNavigationBarType.fixed,
-                    selectedItemColor: const Color(0xFF213268),
-                    unselectedItemColor: Colors.grey,
-                    backgroundColor: Colors.white,
-                    elevation: 8,
-                    items: const [
-                      BottomNavigationBarItem(
-                        icon: Icon(Icons.home),
-                        label: 'Beranda',
-                      ),
-                      BottomNavigationBarItem(
-                        icon: Icon(Icons.inventory),
-                        label: 'Stok',
-                      ),
-                      BottomNavigationBarItem(
-                        icon: Icon(Icons.qr_code_scanner,
-                            color: Colors.transparent),
-                        label: '',
-                      ),
-                      BottomNavigationBarItem(
-                        icon: Icon(Icons.report_problem),
-                        label: 'Komplain dan Laporan',
-                      ),
-                      BottomNavigationBarItem(
-                        icon: Icon(Icons.person),
-                        label: 'Profil',
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          ),
-          if (!isKeyboardVisible &&
-              MediaQuery.of(context).viewPadding.bottom == 0)
-            Positioned(
-              left: 0,
-              right: 0,
-              bottom: 16,
-              child: Center(
-                child: SizedBox(
+        ],
+      ),
+      floatingActionButton:
+          !isKeyboardVisible && MediaQuery.of(context).viewPadding.bottom == 0
+              ? SizedBox(
                   width: 84,
                   height: 84,
                   child: FloatingActionButton(
@@ -230,8 +180,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
                               QRScannerScreen(previousScreen: previousScreen),
                         ),
                       ).then((_) {
-                        // Jika kembali langsung dari QR Scanner (bukan dari asset details),
-                        // maka state tetap sama
                         setState(() {
                           // Refresh state jika diperlukan
                         });
@@ -243,10 +191,51 @@ class _DashboardScreenState extends State<DashboardScreen> {
                       size: 24,
                     ),
                   ),
-                ),
-              ),
+                )
+              : null,
+      floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
+      bottomNavigationBar: Container(
+        decoration: BoxDecoration(
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.2),
+              spreadRadius: 0,
+              blurRadius: 10,
+              offset: const Offset(0, -5),
             ),
-        ],
+          ],
+        ),
+        child: BottomNavigationBar(
+          currentIndex: _selectedIndex,
+          onTap: _onItemTapped,
+          type: BottomNavigationBarType.fixed,
+          selectedItemColor: const Color(0xFF213268),
+          unselectedItemColor: Colors.grey,
+          backgroundColor: Colors.white,
+          elevation: 8,
+          items: const [
+            BottomNavigationBarItem(
+              icon: Icon(Icons.home),
+              label: 'Beranda',
+            ),
+            BottomNavigationBarItem(
+              icon: Icon(Icons.inventory),
+              label: 'Stok',
+            ),
+            BottomNavigationBarItem(
+              icon: Icon(Icons.qr_code_scanner, color: Colors.transparent),
+              label: '',
+            ),
+            BottomNavigationBarItem(
+              icon: Icon(Icons.report_problem),
+              label: 'Komplain dan Laporan',
+            ),
+            BottomNavigationBarItem(
+              icon: Icon(Icons.person),
+              label: 'Profil',
+            ),
+          ],
+        ),
       ),
     );
   }

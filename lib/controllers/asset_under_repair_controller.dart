@@ -1,16 +1,38 @@
 import 'package:flutter/material.dart';
-import '../models/asset_under_repair.dart';
-import '../services/asset_under_repair_service.dart';
+import 'total_asset_controller.dart';
 
 class AssetUnderRepairController extends ChangeNotifier {
-  final AssetUnderRepairService _service = AssetUnderRepairService();
-  AssetUnderRepair? _assetUnderRepair;
+  TotalAssetController? _totalAssetController;
   bool _isLoading = false;
   String? _error;
 
-  AssetUnderRepair? get assetUnderRepair => _assetUnderRepair;
   bool get isLoading => _isLoading;
   String? get error => _error;
+
+  void setTotalAssetController(TotalAssetController controller) {
+    _totalAssetController = controller;
+    notifyListeners();
+  }
+
+  String get totalUnderRepair {
+    if (_totalAssetController == null ||
+        _totalAssetController!.dashboardSummary == null) {
+      return "0";
+    }
+
+    final status = _totalAssetController!.dashboardSummary!.assetsByStatus;
+    return status['under repair']?.toString() ?? "0";
+  }
+
+  String get totalCalibrationsNeeded {
+    if (_totalAssetController == null ||
+        _totalAssetController!.dashboardSummary == null) {
+      return "0";
+    }
+
+    final calibrations = _totalAssetController!.upcomingCalibrations;
+    return calibrations.isEmpty ? "0" : calibrations;
+  }
 
   Future<void> loadAssetUnderRepair() async {
     try {
@@ -18,7 +40,8 @@ class AssetUnderRepairController extends ChangeNotifier {
       _error = null;
       notifyListeners();
 
-      _assetUnderRepair = await _service.getAssetUnderRepair();
+      // We don't need to load data separately as it comes from the dashboard summary
+
       _isLoading = false;
       notifyListeners();
     } catch (e) {
@@ -32,4 +55,4 @@ class AssetUnderRepairController extends ChangeNotifier {
     _error = null;
     notifyListeners();
   }
-} 
+}
