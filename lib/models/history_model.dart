@@ -25,13 +25,18 @@ class HistoryModel {
     String translatedMessage = message;
     
     if (message.contains('changed status from')) {
-      translatedMessage = message.replaceAll('changed status from', 'mengubah status dari');
+      translatedMessage =
+          message.replaceAll('changed status from', 'mengubah status dari');
       translatedMessage = translatedMessage.replaceAll('to', 'menjadi');
       translatedMessage = translatedMessage.replaceAll('Available', 'Tersedia');
-      translatedMessage = translatedMessage.replaceAll('Checked out', 'Dipinjam');
-      translatedMessage = translatedMessage.replaceAll('Returned', 'Dikembalikan');
-      translatedMessage = translatedMessage.replaceAll('In Repair', 'Dalam Perbaikan');
-      translatedMessage = translatedMessage.replaceAll('Disposed', 'Dimusnahkan');
+      translatedMessage =
+          translatedMessage.replaceAll('Checked out', 'Dipinjam');
+      translatedMessage =
+          translatedMessage.replaceAll('Returned', 'Dikembalikan');
+      translatedMessage =
+          translatedMessage.replaceAll('In Repair', 'Dalam Perbaikan');
+      translatedMessage =
+          translatedMessage.replaceAll('Disposed', 'Dimusnahkan');
     }
 
     return HistoryModel(
@@ -90,40 +95,17 @@ class HistoryModel {
 
 class UserInfo {
   final int userId;
-  final String email;
-  final EmployeeInfo employee;
+  final String employeeNumber;
 
   UserInfo({
     required this.userId,
-    required this.email,
-    required this.employee,
+    required this.employeeNumber,
   });
 
   factory UserInfo.fromJson(Map<String, dynamic> json) {
     return UserInfo(
       userId: json['user_id'],
-      email: json['email'],
-      employee: EmployeeInfo.fromJson(json['employee']),
-    );
-  }
-}
-
-class EmployeeInfo {
-  final String name;
-  final String position;
-  final String departmentName;
-
-  EmployeeInfo({
-    required this.name,
-    required this.position,
-    required this.departmentName,
-  });
-
-  factory EmployeeInfo.fromJson(Map<String, dynamic> json) {
-    return EmployeeInfo(
-      name: json['name'],
-      position: json['position'],
-      departmentName: json['department_name'],
+      employeeNumber: json['employee_number'] ?? '',
     );
   }
 }

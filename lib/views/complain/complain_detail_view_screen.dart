@@ -73,14 +73,13 @@ class _ComplainDetailViewScreenState extends State<ComplainDetailViewScreen> {
     return Scaffold(
       backgroundColor: Colors.white,
       appBar: AppBar(
-        backgroundColor: Colors.transparent,
+        backgroundColor: const Color(0xFF213268),
         elevation: 0,
+        title: Text('Detail Keluhan', style: TextStyle(color: Colors.white)),
         leading: IconButton(
           icon: const Icon(Icons.arrow_back, color: Colors.white),
           onPressed: () => Navigator.pop(context),
         ),
-        flexibleSpace: const CustomAppBar(),
-        toolbarHeight: 82,
       ),
       body: Column(
         crossAxisAlignment: CrossAxisAlignment.start,

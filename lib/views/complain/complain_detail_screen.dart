@@ -6,6 +6,8 @@ import '../../widgets/custom_app_bar.dart';
 import '../../core/config/api_config.dart';
 import '../../controllers/auth_controller.dart';
 import 'complain_work_form_screen.dart';
+import '../../services/socket_service.dart' as socket_service;
+import 'package:intl/intl.dart';
 
 class ComplainDetailScreen extends StatefulWidget {
   final Map<String, dynamic> complaint;
@@ -33,7 +35,7 @@ class _ComplainDetailScreenState extends State<ComplainDetailScreen> {
 
   Future<void> _fetchComplaintDetail() async {
     try {
-      final accessToken = await ApiService.getAccessToken();
+      final accessToken = await socket_service.ApiService.getAccessToken();
       if (accessToken == null) {
         throw Exception('No access token available');
       }
@@ -69,102 +71,77 @@ class _ComplainDetailScreenState extends State<ComplainDetailScreen> {
     }
   }
 
-  Future<void> _approveRepair(int repairId) async {
-    setState(() {
-      _isApproving = true;
-    });
-
+  Future<void> _approveRepair() async {
     try {
-      final accessToken = await ApiService.getAccessToken();
-      if (accessToken == null) {
-        throw Exception('No access token available');
+      final repairId = _complaintDetail?['repair']['id'].toString() ?? '';
+      if (repairId.isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Repair ID tidak ditemukan')),
+        );
+        return;
       }
 
+      // Show confirmation dialog
+      bool confirm = await showDialog(
+            context: context,
+            builder: (BuildContext context) {
+              return AlertDialog(
+                title: Text('Konfirmasi'),
+                content:
+                    Text('Apakah Anda yakin ingin menyetujui perbaikan ini?'),
+                actions: [
+                  TextButton(
+                    onPressed: () => Navigator.of(context).pop(false),
+                    child: Text('Batal'),
+                  ),
+                  TextButton(
+                    onPressed: () => Navigator.of(context).pop(true),
+                    child: Text('Ya, Setuju'),
+                  ),
+                ],
+              );
+            },
+          ) ??
+          false;
+
+      if (!confirm) return;
+
+      // Call API to approve repair
       final response = await http.put(
-        Uri.parse('${ApiConfig.baseUrl}/repairs/$repairId'),
+        Uri.parse('${ApiConfig.baseUrl}/repairs/$repairId/approve'),
         headers: {
-          'Authorization': 'Bearer $accessToken',
           'Content-Type': 'application/json',
         },
         body: jsonEncode({
-          'approval_by': 2, // Using the provided approval_by value
+          'approval_by': 1, // Use user ID here
         }),
       );
 
       if (response.statusCode == 200) {
-        final data = json.decode(response.body);
-        if (data['status'] == true) {
-          // Show success message
-          if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                content: Text('Perbaikan berhasil disetujui'),
-                backgroundColor: Colors.green,
-              ),
-            );
-
-            // Update the repair's approval_by locally without having to fetch again
-            if (_complaintDetail != null &&
-                _complaintDetail!['repair'] != null) {
-              setState(() {
-                _complaintDetail!['repair']['approval_by'] = 2;
-                _complaintDetail!['status'] = 'approved';
-              });
-            } else {
-              // If local update not possible, refresh the complaint details
-              _fetchComplaintDetail();
-            }
-          }
-        } else {
-          throw Exception(data['message'] ?? 'Failed to approve repair');
-        }
-      } else {
-        throw Exception('Failed to approve repair: ${response.statusCode}');
-      }
-    } catch (e) {
-      if (mounted) {
+        // Success
+        final responseData = jsonDecode(response.body);
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Error: ${e.toString()}'),
-            backgroundColor: Colors.red,
-          ),
+              content: Text(
+                  responseData['message'] ?? 'Perbaikan berhasil disetujui')),
         );
-      }
-    } finally {
-      if (mounted) {
-        setState(() {
-          _isApproving = false;
-        });
-      }
-    }
-  }
 
-  Future<void> _showApprovalConfirmation(int repairId) async {
-    return showDialog(
-      context: context,
-      builder: (BuildContext context) {
-        return AlertDialog(
-          title: const Text('Konfirmasi Approval'),
-          content:
-              const Text('Apakah Anda yakin ingin menyetujui perbaikan ini?'),
-          actions: <Widget>[
-            TextButton(
-              child: const Text('Batal'),
-              onPressed: () {
-                Navigator.of(context).pop();
-              },
-            ),
-            TextButton(
-              child: const Text('Setuju'),
-              onPressed: () {
-                Navigator.of(context).pop();
-                _approveRepair(repairId);
-              },
-            ),
-          ],
+        // Refresh data
+        await _fetchComplaintDetail();
+      } else {
+        // Error
+        final responseData = jsonDecode(response.body);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+              content: Text(
+                  responseData['message'] ?? 'Gagal menyetujui perbaikan')),
         );
-      },
-    );
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Terjadi kesalahan: $e')),
+      );
+    }
   }
 
   String _formatDate(String? dateString) {
@@ -271,22 +248,13 @@ class _ComplainDetailScreenState extends State<ComplainDetailScreen> {
     return Scaffold(
       backgroundColor: Colors.white,
       appBar: AppBar(
-        backgroundColor: Colors.transparent,
+        backgroundColor: const Color(0xFF213268),
         elevation: 0,
+        title: Text('Detail Keluhan', style: TextStyle(color: Colors.white)),
         leading: IconButton(
           icon: const Icon(Icons.arrow_back, color: Colors.white),
           onPressed: () => Navigator.pop(context),
         ),
-        flexibleSpace: const CustomAppBar(),
-        toolbarHeight: 82,
-        actions: [
-          // Add refresh button in AppBar
-          IconButton(
-            icon: const Icon(Icons.refresh, color: Colors.white),
-            onPressed: _fetchComplaintDetail,
-            tooltip: 'Refresh',
-          ),
-        ],
       ),
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
@@ -453,10 +421,7 @@ class _ComplainDetailScreenState extends State<ComplainDetailScreen> {
                               width: double.infinity,
                               height: 45,
                               child: ElevatedButton(
-                                onPressed: _isApproving
-                                    ? null
-                                    : () => _showApprovalConfirmation(
-                                        _complaintDetail!['repair']['id']),
+                                onPressed: _isApproving ? null : _approveRepair,
                                 style: ElevatedButton.styleFrom(
                                   backgroundColor: const Color(0xFF213268),
                                   shape: RoundedRectangleBorder(

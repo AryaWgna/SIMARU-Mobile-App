@@ -4,6 +4,8 @@ import '../pages/home_screen.dart';
 import '../pages/qr_scanner_screen.dart';
 import '../stockopname/stockopname_task_list.dart';
 import '../complain/complain_list_screen.dart';
+import '../../widgets/custom_app_bar.dart';
+import '../../widgets/app_drawer.dart';
 
 class DashboardScreen extends StatefulWidget {
   final int initialIndex;
@@ -109,6 +111,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
     final bool isKeyboardVisible = MediaQuery.of(context).viewInsets.bottom > 0;
 
     return Scaffold(
+      appBar: const PreferredSize(
+        preferredSize: Size.fromHeight(82),
+        child: CustomAppBar(),
+      ),
       body: Stack(
         children: [
           _screens[_selectedIndex],

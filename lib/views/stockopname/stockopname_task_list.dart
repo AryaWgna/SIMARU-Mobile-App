@@ -3,7 +3,6 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'stockopname_scan_completed.dart';
 import 'stockopname_scan_result.dart';
-import '../../widgets/custom_app_bar.dart';
 
 // Enum untuk status task
 enum TaskStatus { scheduled, inProgress, done, completed }
@@ -81,25 +80,12 @@ class _StockopnameTaskListState extends State<StockopnameTaskList> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Colors.white,
-      appBar: AppBar(
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Colors.white),
-          onPressed: () => Navigator.pop(context),
-        ),
-        flexibleSpace: const CustomAppBar(),
-        toolbarHeight: 82,
-      ),
-      body: ListView.builder(
+    return ListView.builder(
         padding: const EdgeInsets.all(15),
         itemCount: tasks.length,
         itemBuilder: (context, index) {
           return _buildTaskCard(tasks[index]);
         },
-      ),
     );
   }
 

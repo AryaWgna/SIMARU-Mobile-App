@@ -279,7 +279,8 @@ class ApiService {
                   key: 'accessToken', value: accessToken);
               await _secureStorage.write(
                   key: 'refreshToken', value: refreshToken);
-              await _secureStorage.write(key: 'employee_number', value: employee_number);
+              await _secureStorage.write(
+                  key: 'employee_number', value: employee_number);
               await _secureStorage.write(key: 'password', value: password);
               print('Credentials stored successfully');
             } catch (e) {
@@ -333,7 +334,8 @@ class ApiService {
         try {
           final jsonResponse = jsonDecode(response.body);
           throw ApiException(
-              message: jsonResponse['message'] ?? 'employee_number atau password salah',
+              message: jsonResponse['message'] ??
+                  'employee_number atau password salah',
               code: 'FORBIDDEN',
               statusCode: 403);
         } catch (e) {
@@ -612,6 +614,29 @@ class ApiService {
       }
     } catch (e) {
       print('Error getting profile: $e');
+      throw Exception('Gagal melakukan koneksi ke server');
+    }
+  }
+
+  // Metode untuk mendapatkan user berdasarkan ID
+  static Future<Map<String, dynamic>> getUserById(
+      String userId, BuildContext context) async {
+    try {
+      final response = await get('/users/$userId', context: context);
+
+      if (response.statusCode == 200) {
+        final responseData = json.decode(response.body);
+        if (responseData['status'] == true) {
+          return responseData['data'];
+        } else {
+          throw Exception(
+              responseData['message'] ?? 'Failed to load user data');
+        }
+      } else {
+        throw Exception('Gagal mengambil data user: ${response.statusCode}');
+      }
+    } catch (e) {
+      print('Error getting user by ID: $e');
       throw Exception('Gagal melakukan koneksi ke server');
     }
   }

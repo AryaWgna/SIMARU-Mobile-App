@@ -31,14 +31,27 @@ class ApiConfig {
   static String get profileUrl => '$activeApiUrl/user/profile';
   static String get logoutUrl => '$activeApiUrl/auth/logout';
   static String get complaintsUrl => '$activeApiUrl/complaints';
+  static String getUserUrl(String userId) => '$activeApiUrl/users/$userId';
   static String getComplaintByIdUrl(String id) =>
       '$activeApiUrl/complaints/$id';
   static String getUserComplaintsUrl(String userId) =>
       '$activeApiUrl/complaints/user/$userId';
 
   // Add new endpoint for history
-  static String getHistoryUrl(String date) =>
-      '$activeApiUrl/asset-histories/activities/user/1?date=$date';
+  static String getHistoryUrl(String date, {String? page, String? limit}) {
+    String url = '$activeApiUrl/asset-histories/activities/user/1';
+
+    List<String> params = [];
+    if (date.isNotEmpty) params.add('date=$date');
+    if (page != null) params.add('page=$page');
+    if (limit != null) params.add('limit=$limit');
+
+    if (params.isNotEmpty) {
+      url += '?' + params.join('&');
+    }
+
+    return url;
+  }
 
   // Tambahkan endpoint lain sesuai kebutuhan aplikasi Anda
   // static String get maintenanceUrl => '$baseUrl/maintenance';

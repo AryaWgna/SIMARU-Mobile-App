@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
-import '../../widgets/custom_app_bar.dart';
 import '../../controllers/recent_activity_controller.dart';
 import '../../models/history_model.dart';
 
@@ -69,29 +68,30 @@ class _HistoryScreenState extends State<HistoryScreen> {
 
     return Container(
       width: double.infinity,
-      height: 73,
       margin: const EdgeInsets.only(bottom: 13),
-      decoration: const BoxDecoration(
+      decoration: BoxDecoration(
         color: Colors.white,
+        borderRadius: BorderRadius.circular(8),
         boxShadow: [
           BoxShadow(
-            color: Color.fromRGBO(0, 0, 0, 0.25),
-            offset: Offset(0, 4),
+            color: Color.fromRGBO(0, 0, 0, 0.1),
+            offset: Offset(0, 2),
             blurRadius: 4,
           ),
         ],
       ),
       child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           // Blue line on the left
           Container(
             width: 8,
-            height: 73,
+            height: 90,
             decoration: const BoxDecoration(
               color: Color(0xFF25B1FF),
               borderRadius: BorderRadius.only(
-                topRight: Radius.circular(10),
-                bottomRight: Radius.circular(10),
+                topLeft: Radius.circular(8),
+                bottomLeft: Radius.circular(8),
               ),
             ),
           ),
@@ -100,6 +100,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
             padding: const EdgeInsets.only(left: 11, top: 16),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
               children: [
                 Text(
                   formattedDate,
@@ -127,15 +128,16 @@ class _HistoryScreenState extends State<HistoryScreen> {
           Container(
             margin: const EdgeInsets.symmetric(horizontal: 16),
             width: 1,
-            height: 73,
+            height: 90,
             color: const Color(0xFFCAC4D0),
           ),
           // Asset info
           Expanded(
             child: Padding(
-              padding: const EdgeInsets.only(top: 12, right: 16),
+              padding: const EdgeInsets.only(top: 12, right: 16, bottom: 12),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
                 children: [
                   Text(
                     'ID Aset: ${activity.assetInfo.assetCode}',
@@ -147,19 +149,51 @@ class _HistoryScreenState extends State<HistoryScreen> {
                       color: Color(0xFF757575),
                     ),
                   ),
-                  const SizedBox(height: 8),
-                  Flexible(
-                    child: Text(
-                      activity.message,
-                      style: const TextStyle(
-                        fontFamily: 'Inter',
-                        fontSize: 12,
-                        fontWeight: FontWeight.w400,
-                        color: Colors.black,
-                      ),
-                      overflow: TextOverflow.ellipsis,
-                      maxLines: 2,
+                  Text(
+                    activity.assetInfo.assetName,
+                    style: const TextStyle(
+                      fontFamily: 'Inter',
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                      color: Color(0xFF213268),
                     ),
+                  ),
+                  const SizedBox(height: 4),
+                  Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 2,
+                        ),
+                        decoration: BoxDecoration(
+                          color: _getStatusColor(activity.newStatus),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Text(
+                          activity.newStatus,
+                          style: const TextStyle(
+                            fontFamily: 'Inter',
+                            fontSize: 10,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.white,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 4),
+                    ],
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    activity.message,
+                    style: const TextStyle(
+                      fontFamily: 'Inter',
+                      fontSize: 12,
+                      fontWeight: FontWeight.w400,
+                      color: Colors.black,
+                    ),
+                    overflow: TextOverflow.ellipsis,
+                    maxLines: 2,
                   ),
                 ],
               ),
@@ -170,9 +204,27 @@ class _HistoryScreenState extends State<HistoryScreen> {
     );
   }
 
+  Color _getStatusColor(String status) {
+    switch (status.toLowerCase()) {
+      case 'tersedia':
+        return Colors.green;
+      case 'dipinjam':
+        return Colors.orange;
+      case 'dikembalikan':
+        return Colors.blue;
+      case 'dalam perbaikan':
+        return Colors.red;
+      case 'dimusnahkan':
+        return Colors.grey[800]!;
+      default:
+        return Colors.grey;
+    }
+  }
+
   Widget _buildMonthSection(String monthYear, List<HistoryModel> activities) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
       children: [
         Padding(
           padding: const EdgeInsets.only(bottom: 10, top: 16),
@@ -196,144 +248,145 @@ class _HistoryScreenState extends State<HistoryScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.white,
-      appBar: const CustomAppBar(),
-      body: RefreshIndicator(
-        onRefresh: () =>
-            context.read<RecentActivityController>().loadRecentActivities(),
-        child: Column(
-          children: [
-            // Title and subtitle
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.fromLTRB(24, 27, 24, 0),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Container(
-                    alignment: Alignment.centerLeft,
-                    child: const Text(
-                      'Riwayat',
-                      style: TextStyle(
-                        fontFamily: 'Inter',
-                        fontSize: 32,
-                        fontWeight: FontWeight.w600,
-                        color: Color(0xFF213268),
-                        height: 0.56,
-                      ),
-                    ),
+      appBar: AppBar(
+        backgroundColor: const Color(0xFF213268),
+        elevation: 0,
+        title: Text('Riwayat Aktivitas', style: TextStyle(color: Colors.white)),
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back, color: Colors.white),
+          onPressed: () => Navigator.pop(context),
+        ),
+      ),
+      body: Column(
+        children: [
+          // Title and subtitle
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.fromLTRB(24, 16, 24, 0),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Menampilkan semua aktivitas Anda',
+                  style: TextStyle(
+                    fontFamily: 'Inter',
+                    fontSize: 16,
+                    fontWeight: FontWeight.w400,
+                    color: Color(0xFF757575),
                   ),
-                  const SizedBox(height: 6),
-                  Container(
-                    alignment: Alignment.centerLeft,
-                    child: const Text(
-                      'Menampilkan semua aktivitas Anda',
-                      style: TextStyle(
-                        fontFamily: 'Inter',
-                        fontSize: 16,
-                        fontWeight: FontWeight.w400,
-                        color: Color(0xFF757575),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
+                ),
+              ],
             ),
-            // History items
-            Expanded(
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(24, 9, 24, 0),
-                child: Consumer<RecentActivityController>(
-                  builder: (context, controller, child) {
-                    // Menampilkan indikator loading saat pertama kali memuat data
-                    if (controller.isLoading && controller.activities.isEmpty) {
-                      return const Center(
-                        child: CircularProgressIndicator(
-                          color: Color(0xFF213268),
-                        ),
-                      );
-                    }
+          ),
+          // History items
+          Expanded(
+            child: Consumer<RecentActivityController>(
+              builder: (context, controller, child) {
+                // Menampilkan indikator loading saat pertama kali memuat data
+                if (controller.isLoading && controller.activities.isEmpty) {
+                  return const Center(
+                    child: CircularProgressIndicator(
+                      color: Color(0xFF213268),
+                    ),
+                  );
+                }
 
-                    // Menampilkan pesan error jika gagal memuat data
-                    if (controller.error != null &&
-                        controller.activities.isEmpty) {
-                      return Center(
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Text(
-                              controller.error!,
-                              style: const TextStyle(
-                                color: Colors.red,
-                                fontSize: 14,
-                                fontFamily: 'Inter',
-                              ),
-                              textAlign: TextAlign.center,
-                            ),
-                            const SizedBox(height: 16),
-                            ElevatedButton(
-                              onPressed: () {
-                                controller.clearError();
-                                controller.loadRecentActivities();
-                              },
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: const Color(0xFF213268),
-                                foregroundColor: Colors.white,
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(8),
-                                ),
-                              ),
-                              child: const Text('Coba Lagi'),
-                            ),
-                          ],
-                        ),
-                      );
-                    }
-
-                    // Menampilkan pesan jika tidak ada aktivitas
-                    if (controller.activities.isEmpty) {
-                      return const Center(
-                        child: Text(
-                          'Tidak ada aktivitas ditemukan',
-                          style: TextStyle(
+                // Menampilkan pesan error jika gagal memuat data
+                if (controller.error != null && controller.activities.isEmpty) {
+                  return Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          controller.error!,
+                          style: const TextStyle(
+                            color: Colors.red,
+                            fontSize: 14,
                             fontFamily: 'Inter',
-                            fontSize: 16,
-                            color: Color(0xFF757575),
+                          ),
+                          textAlign: TextAlign.center,
+                        ),
+                        const SizedBox(height: 16),
+                        ElevatedButton(
+                          onPressed: () {
+                            controller.clearError();
+                            controller.loadRecentActivities();
+                          },
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: const Color(0xFF213268),
+                            foregroundColor: Colors.white,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                          ),
+                          child: const Text('Coba Lagi'),
+                        ),
+                      ],
+                    ),
+                  );
+                }
+
+                // Menampilkan pesan jika tidak ada aktivitas
+                if (controller.activities.isEmpty) {
+                  return RefreshIndicator(
+                    onRefresh: () => controller.loadRecentActivities(),
+                    child: ListView(
+                      physics: const AlwaysScrollableScrollPhysics(),
+                      children: [
+                        Container(
+                          height: MediaQuery.of(context).size.height * 0.6,
+                          child: const Center(
+                            child: Text(
+                              'Tidak ada aktivitas ditemukan',
+                              style: TextStyle(
+                                fontFamily: 'Inter',
+                                fontSize: 16,
+                                color: Color(0xFF757575),
+                              ),
+                            ),
                           ),
                         ),
-                      );
-                    }
+                      ],
+                    ),
+                  );
+                }
 
-                    // Kelompokkan aktivitas berdasarkan bulan
-                    final byMonth = controller.activitiesByMonth;
-                    final months = byMonth.keys.toList()
-                      ..sort((a, b) {
-                        // Sort from newest to oldest
-                        final partsA = a.split(' ');
-                        final partsB = b.split(' ');
-                        final yearA = int.parse(partsA[1]);
-                        final yearB = int.parse(partsB[1]);
-                        if (yearA != yearB) return yearB.compareTo(yearA);
+                // Kelompokkan aktivitas berdasarkan bulan
+                final byMonth = controller.activitiesByMonth;
+                final months = byMonth.keys.toList()
+                  ..sort((a, b) {
+                    // Sort from newest to oldest
+                    final partsA = a.split(' ');
+                    final partsB = b.split(' ');
+                    final yearA = int.parse(partsA[1]);
+                    final yearB = int.parse(partsB[1]);
+                    if (yearA != yearB) return yearB.compareTo(yearA);
 
-                        final indonesianMonths = [
-                          'Januari',
-                          'Februari',
-                          'Maret',
-                          'April',
-                          'Mei',
-                          'Juni',
-                          'Juli',
-                          'Agustus',
-                          'September',
-                          'Oktober',
-                          'November',
-                          'Desember'
-                        ];
-                        final monthA = indonesianMonths.indexOf(partsA[0]);
-                        final monthB = indonesianMonths.indexOf(partsB[0]);
-                        return monthB.compareTo(monthA);
-                      });
+                    final indonesianMonths = [
+                      'Januari',
+                      'Februari',
+                      'Maret',
+                      'April',
+                      'Mei',
+                      'Juni',
+                      'Juli',
+                      'Agustus',
+                      'September',
+                      'Oktober',
+                      'November',
+                      'Desember'
+                    ];
+                    final monthA = indonesianMonths.indexOf(partsA[0]);
+                    final monthB = indonesianMonths.indexOf(partsB[0]);
+                    return monthB.compareTo(monthA);
+                  });
 
-                    return Stack(
+                return Padding(
+                  padding: const EdgeInsets.fromLTRB(24, 9, 24, 0),
+                  child: RefreshIndicator(
+                    onRefresh: () => controller.loadRecentActivities(),
+                    child: Stack(
                       children: [
                         ListView.builder(
                           controller: _scrollController,
@@ -383,35 +436,35 @@ class _HistoryScreenState extends State<HistoryScreen> {
                             ),
                           ),
                       ],
-                    );
-                  },
-                ),
-              ),
-            ),
-            // Tampilkan pagination info jika ada
-            Consumer<RecentActivityController>(
-              builder: (context, controller, _) {
-                final pagination = controller.pagination;
-                if (pagination != null) {
-                  return Container(
-                    padding:
-                        const EdgeInsets.symmetric(vertical: 8, horizontal: 24),
-                    color: Colors.grey[100],
-                    child: Text(
-                      'Halaman ${pagination.currentPage} dari ${pagination.totalPages} (${pagination.totalItems} item)',
-                      style: const TextStyle(
-                        fontSize: 12,
-                        color: Colors.grey,
-                      ),
-                      textAlign: TextAlign.center,
                     ),
-                  );
-                }
-                return const SizedBox.shrink();
+                  ),
+                );
               },
             ),
-          ],
-        ),
+          ),
+          // Tampilkan pagination info jika ada
+          Consumer<RecentActivityController>(
+            builder: (context, controller, _) {
+              final pagination = controller.pagination;
+              if (pagination != null) {
+                return Container(
+                  padding:
+                      const EdgeInsets.symmetric(vertical: 8, horizontal: 24),
+                  color: Colors.grey[100],
+                  child: Text(
+                    'Halaman ${pagination.currentPage} dari ${pagination.totalPages} (${pagination.totalItems} item)',
+                    style: const TextStyle(
+                      fontSize: 12,
+                      color: Colors.grey,
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                );
+              }
+              return const SizedBox.shrink();
+            },
+          ),
+        ],
       ),
     );
   }

@@ -5,9 +5,7 @@ class CustomAppBar extends StatelessWidget implements PreferredSizeWidget {
 
   @override
   Widget build(BuildContext context) {
-    return PreferredSize(
-      preferredSize: const Size.fromHeight(82),
-      child: Container(
+    return Container(
         decoration: const BoxDecoration(
           color: Color(0xFF213268),
           borderRadius: BorderRadius.only(
@@ -22,7 +20,6 @@ class CustomAppBar extends StatelessWidget implements PreferredSizeWidget {
               'images/Logo_RS_UMMI_white.png',
               width: 208.14,
               height: 55,
-            ),
           ),
         ),
       ),

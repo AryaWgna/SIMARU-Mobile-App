@@ -130,16 +130,6 @@ class _ComplainListScreenState extends State<ComplainListScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.white,
-      appBar: AppBar(
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Colors.white),
-          onPressed: () => Navigator.pop(context),
-        ),
-        flexibleSpace: const CustomAppBar(),
-        toolbarHeight: 82,
-      ),
       body: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -380,7 +370,7 @@ class _ComplainListScreenState extends State<ComplainListScreen> {
                                           ],
                                         ),
                                       ),
-                                      InkWell(
+                                      GestureDetector(
                                         onTap: () {
                                           Navigator.push(
                                             context,
@@ -390,7 +380,7 @@ class _ComplainListScreenState extends State<ComplainListScreen> {
                                                 complaint: complaint,
                                               ),
                                             ),
-                                          ).then((_) => _fetchComplaints());
+                                          );
                                         },
                                         child: Container(
                                           width: double.infinity,

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../models/history_model.dart';
 import 'dart:convert';
 import 'auth_controller.dart';
+import '../core/config/api_config.dart';
 
 class RecentActivityController extends ChangeNotifier {
   List<HistoryModel> _activities = [];
@@ -11,7 +12,7 @@ class RecentActivityController extends ChangeNotifier {
   String? _error;
   int _currentPage = 1;
   bool _hasMoreData = true;
-  final int _limit = 6;
+  final int _limit = 10;
 
   List<HistoryModel> get activities => _activities;
   Map<String, List<HistoryModel>> get activitiesByMonth => _activitiesByMonth;
@@ -40,9 +41,31 @@ class RecentActivityController extends ChangeNotifier {
       if (response.statusCode == 200) {
         final jsonResponse = json.decode(response.body);
         if (jsonResponse['status'] == true) {
-          final List<dynamic> historiesJson = jsonResponse['data']['histories'];
-          final newActivities =
-              historiesJson.map((json) => HistoryModel.fromJson(json)).toList();
+          final dataSection = jsonResponse['data'];
+
+          if (dataSection == null) {
+            _error = 'Data section missing in response';
+            _isLoading = false;
+            notifyListeners();
+            return;
+          }
+
+          final List<dynamic>? historiesJson = dataSection['histories'];
+          if (historiesJson == null || historiesJson.isEmpty) {
+            if (refresh) {
+              _activities = [];
+              _activitiesByMonth = {};
+            }
+            _hasMoreData = false;
+            _isLoading = false;
+            notifyListeners();
+            return;
+          }
+
+          final newActivities = historiesJson
+              .where((json) => json != null)
+              .map((json) => HistoryModel.fromJson(json))
+              .toList();
 
           if (refresh) {
             _activities = newActivities;
@@ -50,11 +73,15 @@ class RecentActivityController extends ChangeNotifier {
             _activities.addAll(newActivities);
           }
 
-          final paginationData = jsonResponse['data']['pagination'];
-          _pagination = HistoryPagination.fromJson(paginationData);
-          _hasMoreData = _pagination!.hasNext;
+          if (dataSection['pagination'] != null) {
+            final paginationData = dataSection['pagination'];
+            _pagination = HistoryPagination.fromJson(paginationData);
+            _hasMoreData = _pagination!.hasNext;
 
-          if (_hasMoreData) _currentPage++;
+            if (_hasMoreData) _currentPage++;
+          } else {
+            _hasMoreData = false;
+          }
 
           // Group activities by month
           _groupActivitiesByMonth();
@@ -65,7 +92,8 @@ class RecentActivityController extends ChangeNotifier {
         _error = 'Failed to load activities. Status: ${response.statusCode}';
       }
     } catch (e) {
-      _error = e.toString();
+      _error = 'Error: ${e.toString()}';
+      print('Exception in loadRecentActivities: $e');
     } finally {
       _isLoading = false;
       notifyListeners();
@@ -79,7 +107,7 @@ class RecentActivityController extends ChangeNotifier {
     notifyListeners();
 
     try {
-      final nextPage = _currentPage + 1;
+      final nextPage = _currentPage;
       final response = await ApiService.get(
         '/asset-histories/activities/user/1?limit=$_limit&page=$nextPage',
       );
@@ -88,31 +116,59 @@ class RecentActivityController extends ChangeNotifier {
         final jsonResponse = json.decode(response.body);
 
         if (jsonResponse['status'] == true) {
-          final List<dynamic> historiesJson = jsonResponse['data']['histories'];
-          final newActivities =
-              historiesJson.map((json) => HistoryModel.fromJson(json)).toList();
+          final dataSection = jsonResponse['data'];
+
+          if (dataSection == null) {
+            _error = 'Data section missing in response';
+            _isLoading = false;
+            notifyListeners();
+            return;
+          }
+
+          final List<dynamic>? historiesJson = dataSection['histories'];
+          if (historiesJson == null || historiesJson.isEmpty) {
+            _hasMoreData = false;
+            _isLoading = false;
+            notifyListeners();
+            return;
+          }
+
+          final newActivities = historiesJson
+              .where((json) => json != null)
+              .map((json) => HistoryModel.fromJson(json))
+              .toList();
+
+          if (newActivities.isEmpty) {
+            _hasMoreData = false;
+            _isLoading = false;
+            notifyListeners();
+            return;
+          }
 
           _activities.addAll(newActivities);
-          final paginationData = jsonResponse['data']['pagination'];
-          _pagination = HistoryPagination.fromJson(paginationData);
-          _hasMoreData = _pagination!.hasNext;
-          _currentPage = nextPage;
 
-          _isLoading = false;
-          notifyListeners();
+          if (dataSection['pagination'] != null) {
+            final paginationData = dataSection['pagination'];
+            _pagination = HistoryPagination.fromJson(paginationData);
+            _hasMoreData = _pagination!.hasNext;
+            _currentPage = nextPage + 1;
+          } else {
+            _hasMoreData = false;
+          }
+
+          // Update grouped activities
+          _groupActivitiesByMonth();
         } else {
           _error = jsonResponse['message'] ?? 'Failed to load more activities';
-          _isLoading = false;
-          notifyListeners();
         }
       } else {
         _error =
             'Failed to load more activities. Status: ${response.statusCode}';
-        _isLoading = false;
-        notifyListeners();
       }
     } catch (e) {
-      _error = e.toString();
+      _error = 'Error loading more data: ${e.toString()}';
+      print('Exception in loadMoreActivities: $e');
+    } finally {
       _isLoading = false;
       notifyListeners();
     }

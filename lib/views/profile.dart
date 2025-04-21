@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import '../controllers/auth_controller.dart';
 import 'dart:convert';
 import 'common/error_handling_screen.dart';
+import '../widgets/custom_app_bar.dart';
+import '../widgets/app_drawer.dart';
 
 class ProfileScreen extends StatefulWidget implements ErrorHandlingCapable {
   const ProfileScreen({super.key});
@@ -60,34 +62,21 @@ class _ProfileScreenState extends State<ProfileScreen>
         _errorMessage = '';
       });
 
-      // Add timeout to prevent app hanging
-      final response = await ApiService.get('/users/profile', context: context)
-          .timeout(const Duration(seconds: 10), onTimeout: () {
-        throw Exception('Koneksi timeout. Silakan coba lagi nanti.');
-      });
+      // Use ApiService.getProfile which already exists in auth_controller.dart
+      final profileData = await ApiService.getProfile(context);
 
       if (!_mounted) return;
 
-      if (response.statusCode == 200) {
-        final responseData = json.decode(response.body);
+      final employee = profileData['employee'] ?? {};
+      final firstName = employee['first_name'] ?? '';
+      final lastName = employee['last_name'] ?? '';
 
-        if (responseData['status'] == true) {
-          final employee = responseData['data']['employee'] ?? {};
-          final firstName = employee['first_name'] ?? '';
-          final lastName = employee['last_name'] ?? '';
-
-          if (_mounted) {
-            setState(() {
-              _profileData = responseData['data'];
-              _fullName = '$firstName $lastName'.trim();
-              _isLoading = false;
-            });
-          }
-        } else {
-          throw Exception(responseData['message'] ?? 'Gagal memuat profil');
-        }
-      } else {
-        throw Exception('Gagal memuat profil: ${response.statusCode}');
+      if (_mounted) {
+        setState(() {
+          _profileData = profileData;
+          _fullName = '$firstName $lastName'.trim();
+          _isLoading = false;
+        });
       }
     } catch (e) {
       if (_mounted) {
@@ -157,16 +146,26 @@ class _ProfileScreenState extends State<ProfileScreen>
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Profil'),
-        backgroundColor: const Color(0xFF213268),
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        iconTheme: const IconThemeData(color: Colors.white),
+        flexibleSpace: const CustomAppBar(),
+        toolbarHeight: 82,
         actions: [
+          // Add refresh button in AppBar
           IconButton(
-            icon: const Icon(Icons.logout),
+            icon: const Icon(Icons.refresh, color: Colors.white),
+            onPressed: _loadProfile,
+            tooltip: 'Refresh',
+          ),
+          IconButton(
+            icon: const Icon(Icons.logout, color: Colors.white),
             onPressed: _logout,
             tooltip: 'Keluar',
           ),
         ],
       ),
+      drawer: const AppDrawer(),
       body: _buildBody(),
     );
   }
