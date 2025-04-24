@@ -52,15 +52,18 @@ class _HomeScreenState extends State<HomeScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return SingleChildScrollView(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          _buildStatCards(),
-          const SizedBox(height: 16),
-          TodayActivitiesWidget(),
-          const SizedBox(height: 16),
-        ],
+    return Container(
+      color: Colors.white,
+      child: SingleChildScrollView(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _buildStatCards(),
+            const SizedBox(height: 16),
+            TodayActivitiesWidget(),
+            const SizedBox(height: 16),
+          ],
+        ),
       ),
     );
   }
@@ -158,6 +161,7 @@ class _HomeScreenState extends State<HomeScreen> {
       decoration: BoxDecoration(
         color: bgColor,
         borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: Colors.grey.shade200),
       ),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -200,10 +204,10 @@ class _HomeScreenState extends State<HomeScreen> {
           Container(
             padding: const EdgeInsets.all(8),
             decoration: BoxDecoration(
-              color: Colors.white,
+              color: const Color(0xFF213268).withOpacity(0.1),
               borderRadius: BorderRadius.circular(8),
             ),
-            child: Icon(icon, color: Colors.black54, size: 20),
+            child: Icon(icon, color: const Color(0xFF213268), size: 20),
           ),
         ],
       ),
@@ -284,10 +288,11 @@ class _HomeScreenState extends State<HomeScreen> {
           Container(
             padding: const EdgeInsets.all(8),
             decoration: BoxDecoration(
-              color: Colors.white,
+              color: const Color(0xFF213268).withOpacity(0.1),
               borderRadius: BorderRadius.circular(8),
             ),
-            child: Icon(Icons.attach_money, color: Colors.black54, size: 20),
+            child: Icon(Icons.attach_money,
+                color: const Color(0xFF213268), size: 20),
           ),
         ],
       ),

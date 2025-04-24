@@ -400,14 +400,21 @@ class _QRScannerScreenState extends State<QRScannerScreen>
     );
   }
 
-  // Mendapatkan token akses dari secure storage
-  Future<String?> _getAccessToken() async {
-    try {
-      return await _storage.read(key: 'accessToken');
-    } catch (e) {
-      print('Error getting access token: $e');
-      return null;
-    }
+  @override
+  void dispose() {
+    // Hapus observer lifecycle aplikasi
+    WidgetsBinding.instance.removeObserver(this);
+
+    // Hapus kamera secara bersih
+    qrViewController?.dispose();
+
+    // Hapus controller lama jika ada
+    disposeController(controller);
+
+    // Hapus timer
+    debounceTimer?.cancel();
+
+    super.dispose();
   }
 
   Future<void> _processScannedQR(
@@ -656,22 +663,5 @@ class _QRScannerScreenState extends State<QRScannerScreen>
       }
       return;
     }
-  }
-
-  @override
-  void dispose() {
-    // Hapus observer lifecycle aplikasi
-    WidgetsBinding.instance.removeObserver(this);
-
-    // Hapus kamera secara bersih
-    qrViewController?.dispose();
-
-    // Hapus controller lama jika ada
-    disposeController(controller);
-
-    // Hapus timer
-    debounceTimer?.cancel();
-
-    super.dispose();
   }
 }

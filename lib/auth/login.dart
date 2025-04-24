@@ -18,6 +18,56 @@ class _LoginScreenState extends State<LoginScreen> {
   bool _isLoading = false;
   String? _errorMessage;
   bool _obscurePassword = true;
+  bool _checkingToken = true;
+
+  @override
+  void initState() {
+    super.initState();
+
+    // Check if user is already logged in with valid token
+    _checkExistingToken();
+  }
+
+  Future<void> _checkExistingToken() async {
+    setState(() => _checkingToken = true);
+
+    try {
+      // Cek apakah user sudah login dengan timeout yang lebih pendek
+      final isLoggedIn = await ApiService.isLoggedIn();
+
+      if (isLoggedIn && mounted) {
+        // Coba refresh token secara silent untuk memastikan masih valid
+        final refreshSuccess = await ApiService.refreshToken();
+
+        if (refreshSuccess && mounted) {
+          print("Valid token found, navigating to dashboard automatically");
+
+          // Set navigasi untuk auto login saat token expired
+          ApiService.navigateToLogin = (BuildContext ctx) {
+            Navigator.of(ctx).pushAndRemoveUntil(
+              MaterialPageRoute(builder: (c) => const LoginScreen()),
+              (route) => false,
+            );
+          };
+
+          // Navigasi ke dashboard jika token valid
+          Navigator.of(context).pushAndRemoveUntil(
+            MaterialPageRoute(
+              builder: (context) => const DashboardScreen(),
+            ),
+            (route) => false,
+          );
+        }
+      }
+    } catch (e) {
+      print("Error checking token: $e");
+      // Jika ada error, biarkan user tetap di halaman login
+    } finally {
+      if (mounted) {
+        setState(() => _checkingToken = false);
+      }
+    }
+  }
 
   // Fungsi untuk logging error di terminal
   void _logError(dynamic error, StackTrace stackTrace) {
@@ -111,10 +161,18 @@ class _LoginScreenState extends State<LoginScreen> {
         _passwordController.text,
       );
 
-      print("Login successful, navigating to dashboard immediately");
+      print("Login successful, navigating to dashboard");
 
       if (mounted) {
-        // PERBAIKAN: Navigasi langsung tanpa delay dan tanpa snackbar
+        // Set navigasi untuk auto login saat token expired
+        ApiService.navigateToLogin = (BuildContext ctx) {
+          Navigator.of(ctx).pushAndRemoveUntil(
+            MaterialPageRoute(builder: (c) => const LoginScreen()),
+            (route) => false,
+          );
+        };
+
+        // Navigasi ke dashboard
         Navigator.of(context).pushAndRemoveUntil(
           MaterialPageRoute(
             builder: (context) => const DashboardScreen(),
@@ -157,6 +215,7 @@ class _LoginScreenState extends State<LoginScreen> {
   Widget build(BuildContext context) {
     final screenSize = MediaQuery.of(context).size;
 
+    // Tampilkan halaman login langsung, tanpa loading spinner saat mengecek token
     return Scaffold(
       backgroundColor: Colors.white,
       body: Stack(

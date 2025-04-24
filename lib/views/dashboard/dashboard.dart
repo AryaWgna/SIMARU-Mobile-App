@@ -2,11 +2,13 @@ import 'package:flutter/material.dart';
 import '../pages/profile.dart';
 import '../pages/home_screen.dart';
 import '../pages/qr_scanner_screen.dart';
-import '../stockopname/stockopname_task_list.dart';
+import '../stockopname/stockopname.dart';
 import '../complain/complain_list_screen.dart';
 import '../../widgets/custom_app_bar.dart';
 import '../../widgets/app_drawer.dart';
 import '../../widgets/today_activities_widget.dart';
+import '../../controllers/auth_controller.dart';
+import '../../auth/login.dart';
 
 class DashboardScreen extends StatefulWidget {
   final int initialIndex;
@@ -21,6 +23,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
   late int _selectedIndex;
   final List<Widget> _screens = [];
   String? _errorMessage;
+  bool _tokenChecked = false;
 
   @override
   void initState() {
@@ -32,7 +35,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
       _screens.addAll([
         _buildScreenWithErrorHandling(() => const HomeScreen(), 'HomeScreen'),
         _buildScreenWithErrorHandling(
-            () => const StockopnameTaskList(), 'StockopnameTaskList'),
+            () => const StockopnameScreen(), 'StockopnameScreen'),
         const SizedBox(), // Placeholder for QR Scanner
         _buildScreenWithErrorHandling(
             () => const ComplainListScreen(), 'ComplainListScreen'),
@@ -40,20 +43,65 @@ class _DashboardScreenState extends State<DashboardScreen> {
             () => const ProfileScreen(), 'ProfileScreen'),
       ]);
       print("DashboardScreen screens initialized successfully");
+
+      // Set navigasi otomatis untuk token expired
+      ApiService.navigateToLogin = (BuildContext ctx) {
+        Navigator.of(ctx).pushAndRemoveUntil(
+          MaterialPageRoute(builder: (c) => const LoginScreen()),
+          (route) => false,
+        );
+      };
+
+      // Kita tidak perlu mengecek token di sini jika sudah dicek di login screen
+      // Hanya lakukan pengecekan jika aplikasi diluncurkan langsung ke dashboard
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _maybeValidateToken();
+      });
     } catch (e, s) {
       print("Error initializing DashboardScreen screens: $e");
       print("Stack trace: $s");
     }
   }
 
+  // Validasi token hanya jika diperlukan
+  Future<void> _maybeValidateToken() async {
+    // Skip validasi jika sudah dicek atau token sudah ada dari login screen
+    if (_tokenChecked) return;
+
+    try {
+      final isLoggedIn = await ApiService.isLoggedIn();
+      if (!isLoggedIn && mounted) {
+        // Jika tidak ada token, navigasi ke login tanpa menampilkan loading
+        Navigator.of(context).pushAndRemoveUntil(
+          MaterialPageRoute(builder: (context) => const LoginScreen()),
+          (route) => false,
+        );
+        return;
+      }
+
+      // Token ada dan valid - tandai sudah dicek
+      setState(() => _tokenChecked = true);
+    } catch (e) {
+      print("Error validating token: $e");
+      setState(() => _tokenChecked = true);
+    }
+  }
+
   Widget _buildScreenWithErrorHandling(Function builder, String screenName) {
     try {
       Widget screen = builder();
-      // No need for bottom padding now that we're using bottomNavigationBar
       return screen;
     } catch (e, s) {
       print("Error building $screenName: $e");
       print("Stack trace: $s");
+
+      // Menampilkan pesan error jika ada masalah dengan widget
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) {
+          showError('Kesalahan memuat $screenName: $e');
+        }
+      });
+
       return Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
@@ -92,6 +140,30 @@ class _DashboardScreenState extends State<DashboardScreen> {
   }
 
   void showError(String message) {
+    // Tampilkan snackbar dengan pesan error yang tidak mengganggu tab bar
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: Colors.red[900],
+        duration: const Duration(seconds: 3),
+        // Gunakan margin dan floating behavior agar tidak mengganggu tab bar
+        margin: const EdgeInsets.only(
+          bottom: 70.0, // Margin agar tidak menutupi tab bar
+          left: 20.0,
+          right: 20.0,
+        ),
+        behavior: SnackBarBehavior.floating,
+        action: SnackBarAction(
+          label: 'Tutup',
+          textColor: Colors.white,
+          onPressed: () {
+            ScaffoldMessenger.of(context).hideCurrentSnackBar();
+          },
+        ),
+      ),
+    );
+
+    // Set errorMessage dan clear setelah beberapa waktu
     setState(() {
       _errorMessage = message;
     });
@@ -113,86 +185,60 @@ class _DashboardScreenState extends State<DashboardScreen> {
         preferredSize: Size.fromHeight(82),
         child: CustomAppBar(),
       ),
-      body: Stack(
-        children: [
-          _screens[_selectedIndex],
-          if (_errorMessage != null)
-            Positioned(
-              top: MediaQuery.of(context).padding.top + 10,
-              left: 16,
-              right: 16,
-              child: Material(
-                elevation: 4,
-                borderRadius: BorderRadius.circular(8),
-                color: Colors.red[900],
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 16,
-                    vertical: 12,
+      body: _screens[_selectedIndex],
+      floatingActionButton: isKeyboardVisible
+          ? null
+          : SizedBox(
+              width: 84,
+              height: 84,
+              child: FloatingActionButton(
+                elevation: 0,
+                backgroundColor: const Color(0xFF203268),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(42),
+                  side: const BorderSide(
+                    color: Color(0xFF25B1FF),
+                    width: 6,
                   ),
-                  child: Text(
-                    _errorMessage!,
-                    style: const TextStyle(color: Colors.white),
-                  ),
+                ),
+                onPressed: () {
+                  String previousScreen;
+                  switch (_selectedIndex) {
+                    case 0:
+                      previousScreen = 'home';
+                      break;
+                    case 1:
+                      previousScreen = 'stockopname';
+                      break;
+                    case 3:
+                      previousScreen = 'repair';
+                      break;
+                    case 4:
+                      previousScreen = 'profile';
+                      break;
+                    default:
+                      previousScreen = 'home';
+                  }
+
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) =>
+                          QRScannerScreen(previousScreen: previousScreen),
+                    ),
+                  ).then((_) {
+                    setState(() {
+                      // Refresh state jika diperlukan
+                    });
+                  });
+                },
+                child: const Icon(
+                  Icons.qr_code_scanner,
+                  color: Color(0xFFACC3EF),
+                  size: 24,
                 ),
               ),
             ),
-        ],
-      ),
-      floatingActionButton:
-          !isKeyboardVisible && MediaQuery.of(context).viewPadding.bottom == 0
-              ? SizedBox(
-                  width: 84,
-                  height: 84,
-                  child: FloatingActionButton(
-                    elevation: 0,
-                    backgroundColor: const Color(0xFF203268),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(42),
-                      side: const BorderSide(
-                        color: Color(0xFF25B1FF),
-                        width: 6,
-                      ),
-                    ),
-                    onPressed: () {
-                      String previousScreen;
-                      switch (_selectedIndex) {
-                        case 0:
-                          previousScreen = 'home';
-                          break;
-                        case 1:
-                          previousScreen = 'stockopname';
-                          break;
-                        case 3:
-                          previousScreen = 'repair';
-                          break;
-                        case 4:
-                          previousScreen = 'profile';
-                          break;
-                        default:
-                          previousScreen = 'home';
-                      }
-
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) =>
-                              QRScannerScreen(previousScreen: previousScreen),
-                        ),
-                      ).then((_) {
-                        setState(() {
-                          // Refresh state jika diperlukan
-                        });
-                      });
-                    },
-                    child: const Icon(
-                      Icons.qr_code_scanner,
-                      color: Color(0xFFACC3EF),
-                      size: 24,
-                    ),
-                  ),
-                )
-              : null,
       floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
       bottomNavigationBar: Container(
         decoration: BoxDecoration(
@@ -220,7 +266,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
             ),
             BottomNavigationBarItem(
               icon: Icon(Icons.inventory),
-              label: 'Stok',
+              label: 'Opname',
             ),
             BottomNavigationBarItem(
               icon: Icon(Icons.qr_code_scanner, color: Colors.transparent),
@@ -228,7 +274,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
             ),
             BottomNavigationBarItem(
               icon: Icon(Icons.report_problem),
-              label: 'Komplain dan Laporan',
+              label: 'Komplain',
             ),
             BottomNavigationBarItem(
               icon: Icon(Icons.person),

@@ -49,7 +49,7 @@ class ApiException implements Exception {
 
 class ApiService {
   // Base URL untuk perangkat fisik
-  static String baseUrl = 'http://10.0.2.2:8026';
+  static String baseUrl = 'http://192.168.43.221:5000';
   // Alternatif: 'http://localhost:3000' untuk iOS simulator
   // Gunakan URL publik Anda untuk perangkat fisik, misalnya: 'https://api.example.com'
 
@@ -135,34 +135,53 @@ class ApiService {
         } else {
           print('Token refresh failed, performing automatic logout');
           // Jika refresh token gagal, lakukan logout otomatis
-          await logout(context!);
+          if (context != null) {
+            await logout(context);
+          } else {
+            // Jika context tidak tersedia, cukup bersihkan penyimpanan token
+            await _clearStoredData();
+          }
 
-          // Navigasi ke halaman login jika context tersedia
-          if (navigateToLogin != null) {
+          // Navigasi ke halaman login jika navigateToLogin tersedia dan context tersedia
+          if (navigateToLogin != null && context != null) {
             print('Navigating to login screen');
             navigateToLogin!(context);
           } else {
             print(
-                'Cannot navigate to login: context or navigateToLogin is null');
+                'Cannot navigate to login: navigateToLogin or context is null');
           }
 
-          throw Exception('Session expired. Please login again.');
+          throw ApiException(
+            message: 'Sesi Anda telah berakhir. Silakan login kembali.',
+            code: 'SESSION_EXPIRED',
+            statusCode: 401,
+          );
         }
       } else {
         print(
             'Still receiving 401 after token refresh, performing automatic logout');
-        // Jika masih 401 setelah refresh token, lakukan logout otomatis
-        await logout(context!);
 
-        // Navigasi ke halaman login jika context tersedia
-        if (navigateToLogin != null) {
+        // Jika masih 401 setelah refresh token, lakukan logout otomatis
+        if (context != null) {
+          await logout(context);
+        } else {
+          // Jika context tidak tersedia, cukup bersihkan penyimpanan token
+          await _clearStoredData();
+        }
+
+        // Navigasi ke halaman login jika navigateToLogin tersedia dan context tersedia
+        if (navigateToLogin != null && context != null) {
           print('Navigating to login screen');
           navigateToLogin!(context);
         } else {
-          print('Cannot navigate to login: context or navigateToLogin is null');
+          print('Cannot navigate to login: navigateToLogin or context is null');
         }
 
-        throw Exception('Session expired. Please login again.');
+        throw ApiException(
+          message: 'Sesi Anda telah berakhir. Silakan login kembali.',
+          code: 'SESSION_EXPIRED',
+          statusCode: 401,
+        );
       }
     }
 
@@ -213,7 +232,7 @@ class ApiService {
     }
 
     try {
-      final url = '$baseUrl/auth/login';
+      final url = ApiConfig.loginUrl;
       print('Attempting login to: $url');
       print('employee_number: $employee_number');
 
@@ -359,39 +378,44 @@ class ApiService {
   }
 
   static Future<bool> refreshToken() async {
-    String? employee_number;
-    String? password;
+    String? refreshToken;
 
     print('Attempting to refresh token...');
 
     try {
-      employee_number = await _secureStorage.read(key: 'employee_number');
-      password = await _secureStorage.read(key: 'password');
-      print('Retrieved credentials from Secure Storage');
+      refreshToken =
+          await _secureStorage.read(key: 'refreshToken') ?? _tempRefreshToken;
+      print('Retrieved refresh token from secure storage');
     } catch (e) {
-      // Jika gagal mengakses Secure Storage, gunakan variabel sementara
-      employee_number = _tempemployee_number;
-      password = _tempPassword;
-      print('Retrieved credentials from temporary variables');
+      print('Failed to get refresh token from secure storage: $e');
+      refreshToken = _tempRefreshToken;
+      print('Using temporary refresh token');
     }
 
-    if (employee_number == null || password == null) {
-      print('No credentials found for token refresh');
+    if (refreshToken == null) {
+      print('No refresh token found for token refresh');
       return false;
     }
 
     try {
-      print('Sending refresh token request for user: $employee_number');
+      print('Sending refresh token request');
 
-      final response = await http.post(
-        Uri.parse('$baseUrl/auth/refresh-token'),
+      final response = await http
+          .post(
+        Uri.parse(ApiConfig.refreshTokenUrl),
         headers: {
           'Content-Type': 'application/json',
         },
         body: jsonEncode({
-          'employee_number': employee_number,
-          'password': password,
+          'refresh_token': refreshToken,
         }),
+      )
+          .timeout(
+        const Duration(seconds: 5), // Mengurangi timeout menjadi 5 detik
+        onTimeout: () {
+          print('Refresh token request timed out');
+          throw TimeoutException('Refresh token request timed out');
+        },
       );
 
       print('Refresh token response status code: ${response.statusCode}');
@@ -402,6 +426,8 @@ class ApiService {
 
         if (jsonResponse['status'] == true) {
           final newAccessToken = jsonResponse['data']['accessToken'];
+          final newRefreshToken =
+              jsonResponse['data']['refreshToken'] ?? refreshToken;
 
           print('======================================');
           print('TOKEN REFRESH SUCCESS');
@@ -409,15 +435,18 @@ class ApiService {
           print('======================================');
 
           try {
-            // Coba update token di secure storage
+            // Update tokens in secure storage
             await _secureStorage.write(
                 key: 'accessToken', value: newAccessToken);
-            print('New token saved to Secure Storage');
+            await _secureStorage.write(
+                key: 'refreshToken', value: newRefreshToken);
+            print('New tokens saved to Secure Storage');
           } catch (e) {
-            // Jika gagal, update variabel sementara
+            // Update memory variables if secure storage fails
             print('Warning: Failed to update token in Secure Storage: $e');
             _tempAccessToken = newAccessToken;
-            print('New token saved to temporary variable');
+            _tempRefreshToken = newRefreshToken;
+            print('New tokens saved to temporary variables');
           }
           return true;
         } else {
@@ -445,21 +474,16 @@ class ApiService {
 
   static Future<Map<String, dynamic>> logout(BuildContext context) async {
     try {
-      // Get access token
+      // Get access token and refresh token
       final accessToken = await _getAccessToken();
+      final refreshToken =
+          await _secureStorage.read(key: 'refreshToken') ?? _tempRefreshToken;
 
       if (accessToken == null) {
         throw Exception('No access token available for logout');
       }
 
-      // Decode token to get user information
-      final decodedToken = _decodeJwt(accessToken);
-      print('Decoded token: $decodedToken');
-
-      // Extract user ID from token if needed for the logout API
-      final userId = decodedToken?['sub'] ?? decodedToken?['userId'];
-
-      print('Attempting to logout user with ID: $userId');
+      print('Attempting to logout with token');
 
       // Call logout API
       final response = await http.post(
@@ -469,12 +493,12 @@ class ApiService {
           'Authorization': 'Bearer $accessToken',
         },
         body: jsonEncode({
-          'userId': userId,
-          // Add any other required fields for your logout API
+          'refresh_token': refreshToken,
         }),
       );
 
       print('Logout response status: ${response.statusCode}');
+      print('Logout response body: ${response.body}');
 
       // Clear local storage regardless of API response
       await _clearStoredData();

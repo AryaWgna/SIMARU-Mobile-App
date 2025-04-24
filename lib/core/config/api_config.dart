@@ -7,7 +7,7 @@ class ApiConfig {
 
   // Base URL untuk API lokal di emulator
   static const String baseUrl =
-      'http://10.0.2.2:8026'; // Special IP for Android Emulator to access host machine
+      'http://192.168.43.221:5000'; // Special IP for Android Emulator to access host machine
 
   // API URL aktif berdasarkan mode (development/production)
   static String get activeApiUrl {
@@ -17,8 +17,12 @@ class ApiConfig {
     return isProduction ? prodApiUrl : baseUrl;
   }
 
-  // Endpoint API
+  // Endpoint API untuk autentikasi yang sudah diperbarui
   static const String loginEndpoint = '/auth/login';
+  static const String logoutEndpoint = '/auth/logout';
+  static const String refreshTokenEndpoint = '/auth/refresh-token';
+
+  // Endpoint API lainnya
   static const String assetsEndpoint = '/assets';
 
   // Timeout untuk permintaan API (dalam detik)
@@ -26,11 +30,12 @@ class ApiConfig {
   static const int receiveTimeout = 30;
 
   // Endpoint URLs
-  static String get loginUrl => '$activeApiUrl/auth/login';
-  static String get refreshTokenUrl => '$activeApiUrl/auth/refresh-token';
+  static String get loginUrl => '$activeApiUrl$loginEndpoint';
+  static String get logoutUrl => '$activeApiUrl$logoutEndpoint';
+  static String get refreshTokenUrl => '$activeApiUrl$refreshTokenEndpoint';
   static String get profileUrl => '$activeApiUrl/user/profile';
-  static String get logoutUrl => '$activeApiUrl/auth/logout';
   static String get complaintsUrl => '$activeApiUrl/complaints';
+
   static String getUserUrl(String userId) => '$activeApiUrl/users/$userId';
   static String getComplaintByIdUrl(String id) =>
       '$activeApiUrl/complaints/$id';
