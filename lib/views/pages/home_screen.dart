@@ -55,14 +55,24 @@ class _HomeScreenState extends State<HomeScreen> {
     return Container(
       color: Colors.white,
       child: SingleChildScrollView(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            _buildStatCards(),
-            const SizedBox(height: 16),
-            TodayActivitiesWidget(),
-            const SizedBox(height: 16),
-          ],
+        physics: const AlwaysScrollableScrollPhysics(),
+        child: Container(
+          color: Colors.white,
+          constraints: BoxConstraints(
+            minHeight: MediaQuery.of(context).size.height -
+                kBottomNavigationBarHeight -
+                MediaQuery.of(context).padding.top -
+                82,
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _buildStatCards(),
+              const SizedBox(height: 16),
+              TodayActivitiesWidget(),
+              const SizedBox(height: 16),
+            ],
+          ),
         ),
       ),
     );

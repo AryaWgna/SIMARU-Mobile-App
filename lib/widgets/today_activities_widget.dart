@@ -28,76 +28,87 @@ class _TodayActivitiesWidgetState extends State<TodayActivitiesWidget> {
       builder: (context, controller, child) {
         final todayActivities = controller.getTodayActivities();
 
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Padding(
-              padding:
-                  const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Text(
-                    'Aktivitas Hari Ini',
-                    style: TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                      color: const Color(0xFF213268),
+        return Container(
+          color: Colors.white,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Padding(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      'Aktivitas Hari Ini',
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                        color: const Color(0xFF213268),
+                      ),
+                    ),
+                    TextButton(
+                      onPressed: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => const HistoryScreen(),
+                          ),
+                        );
+                      },
+                      child: Text(
+                        'Lihat Semua',
+                        style: TextStyle(
+                          color: Colors.blue,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              if (controller.isLoading && todayActivities.isEmpty)
+                Container(
+                  color: Colors.white,
+                  height: 200,
+                  child: const Center(
+                    child: Padding(
+                      padding: EdgeInsets.all(16.0),
+                      child: CircularProgressIndicator(),
                     ),
                   ),
-                  TextButton(
-                    onPressed: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) => const HistoryScreen(),
-                        ),
-                      );
-                    },
+                )
+              else if (todayActivities.isEmpty)
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.only(top: 16.0, bottom: 16.0),
+                  height: 200,
+                  color: Colors.white,
+                  child: Center(
                     child: Text(
-                      'Lihat Semua',
+                      'Tidak ada aktivitas hari ini',
                       style: TextStyle(
-                        color: Colors.blue,
-                        fontWeight: FontWeight.w500,
+                        color: Colors.grey[600],
+                        fontSize: 14,
                       ),
                     ),
                   ),
-                ],
-              ),
-            ),
-            if (controller.isLoading && todayActivities.isEmpty)
-              const Center(
-                child: Padding(
-                  padding: EdgeInsets.all(16.0),
-                  child: CircularProgressIndicator(),
-                ),
-              )
-            else if (todayActivities.isEmpty)
-              Center(
-                child: Padding(
-                  padding: const EdgeInsets.all(16.0),
-                  child: Text(
-                    'Tidak ada aktivitas hari ini',
-                    style: TextStyle(
-                      color: Colors.grey[600],
-                      fontSize: 14,
-                    ),
+                )
+              else
+                Container(
+                  height: 200,
+                  color: Colors.white,
+                  child: ListView.builder(
+                    padding: const EdgeInsets.symmetric(horizontal: 16.0),
+                    itemCount:
+                        todayActivities.length > 3 ? 3 : todayActivities.length,
+                    itemBuilder: (context, index) {
+                      return _buildHistoryItem(todayActivities[index]);
+                    },
                   ),
                 ),
-              )
-            else
-              Container(
-                height: 200,
-                child: ListView.builder(
-                  padding: const EdgeInsets.symmetric(horizontal: 16.0),
-                  itemCount:
-                      todayActivities.length > 3 ? 3 : todayActivities.length,
-                  itemBuilder: (context, index) {
-                    return _buildHistoryItem(todayActivities[index]);
-                  },
-                ),
-              ),
-          ],
+            ],
+          ),
         );
       },
     );
