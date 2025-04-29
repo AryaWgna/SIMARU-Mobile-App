@@ -53,6 +53,9 @@ dependencies:
   app_settings: ^5.1.1
   web_socket_channel: ^2.4.0
   http_parser: ^4.0.2
+  firebase_core: ^2.15.1
+  firebase_messaging: ^14.6.7
+  flutter_local_notifications: ^15.1.1
 
 dev_dependencies:
   flutter_test:

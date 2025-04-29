@@ -10,10 +10,27 @@ import 'controllers/auth_controller.dart' as auth;
 import 'dart:developer' as developer;
 import 'dart:convert';
 import 'services/socket_service.dart';
+import 'services/firebase_messaging_service.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
+import 'package:firebase_core/firebase_core.dart';
+import 'firebase_options.dart';
 
-void main() {
+void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  // Inisialisasi Firebase dengan detail logging dan error handling
+  try {
+    print('Initializing Firebase...');
+    await Firebase.initializeApp(
+      options: DefaultFirebaseOptions.currentPlatform,
+    );
+    print('Firebase successfully initialized');
+  } catch (e) {
+    print('Error initializing Firebase: $e');
+  }
+
+  // Buat instance tapi jangan initialize dulu
+  FirebaseMessagingService messagingService = FirebaseMessagingService();
 
   // Tambahkan error handler untuk Flutter
   FlutterError.onError = (FlutterErrorDetails details) {
@@ -47,10 +64,16 @@ void main() {
         ChangeNotifierProvider(create: (_) => AssetUnderRepairController()),
         ChangeNotifierProvider(create: (_) => NetAssetValueController()),
         ChangeNotifierProvider(create: (_) => SocketService()),
+        Provider.value(value: messagingService),
       ],
       child: const MyApp(),
     ),
   );
+
+  // Inisialisasi penuh Firebase setelah UI muncul
+  Future.delayed(Duration(seconds: 1), () async {
+    await messagingService.initialize();
+  });
 }
 
 class MyApp extends StatelessWidget {

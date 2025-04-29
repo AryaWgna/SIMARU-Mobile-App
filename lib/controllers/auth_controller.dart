@@ -49,7 +49,7 @@ class ApiException implements Exception {
 
 class ApiService {
   // Base URL untuk perangkat fisik
-  static String baseUrl = 'http://192.168.43.221:5000';
+  static String baseUrl = 'http://10.0.2.2:8026';
   // Alternatif: 'http://localhost:3000' untuk iOS simulator
   // Gunakan URL publik Anda untuk perangkat fisik, misalnya: 'https://api.example.com'
 
@@ -469,6 +469,25 @@ class ApiService {
     } catch (e) {
       // Jika gagal mengakses Secure Storage, periksa variabel sementara
       return _tempAccessToken != null && _tempAccessToken!.isNotEmpty;
+    }
+  }
+
+  // Method to get the auth token for external use
+  static Future<String?> getAuthToken() async {
+    try {
+      // First try to get it from secure storage
+      final accessToken = await _secureStorage.read(key: 'accessToken');
+
+      // If not found in secure storage, return the temporary one
+      if (accessToken == null || accessToken.isEmpty) {
+        return _tempAccessToken;
+      }
+
+      return accessToken;
+    } catch (e) {
+      print('Error retrieving auth token: $e');
+      // Return the temporary token as fallback
+      return _tempAccessToken;
     }
   }
 

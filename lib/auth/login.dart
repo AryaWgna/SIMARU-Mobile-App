@@ -4,6 +4,8 @@ import '../controllers/auth_controller.dart';
 import '../views/dashboard/dashboard.dart';
 import 'dart:async';
 import 'dart:developer' as developer;
+import '../services/firebase_messaging_service.dart';
+import 'package:provider/provider.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -171,6 +173,30 @@ class _LoginScreenState extends State<LoginScreen> {
             (route) => false,
           );
         };
+
+        // Send FCM token to server after successful login
+        try {
+          print("Preparing to send FCM token to server...");
+          final firebaseMessagingService =
+              Provider.of<FirebaseMessagingService>(context, listen: false);
+          print("FirebaseMessagingService provider obtained");
+
+          // Get auth token from ApiService
+          final authToken = await ApiService.getAuthToken();
+          print("Auth token obtained: ${authToken != null}");
+
+          if (authToken != null) {
+            print("Attempting to send FCM token to server...");
+            await firebaseMessagingService.sendFcmTokenToServer(authToken);
+            print("FCM token send attempt completed");
+          } else {
+            print("Auth token is null, cannot send FCM token");
+          }
+        } catch (e, stack) {
+          print("Error sending FCM token: $e");
+          print("Stack trace: $stack");
+          // Don't let FCM token error stop the login flow
+        }
 
         // Navigasi ke dashboard
         Navigator.of(context).pushAndRemoveUntil(
