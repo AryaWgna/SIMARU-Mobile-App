@@ -1,8 +1,6 @@
 import 'package:flutter/material.dart';
 import 'asset_document.dart';
 import 'asset_history.dart';
-import 'asset_schedule.dart';
-import 'asset_depreciation.dart';
 import 'asset_details.dart';
 
 class AssetMutation extends StatefulWidget {

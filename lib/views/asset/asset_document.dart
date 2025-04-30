@@ -2,9 +2,7 @@ import 'package:flutter/material.dart';
 import 'dart:io';
 import 'package:file_picker/file_picker.dart';
 import 'asset_history.dart';
-import 'asset_schedule.dart';
 import 'asset_mutation.dart';
-import 'asset_depreciation.dart';
 import 'asset_details.dart';
 import 'package:dotted_border/dotted_border.dart';
 

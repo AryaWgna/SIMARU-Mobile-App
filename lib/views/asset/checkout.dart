@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../../controllers/auth_controller.dart';
 import 'dart:convert';
-import '../../core/config/api_config.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
 class CheckoutScreen extends StatefulWidget {
@@ -15,7 +14,7 @@ class CheckoutScreen extends StatefulWidget {
 }
 
 class _CheckoutScreenState extends State<CheckoutScreen> {
-  DateTime? selectedDate;
+  final DateTime currentDate = DateTime.now();
   String? selectedBuilding;
   String? selectedRoom;
   TextEditingController notesController = TextEditingController();
@@ -34,15 +33,26 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
   Future<void> _fetchRooms() async {
     try {
       final response = await ApiService.get('/rooms', context: context);
+      print('Room response: ${response.statusCode}');
+      print('Room body: ${response.body}');
+
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
-        if (data['status'] == true && data['data'] != null) {
+        final bool isSuccess =
+            data['success'] == true || data['status'] == true;
+
+        if (isSuccess && data['data'] != null) {
           setState(() {
             if (data['data'] is List) {
               roomList = List<Map<String, dynamic>>.from(data['data']);
+              print('Rooms loaded: ${roomList.length}');
             }
           });
+        } else {
+          print('Failed to load rooms: ${data['message']}');
         }
+      } else {
+        print('Failed to load rooms: ${response.statusCode}');
       }
     } catch (e) {
       print('Error fetching rooms: $e');
@@ -53,60 +63,6 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
   void dispose() {
     notesController.dispose();
     super.dispose();
-  }
-
-  Future<void> _selectDate(BuildContext context) async {
-    final ThemeData theme = Theme.of(context).copyWith(
-      colorScheme: const ColorScheme.light(
-        primary: Color(0xFF213268),
-        onPrimary: Colors.white,
-        onSurface: Color(0xFF666666),
-      ),
-      textButtonTheme: TextButtonThemeData(
-        style: TextButton.styleFrom(
-          foregroundColor: const Color(0xFF213268),
-        ),
-      ),
-    );
-
-    final DateTime currentDate = DateTime.now();
-    final DateTime? picked = await showDatePicker(
-      context: context,
-      initialDate: selectedDate ?? currentDate,
-      firstDate: currentDate,
-      lastDate:
-          DateTime(currentDate.year + 1, currentDate.month, currentDate.day),
-      builder: (context, child) {
-        return Theme(
-          data: theme,
-          child: MediaQuery(
-            data: MediaQuery.of(context).copyWith(
-              textScaler: const TextScaler.linear(1.0),
-            ),
-            child: child!,
-          ),
-        );
-      },
-      helpText: 'SELECT CHECKOUT DATE',
-      cancelText: 'CANCEL',
-      confirmText: 'SELECT',
-      useRootNavigator: true,
-    );
-
-    if (picked != null && picked != selectedDate) {
-      setState(() {
-        selectedDate = picked;
-      });
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content:
-              Text('Checkout date: ${DateFormat('MM/dd/yyyy').format(picked)}'),
-          duration: const Duration(seconds: 2),
-          backgroundColor: const Color(0xFF213268),
-        ),
-      );
-    }
   }
 
   Future<void> _processCheckout() async {
@@ -134,13 +90,13 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
       Map<String, dynamic> requestBody;
 
       if (isEmployeeSelected) {
-        // Checkout ke karyawan
+        // Checkout ke karyawan - format sesuai dengan contoh
         requestBody = {
           "asset_id": assetId,
           "checkout_notes": notesController.text,
         };
       } else {
-        // Checkout ke lokasi
+        // Checkout ke lokasi - format sesuai dengan contoh
         if (selectedRoom == null) {
           setState(() {
             isLoading = false;
@@ -164,23 +120,41 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
         context: context,
       );
 
+      print('Response status: ${response.statusCode}');
+      print('Response body: ${response.body}');
+
       if (response.statusCode == 200 || response.statusCode == 201) {
         final data = json.decode(response.body);
-        if (data['status'] == true) {
+        final bool isSuccess =
+            data['success'] == true || data['status'] == true;
+
+        if (isSuccess) {
+          // Tampilkan pesan sukses
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
-              content: Text('Checkout berhasil'),
+              content: Text('Peminjaman berhasil'),
               backgroundColor: Color(0xFF213268),
             ),
           );
-          Navigator.pop(context, true); // Return true for success
+
+          // Modifikasi data status asset untuk diupdate
+          if (widget.assetData != null) {
+            final updatedAssetData =
+                Map<String, dynamic>.from(widget.assetData!);
+            updatedAssetData['current_status'] = 'check out';
+
+            // Kembali ke halaman detail dengan data yang diperbarui
+            Navigator.pop(context, updatedAssetData);
+          } else {
+            Navigator.pop(context, true); // Return true for success
+          }
         } else {
-          throw Exception(data['message'] ?? 'Checkout gagal');
+          throw Exception(data['message'] ?? 'Peminjaman gagal');
         }
       } else {
         final data = json.decode(response.body);
         throw Exception(
-            data['message'] ?? 'Checkout gagal: ${response.statusCode}');
+            data['message'] ?? 'Peminjaman gagal: ${response.statusCode}');
       }
     } catch (e) {
       setState(() {
@@ -239,7 +213,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               const Text(
-                'CHECK OUT',
+                'PEMINJAMAN ASET',
                 style: TextStyle(
                   fontSize: 24,
                   fontWeight: FontWeight.w600,
@@ -305,12 +279,12 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                   ),
                 ),
 
-              // Date Picker with border removed
+              // Tanggal checkout - fixed to today
               Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   const Text(
-                    'Check Out Date',
+                    'Tanggal Peminjaman',
                     style: TextStyle(
                       fontSize: 16,
                       fontWeight: FontWeight.w600,
@@ -319,58 +293,38 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                     ),
                   ),
                   const SizedBox(height: 8),
-                  InkWell(
-                    onTap: () => _selectDate(context),
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 15, vertical: 12),
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        border: Border.all(color: Colors.transparent),
-                        borderRadius: BorderRadius.circular(8),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.grey.withOpacity(0.1),
-                            spreadRadius: 1,
-                            blurRadius: 2,
-                            offset: const Offset(0, 1),
-                          ),
-                        ],
-                      ),
-                      child: Row(
-                        children: [
-                          const Icon(Icons.calendar_today,
-                              size: 16, color: Color(0xFF757575)),
-                          const SizedBox(width: 8),
-                          Expanded(
-                            child: Text(
-                              selectedDate == null
-                                  ? 'Choose Date'
-                                  : DateFormat('MM/dd/yyyy')
-                                      .format(selectedDate!),
-                              style: TextStyle(
-                                fontSize: 16,
-                                color: selectedDate == null
-                                    ? const Color(0xFF666666)
-                                    : Colors.black87,
-                                fontFamily: 'Inter',
-                              ),
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 15, vertical: 12),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      border: Border.all(color: Colors.grey.shade300),
+                      borderRadius: BorderRadius.circular(8),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.grey.withOpacity(0.1),
+                          spreadRadius: 1,
+                          blurRadius: 2,
+                          offset: const Offset(0, 1),
+                        ),
+                      ],
+                    ),
+                    child: Row(
+                      children: [
+                        const Icon(Icons.calendar_today,
+                            size: 16, color: Color(0xFF757575)),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            DateFormat('dd/MM/yyyy').format(currentDate),
+                            style: const TextStyle(
+                              fontSize: 16,
+                              color: Colors.black87,
+                              fontFamily: 'Inter',
                             ),
                           ),
-                          if (selectedDate != null)
-                            IconButton(
-                              icon: const Icon(Icons.clear, size: 16),
-                              onPressed: () {
-                                setState(() {
-                                  selectedDate = null;
-                                });
-                              },
-                              padding: EdgeInsets.zero,
-                              constraints: const BoxConstraints(),
-                              color: const Color(0xFF666666),
-                            ),
-                        ],
-                      ),
+                        ),
+                      ],
                     ),
                   ),
                 ],
@@ -382,7 +336,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   const Text(
-                    'Check Out To',
+                    'Pinjam Ke',
                     style: TextStyle(
                       fontSize: 16,
                       fontWeight: FontWeight.w600,
@@ -406,7 +360,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                         visualDensity: VisualDensity.compact,
                       ),
                       const Text(
-                        'Employee',
+                        'Karyawan',
                         style: TextStyle(
                           fontSize: 16,
                           color: Color(0xFF666666),
@@ -427,7 +381,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                         visualDensity: VisualDensity.compact,
                       ),
                       const Text(
-                        'Location',
+                        'Lokasi',
                         style: TextStyle(
                           fontSize: 16,
                           color: Color(0xFF666666),
@@ -447,7 +401,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     const Text(
-                      'Room',
+                      'Ruangan',
                       style: TextStyle(
                         fontSize: 16,
                         fontWeight: FontWeight.w600,
@@ -457,36 +411,51 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                     ),
                     const SizedBox(height: 8),
                     Container(
+                      width: double.infinity,
                       decoration: BoxDecoration(
                         color: Colors.white,
-                        border: Border.all(color: Colors.black, width: 0.5),
+                        border: Border.all(color: Colors.grey.shade300),
                         borderRadius: BorderRadius.circular(8),
                       ),
-                      child: DropdownButtonFormField<String>(
-                        dropdownColor: Colors.white,
-                        decoration: const InputDecoration(
-                          contentPadding: EdgeInsets.symmetric(horizontal: 16),
-                          border: InputBorder.none,
-                          fillColor: Colors.white,
-                          filled: true,
-                        ),
-                        hint: const Text('Pilih Ruangan'),
-                        value: selectedRoom,
-                        icon: const Icon(Icons.arrow_drop_down),
-                        isExpanded: true,
-                        onChanged: (String? newValue) {
-                          setState(() {
-                            selectedRoom = newValue;
-                          });
-                        },
-                        items: roomList.map<DropdownMenuItem<String>>((room) {
-                          return DropdownMenuItem<String>(
-                            value: room['room_id'].toString(),
-                            child: Text(
-                                room['room_name'] ?? 'Ruangan Tidak Diketahui'),
-                          );
-                        }).toList(),
-                      ),
+                      child: roomList.isEmpty
+                          ? const Padding(
+                              padding: EdgeInsets.symmetric(
+                                  vertical: 12, horizontal: 16),
+                              child: Text(
+                                'Memuat data ruangan...',
+                                style: TextStyle(
+                                  color: Color(0xFF666666),
+                                  fontSize: 16,
+                                ),
+                              ),
+                            )
+                          : DropdownButtonFormField<String>(
+                              dropdownColor: Colors.white,
+                              decoration: const InputDecoration(
+                                contentPadding: EdgeInsets.symmetric(
+                                    horizontal: 16, vertical: 8),
+                                border: InputBorder.none,
+                                fillColor: Colors.white,
+                                filled: true,
+                              ),
+                              hint: const Text('Pilih Ruangan'),
+                              value: selectedRoom,
+                              icon: const Icon(Icons.arrow_drop_down),
+                              isExpanded: true,
+                              onChanged: (String? newValue) {
+                                setState(() {
+                                  selectedRoom = newValue;
+                                });
+                              },
+                              items: roomList
+                                  .map<DropdownMenuItem<String>>((room) {
+                                return DropdownMenuItem<String>(
+                                  value: room['room_id'].toString(),
+                                  child: Text(room['room_name'] ??
+                                      'Ruangan Tidak Diketahui'),
+                                );
+                              }).toList(),
+                            ),
                     ),
                   ],
                 ),
@@ -498,7 +467,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   const Text(
-                    'Notes',
+                    'Catatan',
                     style: TextStyle(
                       fontSize: 16,
                       fontWeight: FontWeight.w600,
@@ -510,21 +479,21 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                   TextField(
                     controller: notesController,
                     decoration: InputDecoration(
-                      hintText: 'Enter Notes',
+                      hintText: 'Masukkan catatan',
                       hintStyle: const TextStyle(color: Color(0xFF666666)),
                       fillColor: Colors.white,
                       filled: true,
                       border: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(8),
-                        borderSide: const BorderSide(color: Colors.transparent),
+                        borderSide: BorderSide(color: Colors.grey.shade300),
                       ),
                       enabledBorder: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(8),
-                        borderSide: const BorderSide(color: Colors.transparent),
+                        borderSide: BorderSide(color: Colors.grey.shade300),
                       ),
                       focusedBorder: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(8),
-                        borderSide: const BorderSide(color: Colors.transparent),
+                        borderSide: BorderSide(color: Colors.grey.shade300),
                       ),
                       contentPadding: const EdgeInsets.all(12),
                     ),
@@ -566,7 +535,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                   ),
                 )
               : const Text(
-                  'Check Out',
+                  'Pinjam',
                   style: TextStyle(
                     fontSize: 16,
                     fontFamily: 'Inter',

@@ -7,7 +7,7 @@ class ApiConfig {
 
   // Base URL untuk API lokal di emulator
   static const String baseUrl =
-      'http://10.0.2.2:8026'; // Special IP for Android Emulator to access host machine
+      'http://192.168.43.221:5000'; // Special IP for Android Emulator to access host machine
 
   // API URL aktif berdasarkan mode (development/production)
   static String get activeApiUrl {

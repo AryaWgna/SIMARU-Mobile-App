@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'dart:convert';
 import 'auth_controller.dart';
-import '../core/config/api_config.dart';
 
 class DashboardSummaryModel {
   final int totalUsers;

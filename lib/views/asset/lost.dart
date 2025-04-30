@@ -13,7 +13,6 @@ class LostScreen extends StatefulWidget {
 }
 
 class _LostScreenState extends State<LostScreen> {
-  DateTime? selectedDate;
   final TextEditingController notesController = TextEditingController();
   bool isLoading = false;
   String? errorMessage;
@@ -24,68 +23,7 @@ class _LostScreenState extends State<LostScreen> {
     super.dispose();
   }
 
-  Future<void> _selectDate(BuildContext context) async {
-    final ThemeData theme = Theme.of(context).copyWith(
-      colorScheme: const ColorScheme.light(
-        primary: Color(0xFF213268),
-        onPrimary: Colors.white,
-        onSurface: Color(0xFF666666),
-      ),
-      textButtonTheme: TextButtonThemeData(
-        style: TextButton.styleFrom(
-          foregroundColor: const Color(0xFF213268),
-        ),
-      ),
-    );
-
-    final DateTime currentDate = DateTime.now();
-    final DateTime? picked = await showDatePicker(
-      context: context,
-      initialDate: selectedDate ?? currentDate,
-      firstDate:
-          DateTime(currentDate.year - 1, currentDate.month, currentDate.day),
-      lastDate: currentDate,
-      builder: (context, child) {
-        return Theme(
-          data: theme,
-          child: MediaQuery(
-            data: MediaQuery.of(context).copyWith(
-              textScaler: const TextScaler.linear(1.0),
-            ),
-            child: child!,
-          ),
-        );
-      },
-      helpText: 'PILIH TANGGAL KEHILANGAN',
-      cancelText: 'BATAL',
-      confirmText: 'PILIH',
-      useRootNavigator: true,
-    );
-
-    if (picked != null && picked != selectedDate) {
-      setState(() {
-        selectedDate = picked;
-      });
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-              'Tanggal kehilangan: ${DateFormat('dd/MM/yyyy').format(picked)}'),
-          duration: const Duration(seconds: 2),
-          backgroundColor: const Color(0xFF213268),
-        ),
-      );
-    }
-  }
-
   Future<void> _reportLost() async {
-    if (selectedDate == null) {
-      setState(() {
-        errorMessage = 'Tanggal kehilangan harus dipilih';
-      });
-      return;
-    }
-
     if (notesController.text.isEmpty) {
       setState(() {
         errorMessage = 'Catatan tidak boleh kosong';
@@ -109,39 +47,69 @@ class _LostScreenState extends State<LostScreen> {
     try {
       final requestBody = {
         "asset_id": assetId,
-        "lost_date": DateFormat('yyyy-MM-dd').format(selectedDate!),
-        "lost_notes": notesController.text,
+        "loss_reason": notesController.text,
       };
 
       print('Sending lost report: $requestBody');
 
       final response = await ApiService.post(
-        '/asset-transfers/lost',
+        '/asset-transfers/loss',
         body: requestBody,
         context: context,
       );
 
+      print('Response status: ${response.statusCode}');
+      print('Response body: ${response.body}');
+
       if (response.statusCode == 200 || response.statusCode == 201) {
         final data = json.decode(response.body);
-        if (data['status'] == true) {
+        final bool isSuccess =
+            data['success'] == true || data['status'] == true;
+
+        if (isSuccess) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
               content: Text('Laporan kehilangan berhasil dikirim'),
               backgroundColor: Color(0xFF213268),
             ),
           );
-          Navigator.pop(context, true); // Return true for success
+
+          // Modifikasi data status asset untuk diupdate
+          if (widget.assetData != null) {
+            final updatedAssetData =
+                Map<String, dynamic>.from(widget.assetData!);
+            updatedAssetData['current_status'] = 'lost';
+
+            // Kembali ke halaman detail dengan data yang diperbarui
+            Navigator.pop(context, updatedAssetData);
+          } else {
+            Navigator.pop(context, true); // Return true for success
+          }
         } else {
           throw Exception(data['message'] ?? 'Laporan kehilangan gagal');
         }
       } else {
-        final data = json.decode(response.body);
-        throw Exception(data['message'] ??
-            'Laporan kehilangan gagal: ${response.statusCode}');
+        var errorMsg = 'Laporan kehilangan gagal: ${response.statusCode}';
+        try {
+          final data = json.decode(response.body);
+          if (data['message'] != null) {
+            errorMsg = data['message'];
+          } else if (data['error'] != null) {
+            errorMsg = data['error'];
+          }
+
+          // Tambahkan log untuk debugging
+          print('Error response data: $data');
+        } catch (e) {
+          print('Failed to parse error response: $e');
+        }
+
+        throw Exception(errorMsg);
       }
     } catch (e) {
+      print('Lost report process failed: $e');
       setState(() {
-        errorMessage = 'Error: ${e.toString()}';
+        errorMessage = 'Error: ${e.toString().replaceAll('Exception: ', '')}';
       });
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -262,84 +230,12 @@ class _LostScreenState extends State<LostScreen> {
                   ),
                 ),
 
-              // Lost Date - border dihilangkan
+              // Notes - alasan kehilangan
               Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   const Text(
-                    'Tanggal Kehilangan',
-                    style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w600,
-                      color: Color(0xFF666666),
-                      fontFamily: 'Inter',
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  InkWell(
-                    onTap: () => _selectDate(context),
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 15, vertical: 12),
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        border: Border.all(color: Colors.transparent),
-                        borderRadius: BorderRadius.circular(8),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.grey.withOpacity(0.1),
-                            spreadRadius: 1,
-                            blurRadius: 2,
-                            offset: const Offset(0, 1),
-                          ),
-                        ],
-                      ),
-                      child: Row(
-                        children: [
-                          const Icon(Icons.calendar_today,
-                              size: 16, color: Color(0xFF757575)),
-                          const SizedBox(width: 8),
-                          Expanded(
-                            child: Text(
-                              selectedDate == null
-                                  ? 'Pilih Tanggal'
-                                  : DateFormat('dd/MM/yyyy')
-                                      .format(selectedDate!),
-                              style: TextStyle(
-                                fontSize: 16,
-                                color: selectedDate == null
-                                    ? const Color(0xFF666666)
-                                    : Colors.black87,
-                                fontFamily: 'Inter',
-                              ),
-                            ),
-                          ),
-                          if (selectedDate != null)
-                            IconButton(
-                              icon: const Icon(Icons.clear, size: 16),
-                              onPressed: () {
-                                setState(() {
-                                  selectedDate = null;
-                                });
-                              },
-                              padding: EdgeInsets.zero,
-                              constraints: const BoxConstraints(),
-                              color: const Color(0xFF666666),
-                            ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 25),
-
-              // Notes - border dihilangkan
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text(
-                    'Catatan Kehilangan',
+                    'Alasan Kehilangan',
                     style: TextStyle(
                       fontSize: 16,
                       fontWeight: FontWeight.w600,
@@ -357,15 +253,15 @@ class _LostScreenState extends State<LostScreen> {
                       filled: true,
                       border: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(8),
-                        borderSide: const BorderSide(color: Colors.transparent),
+                        borderSide: BorderSide(color: Colors.grey.shade300),
                       ),
                       enabledBorder: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(8),
-                        borderSide: const BorderSide(color: Colors.transparent),
+                        borderSide: BorderSide(color: Colors.grey.shade300),
                       ),
                       focusedBorder: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(8),
-                        borderSide: const BorderSide(color: Colors.transparent),
+                        borderSide: BorderSide(color: Colors.grey.shade300),
                       ),
                       contentPadding: const EdgeInsets.all(12),
                     ),

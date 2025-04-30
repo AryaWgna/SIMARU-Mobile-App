@@ -1,5 +1,4 @@
 import 'dart:convert';
-import 'dart:math' as math;
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart';
@@ -249,9 +248,9 @@ class FirebaseMessagingService {
         print('Request data prepared: $requestData');
 
         try {
-          print('Sending HTTP request to: http://10.0.2.2:8026/notifications/fcm-token');
+          print('Sending HTTP request to: http://192.168.43.221:5000/notifications/fcm-token');
           final response = await http.post(
-            Uri.parse('http://10.0.2.2:8026/notifications/fcm-token'),
+            Uri.parse('http://192.168.43.221:5000/notifications/fcm-token'),
             headers: {
               'Authorization': 'Bearer $authToken',
               'Content-Type': 'application/json',

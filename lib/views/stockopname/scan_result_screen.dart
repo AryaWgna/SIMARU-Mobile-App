@@ -590,8 +590,7 @@ class _ScanResultScreenState extends State<ScanResultScreen>
     );
   }
 
-  Widget _buildSummaryItem(String label, String value, IconData icon,
-      {Color color = Colors.grey}) {
+  Widget _buildSummaryItem(String label, String value, IconData icon) {
     return Column(
       children: [
         Container(

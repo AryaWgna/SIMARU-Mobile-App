@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-import '../../widgets/custom_app_bar.dart';
 import '../../controllers/auth_controller.dart';
 import '../../core/config/api_config.dart';
 import 'dart:convert';

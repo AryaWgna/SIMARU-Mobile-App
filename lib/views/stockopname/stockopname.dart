@@ -3,9 +3,6 @@ import 'package:google_fonts/google_fonts.dart';
 import '../pages/qr_scanner_screen.dart';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
-import '../../utils/constants.dart';
-import '../../utils/shared_prefs.dart';
-import '../../core/config/api_config.dart';
 import '../../controllers/auth_controller.dart';
 import 'stockopname_scanner.dart';
 

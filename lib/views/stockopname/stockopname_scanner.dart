@@ -1,13 +1,9 @@
-import 'dart:io';
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:qr_code_scanner/qr_code_scanner.dart';
 import 'package:provider/provider.dart';
-import '../asset/asset_details.dart';
-import '../../services/socket_service.dart';
 import 'dart:convert';
-import '../../core/config/api_config.dart';
 import '../../controllers/auth_controller.dart' as auth;
 import 'package:google_fonts/google_fonts.dart';
 import 'scan_result_screen.dart';

@@ -8,115 +8,12 @@ import '../asset/asset_details.dart';
 import '../../services/socket_service.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
-import '../../core/config/api_config.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import '../../controllers/auth_controller.dart' as auth;
 
 // Impor QR code scanner dengan conditional import
 import 'qr_mobile_implementation.dart'
     if (dart.library.html) 'qr_web_implementation.dart';
-
-// Widget toast sederhana
-class ToastOverlay extends StatefulWidget {
-  final String message;
-  final Color backgroundColor;
-  final VoidCallback? onShown; // Callback saat toast ditampilkan
-
-  const ToastOverlay({
-    Key? key,
-    required this.message,
-    this.backgroundColor = Colors.red,
-    this.onShown,
-  }) : super(key: key);
-
-  @override
-  State<ToastOverlay> createState() => _ToastOverlayState();
-}
-
-class _ToastOverlayState extends State<ToastOverlay>
-    with SingleTickerProviderStateMixin {
-  late AnimationController _controller;
-  late Animation<double> _opacityAnimation;
-
-  @override
-  void initState() {
-    super.initState();
-    _controller = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 300),
-    );
-    _opacityAnimation =
-        Tween<double>(begin: 0.0, end: 1.0).animate(_controller);
-
-    // Play fadeIn animation and then automatically dismiss after delay
-    _controller.forward().then((_) {
-      // Callback ketika toast sudah sepenuhnya muncul
-      widget.onShown?.call();
-    });
-
-    Future.delayed(const Duration(seconds: 1), () {
-      if (mounted) {
-        _controller.reverse().then((_) {
-          if (mounted) {
-            Navigator.of(context).pop();
-          }
-        });
-      }
-    });
-  }
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Material(
-      type: MaterialType.transparency,
-      child: SafeArea(
-        child: FadeTransition(
-          opacity: _opacityAnimation,
-          child: Center(
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 40.0),
-              child: Container(
-                padding: const EdgeInsets.symmetric(
-                    horizontal: 24.0, vertical: 16.0),
-                decoration: BoxDecoration(
-                  color: widget.backgroundColor.withOpacity(0.9),
-                  borderRadius: BorderRadius.circular(10.0),
-                ),
-                child: Text(
-                  widget.message,
-                  style: const TextStyle(color: Colors.white),
-                  textAlign: TextAlign.center,
-                ),
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-// Fungsi helper untuk menampilkan toast
-void showToast(BuildContext context, String message,
-    {Color backgroundColor = Colors.red, VoidCallback? onShown}) {
-  // Tampilkan overlay toast yang menutup sendiri
-  Navigator.of(context).push(
-    PageRouteBuilder(
-      opaque: false,
-      pageBuilder: (_, __, ___) => ToastOverlay(
-        message: message,
-        backgroundColor: backgroundColor,
-        onShown: onShown,
-      ),
-    ),
-  );
-}
 
 class QRScannerScreen extends StatefulWidget {
   final String previousScreen;
@@ -417,6 +314,58 @@ class _QRScannerScreenState extends State<QRScannerScreen>
     super.dispose();
   }
 
+  void showNotice(String message,
+      {bool isError = false, bool isWarning = false, bool isSuccess = false}) {
+    // Skip notifikasi jika bukan error, bukan warning, atau isSuccess=true
+    if (!isError && !isWarning && isSuccess) {
+      return;
+    }
+
+    // Hanya tampilkan notifikasi penting (pemrosesan QR dan asset code) dan errors
+    // Skip notifikasi jika bukan error dan bukan informasi penting tentang QR code
+    if (!isError &&
+        !isWarning &&
+        !message.contains("QR") &&
+        !message.contains("aset")) {
+      return;
+    }
+
+    Color backgroundColor = Colors.blue; // Default blue
+
+    if (isError) {
+      backgroundColor = Colors.red;
+    } else if (isWarning) {
+      backgroundColor = Colors.orange;
+    }
+
+    if (mounted) {
+      // Tutup snackbar sebelumnya jika ada
+      ScaffoldMessenger.of(context).hideCurrentSnackBar();
+
+      // Tampilkan snackbar baru hanya untuk pesan penting
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(message),
+          backgroundColor: backgroundColor,
+          duration: const Duration(seconds: 2),
+          behavior: SnackBarBehavior.floating,
+          margin: EdgeInsets.only(
+            bottom: MediaQuery.of(context).size.height * 0.1,
+            left: 20,
+            right: 20,
+          ),
+          action: SnackBarAction(
+            label: 'OK',
+            textColor: Colors.white,
+            onPressed: () {
+              ScaffoldMessenger.of(context).hideCurrentSnackBar();
+            },
+          ),
+        ),
+      );
+    }
+  }
+
   Future<void> _processScannedQR(
       String qrCode, SocketService socketService) async {
     // Jika sedang memproses, batalkan
@@ -440,14 +389,22 @@ class _QRScannerScreenState extends State<QRScannerScreen>
       // Log QR yang dipindai untuk debugging
       print('[DEBUG] QR Code dipindai: $assetCode');
 
+      // Tampilkan notifikasi untuk membantu debugging
+      showNotice(
+          "QR: " +
+              assetCode.substring(
+                  0, assetCode.length > 15 ? 15 : assetCode.length) +
+              "...",
+          isSuccess: true);
+
       // Kirim ke server melalui WebSocket jika berbeda dari scan terakhir
       if (assetCode != lastScannedCode) {
         socketService.sendMessage(assetCode, context);
         lastScannedCode = assetCode;
       }
 
-      // Helper function untuk mengaktifkan kamera kembali secara langsung
-      void resumeCameraImmediately() {
+      // Helper method untuk mengaktifkan kamera kembali dan reset state
+      void resetCameraAndState() {
         if (qrViewController != null && isPaused) {
           qrViewController!.resumeCamera();
           isPaused = false;
@@ -461,15 +418,19 @@ class _QRScannerScreenState extends State<QRScannerScreen>
       }
 
       // Cek apakah QR code sesuai dengan format ANMD-YYMMDD-XXXX
-      bool isValidFormat =
-          assetCode.startsWith('ANMD-') || RegExp(r'^\d+$').hasMatch(assetCode);
+      bool isValidFormat = assetCode.startsWith('ANMD-') ||
+          RegExp(r'^\d+$').hasMatch(assetCode) ||
+          assetCode.startsWith('NMED-') ||
+          assetCode.startsWith('MED-');
 
       if (!isValidFormat) {
         print('[DEBUG] Format QR tidak valid: $assetCode');
         if (mounted) {
-          showToast(context,
+          showNotice(
               'Format kode QR tidak valid. Gunakan QR code aset yang benar.',
-              onShown: resumeCameraImmediately); // Aktifkan kamera segera
+              isWarning: true);
+          // Aktifkan kamera segera
+          resetCameraAndState();
         }
         return;
       }
@@ -477,8 +438,26 @@ class _QRScannerScreenState extends State<QRScannerScreen>
       // Ekstrak ID dari kode QR dengan pendekatan yang lebih fleksibel
       String assetId;
 
-      // Cek apakah QR code sesuai dengan format ANMD-YYMMDD-XXXX
-      if (assetCode.startsWith('ANMD-') && assetCode.contains('-')) {
+      // Cek apakah QR code sesuai dengan format baru NMED-ITEQ-250422-0002-01 atau MED-MEEQ-250422-0002-01
+      if ((assetCode.startsWith('NMED-') || assetCode.startsWith('MED-')) &&
+          assetCode.contains('-')) {
+        final parts = assetCode.split('-');
+        print('[DEBUG] QR format baru dipecah menjadi: $parts');
+
+        // Format baru: NMED-ITEQ-250422-0002-01 atau MED-MEEQ-250422-0002-01
+        if (parts.length >= 5) {
+          // Gunakan seluruh kode QR untuk format baru
+          assetId = assetCode;
+          print('[DEBUG] Format baru - menggunakan kode QR lengkap: $assetId');
+        } else {
+          // Format tidak sesuai, gunakan seluruh kode QR
+          assetId = assetCode;
+          print(
+              '[DEBUG] Format baru tidak standar, gunakan QR lengkap: $assetId');
+        }
+      }
+      // Cek apakah QR code sesuai dengan format ANMD-YYMMDD-XXXX (format lama)
+      else if (assetCode.startsWith('ANMD-') && assetCode.contains('-')) {
         final parts = assetCode.split('-');
         print('[DEBUG] QR dipecah menjadi: $parts');
 
@@ -507,8 +486,34 @@ class _QRScannerScreenState extends State<QRScannerScreen>
 
       // Mencoba mendapatkan aset dengan endpoint yang benar
       try {
+        // Cek apakah format baru (NMED-ITEQ-... atau MED-MEEQ-...)
+        bool isNewFormat =
+            (assetCode.startsWith('NMED-') || assetCode.startsWith('MED-'));
+
+        // Pendekatan untuk format QR baru
+        if (isNewFormat) {
+          print('[DEBUG] Menggunakan pendekatan khusus untuk format QR baru');
+
+          // Gunakan endpoint by-asset-code sebagai pendekatan pertama untuk format baru
+          var endpoint = '/assets/code/' + Uri.encodeComponent(assetCode);
+          print(
+              '[DEBUG] PENDEKATAN KHUSUS: Mencoba endpoint by-asset-code: $endpoint');
+
+          var response = await auth.ApiService.get(endpoint, context: context);
+          print(
+              '[DEBUG] PENDEKATAN KHUSUS: Status response: ${response.statusCode}');
+
+          // Jika salah satu endpoint khusus berhasil, proses responsnya
+          if (response.statusCode == 200) {
+            // Process response dan navigate ke halaman detail
+            print('[DEBUG] Pendekatan khusus format baru berhasil!');
+            _processSuccessResponse(response, assetCode);
+            return;
+          }
+        }
+
         // Pendekatan utama: Cari berdasarkan ID aset dari tabel
-        var endpoint = '/assets/${assetId}';
+        var endpoint = '/assets/' + assetId;
         print(
             '[DEBUG] PENDEKATAN 1: Mencoba endpoint: $endpoint dengan assetId: $assetId');
 
@@ -521,7 +526,7 @@ class _QRScannerScreenState extends State<QRScannerScreen>
               '[DEBUG] PENDEKATAN 1 gagal, mencoba PENDEKATAN 2 dengan asset_code');
 
           // Pendekatan 2: Cari berdasarkan asset_code di tabel
-          endpoint = '/assets/by-code/${Uri.encodeComponent(assetCode)}';
+          endpoint = '/assets/code/' + Uri.encodeComponent(assetCode);
           print(
               '[DEBUG] PENDEKATAN 2: Mencoba endpoint: $endpoint dengan asset_code: $assetCode');
 
@@ -535,133 +540,434 @@ class _QRScannerScreenState extends State<QRScannerScreen>
                 '[DEBUG] PENDEKATAN 2 gagal, mencoba PENDEKATAN 3 dengan parameter query');
 
             // Pendekatan 3: Gunakan parameter query
-            endpoint = '/assets?qr_code=${Uri.encodeComponent(assetCode)}';
+            endpoint = '/assets?code=' + Uri.encodeComponent(assetCode);
             print('[DEBUG] PENDEKATAN 3: Mencoba endpoint: $endpoint');
 
             response = await auth.ApiService.get(endpoint, context: context);
             print(
                 '[DEBUG] PENDEKATAN 3: Status response: ${response.statusCode}');
+
+            // Jika pendekatan 3 gagal, coba dengan pendekatan kode aset lengkap
+            if (response.statusCode != 200) {
+              print(
+                  '[DEBUG] PENDEKATAN 3 gagal, mencoba PENDEKATAN 4 dengan kode QR lengkap');
+
+              // Pendekatan 4: Coba gunakan kode QR lengkap untuk pencarian
+              var fullQRCode = assetCode;
+              endpoint = '/assets/full-code/${Uri.encodeComponent(fullQRCode)}';
+              print(
+                  '[DEBUG] PENDEKATAN 4: Mencoba endpoint: $endpoint dengan fullQRCode: $fullQRCode');
+
+              response = await auth.ApiService.get(endpoint, context: context);
+              print(
+                  '[DEBUG] PENDEKATAN 4: Status response: ${response.statusCode}');
+            }
           }
         }
 
         if (response.statusCode == 200) {
-          print('[DEBUG] Response berhasil diterima');
-          final responseData = jsonDecode(response.body);
-          print('[DEBUG] Response data: $responseData');
-
-          // Cek tipe data respons untuk menghindari error tipe
-          if (responseData['status'] == true && responseData['data'] != null) {
-            var assetData = responseData['data'];
-            print('[DEBUG] Tipe data aset: ${assetData.runtimeType}');
-
-            // Jika data adalah List, periksa apakah list kosong
-            if (assetData is List) {
-              if (assetData.isEmpty) {
-                print('[DEBUG] Data adalah List kosong');
-                if (mounted) {
-                  showToast(context, 'Tidak ada data aset yang ditemukan',
-                      onShown: resumeCameraImmediately);
-                }
-                return;
-              } else {
-                print('[DEBUG] Data adalah List, mengambil item pertama');
-                assetData = assetData.first;
-              }
-            }
-
-            // Periksa apakah data valid dan memiliki semua field yang diperlukan
-            bool isValidAssetData = assetData is Map<String, dynamic> &&
-                assetData.containsKey('asset_id') &&
-                assetData.containsKey('asset_code') &&
-                assetData.containsKey('asset_name');
-
-            if (isValidAssetData) {
-              print(
-                  '[DEBUG] Data aset berhasil ditemukan dan valid! Data: $assetData');
-
-              // Navigasi ke halaman detail aset dengan data aset dari API
-              if (mounted) {
-                Navigator.pushReplacement(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => AssetDetails(
-                      qrData: assetCode,
-                      previousScreen: widget.previousScreen,
-                      assetData: assetData, // Kirim data aset ke halaman detail
-                    ),
-                  ),
-                );
-              }
-            } else {
-              print('[DEBUG] Data aset tidak lengkap: $assetData');
-              if (mounted) {
-                showToast(context, 'Data aset tidak lengkap atau tidak valid',
-                    onShown: resumeCameraImmediately);
-              }
-              return;
-            }
-          } else {
-            print('[DEBUG] API mengembalikan status false atau data null');
-            // Tampilkan pesan dari API dalam bentuk toast
-            final message =
-                responseData['message'] ?? 'Data aset tidak ditemukan';
-            if (mounted) {
-              showToast(context, message, onShown: resumeCameraImmediately);
-            }
-            return;
-          }
+          print(
+              '[DEBUG] Response berhasil diterima, menggunakan _processSuccessResponse');
+          _processSuccessResponse(response, assetCode);
+          return;
         } else if (response.statusCode == 403) {
           print(
               '[DEBUG] Error 403: Tidak memiliki izin untuk mengakses aset ini');
           if (mounted) {
-            showToast(
-                context, 'Anda tidak memiliki izin untuk mengakses aset ini',
-                onShown: resumeCameraImmediately);
+            showNotice('Tidak memiliki izin akses', isError: true);
           }
+          resetCameraAndState();
           return;
         } else if (response.statusCode == 404) {
           print('[DEBUG] Error 404: Asset tidak ditemukan');
           if (mounted) {
-            showToast(context,
-                'Aset tidak ditemukan. Pastikan QR code yang dipindai valid.',
-                onShown: resumeCameraImmediately);
+            showNotice('Aset tidak ditemukan', isError: true);
           }
+          resetCameraAndState();
           return;
         } else {
           print('[DEBUG] Error tidak dikenal: ${response.statusCode}');
-          if (mounted) {
-            showToast(
-                context, 'Gagal mendapatkan data aset: ${response.statusCode}',
-                onShown: resumeCameraImmediately);
+
+          // Periksa response body jika ada pesan "asset retrieved successfully"
+          try {
+            final responseData = jsonDecode(response.body);
+            final message = responseData['message'] ?? '';
+
+            if (message
+                .toLowerCase()
+                .contains('asset retrieved successfully')) {
+              print(
+                  '[DEBUG] Terdeteksi "asset retrieved successfully" pada status code non-200');
+              // Panggil metode untuk mendapatkan aset berdasarkan kode setelah menerima pesan sukses
+              _getAssetByCode(assetCode);
+              return;
+            }
+          } catch (e) {
+            print('[DEBUG] Error saat mencoba parse response body: $e');
           }
+
+          if (mounted) {
+            showNotice('QR tidak terdaftar', isError: true);
+          }
+          resetCameraAndState();
           return;
         }
       } catch (e) {
         print('[DEBUG] Error saat mengambil data aset: $e');
         if (mounted) {
-          showToast(context,
+          showNotice(
               'Error: ${e is ApiException ? e.getUserFriendlyMessage() : "Gagal mendapatkan data aset"}',
-              onShown: resumeCameraImmediately);
+              isError: true);
         }
         return;
       }
     } catch (e) {
       print('[DEBUG] Error keseluruhan: $e');
       if (mounted) {
-        showToast(context, 'Error: $e', onShown: () {
-          if (qrViewController != null && isPaused) {
-            qrViewController!.resumeCamera();
-            isPaused = false;
-          }
-          setState(() {
-            isProcessing = false;
-            scannedCode = null; // Reset kode QR yang ditampilkan setelah error
-            lastScannedCode =
-                null; // Reset lastScannedCode agar bisa memindai kode yang sama lagi
-          });
-        });
+        showNotice('Error: $e', isError: true);
       }
       return;
     }
+  }
+
+  // Helper method untuk memproses respons yang berhasil dan navigasi ke halaman detail
+  void _processSuccessResponse(http.Response response, String assetCode) {
+    if (!mounted) return;
+
+    try {
+      print('[DEBUG] Memproses respons sukses');
+      final responseData = jsonDecode(response.body);
+      print('[DEBUG] Respons data lengkap: $responseData');
+
+      // Periksa struktur response: API baru menggunakan "success" bukan "status"
+      final bool isSuccess =
+          responseData['success'] == true || responseData['status'] == true;
+
+      // Tambahkan pengecekan khusus untuk pesan "asset retrieved successfully"
+      final message = responseData['message'] ?? '';
+      final bool isSuccessMessage =
+          message.toLowerCase().contains('asset retrieved successfully');
+
+      if (isSuccessMessage) {
+        print('[DEBUG] Terdeteksi pesan sukses: $message');
+        showNotice("Aset ditemukan (pesan sukses)", isSuccess: true);
+
+        // Periksa apakah ada data
+        if (responseData['data'] == null) {
+          print('[DEBUG] Data null meskipun pesan sukses');
+          showNotice("Data null, mencoba alternatif", isWarning: true);
+
+          // Coba ambil data dengan API call lain
+          print('[DEBUG] Mencoba mendapatkan data dengan API call tambahan...');
+          _getAssetByCode(assetCode);
+          return;
+        }
+      }
+
+      if (isSuccess && responseData['data'] != null) {
+        var assetData = responseData['data'];
+        print('[DEBUG] Tipe data aset: ${assetData.runtimeType}');
+        print('[DEBUG] Struktur data aset lengkap: $assetData');
+
+        // Jika data adalah List, periksa apakah list kosong
+        if (assetData is List) {
+          if (assetData.isEmpty) {
+            print('[DEBUG] Data adalah List kosong');
+            if (mounted) {
+              showNotice('Tidak ada data aset yang ditemukan', isWarning: true);
+            }
+            return;
+          } else {
+            print('[DEBUG] Data adalah List, mengambil item pertama');
+            assetData = assetData.first;
+          }
+        }
+
+        // Memastikan field-field yang diperlukan ada
+        if (assetData is Map<String, dynamic>) {
+          // Buat salinan data yang dibersihkan berdasarkan format API baru
+          final Map<String, dynamic> cleanAssetData = {
+            'asset_id': assetData['asset_id'] ?? 0,
+            'asset_code': assetData['asset_code'] ?? assetCode,
+            'asset_name': assetData['asset_master']?['asset_name'] ??
+                assetData['asset_master_name'] ??
+                'Tidak diketahui',
+            'current_status': assetData['current_status'] ?? 'available',
+            'condition': assetData['condition'] ?? '-',
+            'brand': {'brand_name': assetData['brand_name'] ?? '-'},
+            'model_number':
+                assetData['serial_number'] ?? assetData['model_number'] ?? '-',
+            'warranty_end_date': assetData['warranty_end_date'] ?? '-',
+            'subcategory': {
+              'subcategory_name': assetData['asset_master']
+                      ?['subcategory_name'] ??
+                  assetData['subcategory_name'] ??
+                  '-',
+              'asset_type': assetData['asset_master']?['asset_type'] ??
+                  assetData['asset_type'] ??
+                  '-'
+            },
+            'room': {'room_name': assetData['room_name'] ?? '-'},
+            'picture_path': assetData['qr_code'] ?? assetData['picture_path']
+          };
+
+          // Ganti assetData dengan versi yang telah dibersihkan
+          assetData = cleanAssetData;
+          print('[DEBUG] Data aset yang telah dibersihkan: $assetData');
+        }
+
+        bool isValidAssetData = assetData is Map<String, dynamic> &&
+            assetData.containsKey('asset_id') &&
+            assetData.containsKey('asset_code') &&
+            assetData.containsKey('asset_name');
+
+        if (isValidAssetData) {
+          print(
+              '[DEBUG] Data aset berhasil ditemukan dan valid! Data: $assetData');
+
+          if (mounted) {
+            print('[DEBUG] Mencoba navigasi ke halaman AssetDetails');
+
+            // Tampilkan toast sukses hanya sekali
+            showNotice('Aset ditemukan!', isSuccess: true);
+
+            // Delay navigasi selama 500ms agar toast terlihat
+            Future.delayed(const Duration(milliseconds: 500), () {
+              if (mounted) {
+                print(
+                    '[DEBUG] Navigasi ke AssetDetails dengan data: $assetData');
+
+                // PENTING: Tambahkan ini untuk memastikan navigasi terjadi di main thread
+                WidgetsBinding.instance.addPostFrameCallback((_) {
+                  try {
+                    Navigator.pushReplacement(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => AssetDetails(
+                          qrData: assetCode,
+                          previousScreen: widget.previousScreen,
+                          assetData: assetData,
+                        ),
+                      ),
+                    );
+                    print(
+                        '[DEBUG] Navigator.pushReplacement berhasil dipanggil');
+                  } catch (e) {
+                    print('[DEBUG] Error navigasi: $e');
+                    showNotice(
+                        "Error navigasi: " +
+                            e.toString().substring(
+                                0,
+                                e.toString().length > 30
+                                    ? 30
+                                    : e.toString().length),
+                        isError: true);
+                    // Coba cara lain jika navigasi gagal
+                    if (mounted) {
+                      print(
+                          '[DEBUG] Mencoba navigator.push sebagai alternatif');
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => AssetDetails(
+                            qrData: assetCode,
+                            previousScreen: widget.previousScreen,
+                            assetData: assetData,
+                          ),
+                        ),
+                      );
+                    }
+                  }
+                });
+              }
+            });
+          } else {
+            print('[DEBUG] Widget tidak mounted saat memproses data');
+          }
+        } else {
+          print('[DEBUG] Data aset tidak lengkap: $assetData');
+          if (mounted) {
+            showNotice('Data aset tidak lengkap atau tidak valid');
+          }
+        }
+      } else {
+        print('[DEBUG] API mengembalikan status false atau data null');
+
+        // Periksa apakah pesan berisi "asset retrieved successfully"
+        final message = responseData['message'] ?? 'Data aset tidak ditemukan';
+        if (message.toLowerCase().contains('asset retrieved successfully')) {
+          print(
+              '[DEBUG] Pesan berisi "asset retrieved successfully" tapi data null');
+
+          // Tambahkan penanganan khusus untuk kasus ini - coba ambil data dengan cara lain
+          _getAssetByCode(assetCode);
+          return;
+        }
+
+        // Tampilkan pesan dari API dalam bentuk toast
+        if (mounted) {
+          showNotice(message);
+        }
+      }
+    } catch (e) {
+      print('[DEBUG] Error memproses respons: $e');
+      if (mounted) {
+        showNotice('Error memproses data: $e', isError: true);
+      }
+    }
+  }
+
+  // Metode untuk mendapatkan aset berdasarkan kode setelah menerima "asset retrieved successfully"
+  Future<void> _getAssetByCode(String assetCode) async {
+    print('[DEBUG] Mencoba mendapatkan data aset dengan kode: $assetCode');
+    showNotice("Mencoba cara alternatif untuk mendapatkan aset",
+        isWarning: true);
+
+    try {
+      // Coba pendekatan menggunakan ID dari QR code NMED-ITEQ-250422-0002-03
+      String extractedId = "";
+      if (assetCode.contains("-")) {
+        final parts = assetCode.split('-');
+        if (parts.length >= 5) {
+          extractedId = parts[parts.length - 1]
+              .replaceFirst(RegExp(r'^0+'), ''); // Hapus leading zeros
+          if (extractedId.isEmpty)
+            extractedId =
+                parts[parts.length - 1]; // Jika hanya nol, gunakan aslinya
+          print('[DEBUG] Extracted ID from format baru: $extractedId');
+        }
+      }
+
+      // Jika berhasil ekstrak ID, coba dengan ID tersebut
+      if (extractedId.isNotEmpty) {
+        final endpoint = '/assets/' + extractedId;
+        print('[DEBUG] _getAssetByCode: Mencoba endpoint dengan ID: $endpoint');
+
+        final response = await auth.ApiService.get(endpoint, context: context);
+        print(
+            '[DEBUG] _getAssetByCode dengan ID: Status response: ${response.statusCode}');
+
+        if (response.statusCode == 200) {
+          // Berhasil dengan ID yang diekstrak
+          final responseData = jsonDecode(response.body);
+          if (responseData['success'] == true && responseData['data'] != null) {
+            print(
+                '[DEBUG] Berhasil mendapatkan data dengan ID yang diekstrak dari QR code');
+            showNotice("Data aset berhasil ditemukan!", isSuccess: true);
+            _processSuccessResponse(response, assetCode);
+            return;
+          }
+        }
+      }
+
+      // Pendekatan menggunakan kode aset lengkap
+      final endpoint = '/assets/code/' + Uri.encodeComponent(assetCode);
+      print('[DEBUG] _getAssetByCode: Mencoba endpoint: $endpoint');
+
+      final response = await auth.ApiService.get(endpoint, context: context);
+      print('[DEBUG] _getAssetByCode: Status response: ${response.statusCode}');
+
+      if (response.statusCode == 200) {
+        // Proses respons dan langsung navigasi ke halaman detail
+        final responseData = jsonDecode(response.body);
+
+        if (responseData['success'] == true && responseData['data'] != null) {
+          var assetData = responseData['data'];
+
+          print('[DEBUG] Berhasil mendapatkan data dari endpoint alternatif');
+          print('[DEBUG] Data: $assetData');
+          showNotice("Data aset berhasil didapatkan! Menuju halaman detail...",
+              isSuccess: true);
+
+          // Lakukan navigasi langsung ke halaman detail
+          if (mounted) {
+            _processSuccessResponse(response, assetCode);
+          }
+          return;
+        } else {
+          print('[DEBUG] Endpoint alternatif berhasil tapi tidak ada data');
+          if (mounted) {
+            showNotice('Data aset sukses ditemukan tapi tidak lengkap',
+                isWarning: true);
+          }
+        }
+      } else {
+        // Coba pendekatan terakhir - pencarian
+        final searchEndpoint =
+            '/assets/search?q=' + Uri.encodeComponent(assetCode);
+        print(
+            '[DEBUG] _getAssetByCode: Mencoba endpoint pencarian: $searchEndpoint');
+
+        final searchResponse =
+            await auth.ApiService.get(searchEndpoint, context: context);
+        if (searchResponse.statusCode == 200) {
+          final searchData = jsonDecode(searchResponse.body);
+          if (searchData['success'] == true && searchData['data'] != null) {
+            print('[DEBUG] Berhasil mendapatkan data dari endpoint pencarian');
+            _processSuccessResponse(searchResponse, assetCode);
+            return;
+          }
+        }
+
+        print('[DEBUG] Semua endpoint alternatif gagal');
+        if (mounted) {
+          showNotice('Aset ditemukan tapi detail tidak dapat diambil',
+              isWarning: true);
+        }
+      }
+    } catch (e) {
+      print('[DEBUG] Error pada _getAssetByCode: $e');
+      if (mounted) {
+        showNotice('Error: $e', isError: true);
+      }
+    }
+  }
+
+  // Fungsi helper untuk menampilkan toast
+  void showToast(BuildContext context, String message,
+      {Color backgroundColor = Colors.red, VoidCallback? onShown}) {
+    // Skip notifikasi sukses (hijau)
+    if (backgroundColor == Colors.green) {
+      // Langsung jalankan callback tanpa menampilkan toast
+      onShown?.call();
+      return;
+    }
+
+    // Hanya tampilkan notifikasi penting dan errors
+    if (backgroundColor != Colors.red &&
+        !message.contains("QR") &&
+        !message.contains("aset")) {
+      // Langsung jalankan callback tanpa menampilkan toast
+      onShown?.call();
+      return;
+    }
+
+    // Tutup snackbar sebelumnya jika ada
+    ScaffoldMessenger.of(context).hideCurrentSnackBar();
+
+    // Tampilkan snackbar baru
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: backgroundColor,
+        duration: const Duration(seconds: 2),
+        behavior: SnackBarBehavior.floating,
+        margin: EdgeInsets.only(
+          bottom: MediaQuery.of(context).size.height * 0.1,
+          left: 20,
+          right: 20,
+        ),
+        action: SnackBarAction(
+          label: 'OK',
+          textColor: Colors.white,
+          onPressed: () {
+            ScaffoldMessenger.of(context).hideCurrentSnackBar();
+          },
+        ),
+      ),
+    );
+
+    // Panggil callback jika disediakan
+    onShown?.call();
   }
 }

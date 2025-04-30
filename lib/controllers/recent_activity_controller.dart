@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import '../models/history_model.dart';
 import 'dart:convert';
 import 'auth_controller.dart';
-import '../core/config/api_config.dart';
 
 class RecentActivityController extends ChangeNotifier {
   List<HistoryModel> _activities = [];

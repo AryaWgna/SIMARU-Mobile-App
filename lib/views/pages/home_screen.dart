@@ -4,7 +4,6 @@ import 'package:provider/provider.dart';
 import '../../controllers/total_asset_controller.dart';
 import '../../controllers/asset_under_repair_controller.dart';
 import '../../controllers/net_asset_value_controller.dart';
-import '../pages/history_screen.dart';
 import '../../widgets/today_activities_widget.dart';
 
 class HomeScreen extends StatefulWidget {

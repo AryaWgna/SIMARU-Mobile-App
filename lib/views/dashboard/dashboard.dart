@@ -5,8 +5,6 @@ import '../pages/qr_scanner_screen.dart';
 import '../stockopname/stockopname.dart';
 import '../complain/complain_list_screen.dart';
 import '../../widgets/custom_app_bar.dart';
-import '../../widgets/app_drawer.dart';
-import '../../widgets/today_activities_widget.dart';
 import '../../controllers/auth_controller.dart';
 import '../../auth/login.dart';
 
