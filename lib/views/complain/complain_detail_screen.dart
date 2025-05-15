@@ -4,15 +4,14 @@ import 'package:http/http.dart' as http;
 import 'dart:convert';
 import '../../core/config/api_config.dart';
 import '../../services/socket_service.dart' as socket_service;
-import 'package:intl/intl.dart';
 
 class ComplainDetailScreen extends StatefulWidget {
   final Map<String, dynamic> complaint;
 
   const ComplainDetailScreen({
-    Key? key,
+    super.key,
     required this.complaint,
-  }) : super(key: key);
+  });
 
   @override
   State<ComplainDetailScreen> createState() => _ComplainDetailScreenState();
@@ -22,7 +21,7 @@ class _ComplainDetailScreenState extends State<ComplainDetailScreen> {
   bool _isLoading = true;
   Map<String, dynamic>? _complaintDetail;
   String? _errorMessage;
-  bool _isApproving = false;
+  final bool _isApproving = false;
 
   @override
   void initState() {
@@ -47,7 +46,7 @@ class _ComplainDetailScreenState extends State<ComplainDetailScreen> {
 
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
-        if (data['status'] == true) {
+        if (data['success'] == true) {
           setState(() {
             _complaintDetail = data['data'];
             _isLoading = false;
@@ -70,52 +69,26 @@ class _ComplainDetailScreenState extends State<ComplainDetailScreen> {
 
   Future<void> _approveRepair() async {
     try {
-      final repairId = _complaintDetail?['repair']['id'].toString() ?? '';
-      if (repairId.isEmpty) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Repair ID tidak ditemukan')),
-        );
-        return;
+      final accessToken = await socket_service.ApiService.getAccessToken();
+      if (accessToken == null) {
+        throw Exception('No access token available');
       }
 
-      // Show confirmation dialog
-      bool confirm = await showDialog(
-            context: context,
-            builder: (BuildContext context) {
-              return AlertDialog(
-                title: Text('Konfirmasi'),
-                content:
-                    Text('Apakah Anda yakin ingin menyetujui perbaikan ini?'),
-                actions: [
-                  TextButton(
-                    onPressed: () => Navigator.of(context).pop(false),
-                    child: Text('Batal'),
-                  ),
-                  TextButton(
-                    onPressed: () => Navigator.of(context).pop(true),
-                    child: Text('Ya, Setuju'),
-                  ),
-                ],
-              );
-            },
-          ) ??
-          false;
+      final complaintId = widget.complaint['id'].toString();
 
-      if (!confirm) return;
-
-      // Call API to approve repair
       final response = await http.put(
-        Uri.parse('${ApiConfig.baseUrl}/repairs/$repairId/approve'),
+        Uri.parse('${ApiConfig.baseUrl}/complaints/$complaintId'),
         headers: {
           'Content-Type': 'application/json',
+          'Authorization': 'Bearer $accessToken',
         },
         body: jsonEncode({
-          'approval_by': 1, // Use user ID here
+          'status': 'approved',
+          'approval_by': 1,
         }),
       );
 
       if (response.statusCode == 200) {
-        // Success
         final responseData = jsonDecode(response.body);
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -123,10 +96,8 @@ class _ComplainDetailScreenState extends State<ComplainDetailScreen> {
                   responseData['message'] ?? 'Perbaikan berhasil disetujui')),
         );
 
-        // Refresh data
         await _fetchComplaintDetail();
       } else {
-        // Error
         final responseData = jsonDecode(response.body);
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -247,7 +218,7 @@ class _ComplainDetailScreenState extends State<ComplainDetailScreen> {
       appBar: AppBar(
         backgroundColor: const Color(0xFF213268),
         elevation: 0,
-        title: Text('Detail Keluhan', style: TextStyle(color: Colors.white)),
+        title: const Text('Detail Keluhan', style: TextStyle(color: Colors.white)),
         leading: IconButton(
           icon: const Icon(Icons.arrow_back, color: Colors.white),
           onPressed: () => Navigator.pop(context),

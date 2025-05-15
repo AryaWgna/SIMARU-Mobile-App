@@ -89,7 +89,7 @@ class SocketService extends ChangeNotifier {
 // Class untuk layanan REST API
 class ApiService {
   static void Function(BuildContext context)? navigateToLogin;
-  static final _storage = const FlutterSecureStorage();
+  static const _storage = FlutterSecureStorage();
 
   // Metode untuk mendapatkan token dari secure storage
   static Future<String?> getAccessToken() async {
@@ -119,6 +119,11 @@ class ApiService {
 
       debugPrint('Making GET request to: $url');
       final response = await http.get(url, headers: headers);
+
+      // Log response for debugging
+      debugPrint('Response status: ${response.statusCode}');
+      debugPrint(
+          'Response body preview: ${response.body.substring(0, response.body.length > 100 ? 100 : response.body.length)}...');
 
       // Handle 401 Unauthorized - Token expired or invalid
       if (response.statusCode == 401 &&
@@ -184,7 +189,7 @@ class ApiService {
 
 // Class untuk mengelola WebSocket dan komunikasi dengan bagian lain aplikasi
 class WebSocketManager {
-  static Map<String, Function(String)> _messageHandlers = {};
+  static final Map<String, Function(String)> _messageHandlers = {};
 
   // Mendaftarkan handler untuk jenis pesan tertentu
   static void registerMessageHandler(String key, Function(String) handler) {

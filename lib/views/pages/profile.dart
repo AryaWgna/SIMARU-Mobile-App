@@ -13,7 +13,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   Map<String, dynamic>? _profile;
   bool _isLoading = true;
   bool _mounted = true;
-  String _userId = "1"; // Default user ID
+  final String _userId = "1"; // Default user ID
 
   @override
   void initState() {

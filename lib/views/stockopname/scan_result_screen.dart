@@ -1,9 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'dart:convert';
-import '../../core/config/api_config.dart';
 import '../../controllers/auth_controller.dart' as auth;
-import 'package:http/http.dart' as http;
 
 class AssetScanDetail {
   final int detailId;
@@ -105,12 +103,12 @@ class ScanResultScreen extends StatefulWidget {
   final String opnameCode;
 
   const ScanResultScreen({
-    Key? key,
+    super.key,
     this.scannedAssets,
     this.roomName,
     required this.opnameId,
     required this.opnameCode,
-  }) : super(key: key);
+  });
 
   @override
   State<ScanResultScreen> createState() => _ScanResultScreenState();
@@ -178,25 +176,62 @@ class _ScanResultScreenState extends State<ScanResultScreen>
   // Mengambil data aset berdasarkan status scan
   Future<void> _fetchAssetsByStatus(String status) async {
     try {
+      print('Memuat aset dengan status: $status');
       final response = await auth.ApiService.get(
         '/asset-opname-details/opname/${widget.opnameId}?scan_status=$status',
       );
 
+      print(
+          'Response untuk status $status: ${response.statusCode} - ${response.body}');
+
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
 
-        if (data['status'] == true) {
-          final List<dynamic> assetsJson = data['data'];
-          final List<AssetScanDetail> assets =
-              assetsJson.map((json) => AssetScanDetail.fromJson(json)).toList();
+        if (data['success'] == true) {
+          // Tambahkan penanganan untuk berbagai format data yang mungkin dikembalikan
+          List<dynamic> assetsJson = [];
+
+          // Periksa tipe data dari data['data']
+          if (data['data'] is List) {
+            // Jika sudah berupa list, gunakan langsung
+            assetsJson = data['data'];
+          } else if (data['data'] is Map) {
+            // Jika berupa map, cek apakah ada kunci yang berisi list
+            // Ini adalah solusi sementara, lebih baik menyesuaikan dengan struktur API yang sebenarnya
+            if (data['data']['assets'] is List) {
+              assetsJson = data['data']['assets'];
+            } else {
+              // Jika tidak ada list di dalam map, gunakan list kosong
+              print(
+                  'Data assets tidak ditemukan atau bukan list: ${data['data']}');
+              assetsJson = [];
+            }
+          } else {
+            // Jika bukan list atau map, gunakan list kosong
+            print('Tipe data tidak didukung: ${data['data']}');
+            assetsJson = [];
+          }
+
+          final List<AssetScanDetail> assets = assetsJson
+              .where((json) => json != null)
+              .map((json) => AssetScanDetail.fromJson(json))
+              .toList();
 
           // Simpan data summary dan room info saat first call
           if (summaryData == null && data['summary'] != null) {
-            summaryData = SummaryData.fromJson(data['summary']);
+            try {
+              summaryData = SummaryData.fromJson(data['summary']);
+            } catch (e) {
+              print('Error saat parsing summary: $e');
+            }
           }
 
           if (roomInfo == null && data['room_info'] != null) {
-            roomInfo = RoomInfo.fromJson(data['room_info']);
+            try {
+              roomInfo = RoomInfo.fromJson(data['room_info']);
+            } catch (e) {
+              print('Error saat parsing room_info: $e');
+            }
           }
 
           setState(() {
@@ -215,7 +250,9 @@ class _ScanResultScreenState extends State<ScanResultScreen>
       } else {
         throw 'Error status code: ${response.statusCode}';
       }
-    } catch (e) {
+    } catch (e, stackTrace) {
+      print('Error saat memuat data: $e');
+      print('Stack trace: $stackTrace');
       setState(() {
         errorMessage = 'Gagal memuat data: $e';
         isLoading = false;
@@ -230,9 +267,8 @@ class _ScanResultScreenState extends State<ScanResultScreen>
         isLoading = true;
       });
 
-      // Memperbaiki endpoint dari /asset-opname-details/{opname_id}/notes menjadi /asset-opname-details/{detail_id}/notes
       final response = await auth.ApiService.put(
-        '/asset-opname-details/${detailId}/notes',
+        '/asset-opname-details/$detailId/notes',
         body: {
           'notes': notes,
         },
@@ -241,9 +277,9 @@ class _ScanResultScreenState extends State<ScanResultScreen>
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
 
-        if (data['status'] == true) {
+        if (data['success'] == true) {
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
+            const SnackBar(
               content: Text('Catatan berhasil disimpan'),
               backgroundColor: Colors.green,
             ),
@@ -466,21 +502,21 @@ class _ScanResultScreenState extends State<ScanResultScreen>
           indicatorColor: const Color(0xFF213268),
           labelColor: const Color(0xFF213268),
           unselectedLabelColor: Colors.grey,
-          tabs: [
+          tabs: const [
             Tab(
               icon: Icon(Icons.list_alt),
               text: 'Semua',
-              iconMargin: const EdgeInsets.only(bottom: 2),
+              iconMargin: EdgeInsets.only(bottom: 2),
             ),
             Tab(
               icon: Icon(Icons.content_paste_search),
               text: 'Aset Hilang',
-              iconMargin: const EdgeInsets.only(bottom: 2),
+              iconMargin: EdgeInsets.only(bottom: 2),
             ),
             Tab(
               icon: Icon(Icons.help_outline),
               text: 'Aset Pindah',
-              iconMargin: const EdgeInsets.only(bottom: 2),
+              iconMargin: EdgeInsets.only(bottom: 2),
             ),
           ],
           labelStyle: GoogleFonts.poppins(
@@ -811,7 +847,7 @@ class _ScanResultScreenState extends State<ScanResultScreen>
                 ),
                 if (asset.notes != null && asset.notes!.isNotEmpty) ...[
                   const SizedBox(width: 8),
-                  Icon(Icons.note, size: 16, color: Colors.grey),
+                  const Icon(Icons.note, size: 16, color: Colors.grey),
                 ],
               ],
             ),
@@ -919,10 +955,10 @@ class _ScanResultScreenState extends State<ScanResultScreen>
                 elevation: 0,
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(8),
-                  side: BorderSide(color: const Color(0xFF213268)),
+                  side: const BorderSide(color: Color(0xFF213268)),
                 ),
               ),
-              icon: Icon(Icons.edit_note),
+              icon: const Icon(Icons.edit_note),
               label: Text(
                 asset.notes == null || asset.notes!.isEmpty
                     ? "Tambah Catatan"

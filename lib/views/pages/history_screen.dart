@@ -72,7 +72,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(8),
-        boxShadow: [
+        boxShadow: const [
           BoxShadow(
             color: Color.fromRGBO(0, 0, 0, 0.1),
             offset: Offset(0, 2),
@@ -251,7 +251,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
       appBar: AppBar(
         backgroundColor: const Color(0xFF213268),
         elevation: 0,
-        title: Text('Riwayat Aktivitas', style: TextStyle(color: Colors.white)),
+        title: const Text('Riwayat Aktivitas', style: TextStyle(color: Colors.white)),
         leading: IconButton(
           icon: const Icon(Icons.arrow_back, color: Colors.white),
           onPressed: () => Navigator.pop(context),
@@ -263,10 +263,10 @@ class _HistoryScreenState extends State<HistoryScreen> {
           Container(
             width: double.infinity,
             padding: const EdgeInsets.fromLTRB(24, 16, 24, 0),
-            child: Column(
+            child: const Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text(
+                Text(
                   'Menampilkan semua aktivitas Anda',
                   style: TextStyle(
                     fontFamily: 'Inter',
@@ -334,7 +334,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
                     child: ListView(
                       physics: const AlwaysScrollableScrollPhysics(),
                       children: [
-                        Container(
+                        SizedBox(
                           height: MediaQuery.of(context).size.height * 0.6,
                           child: const Center(
                             child: Text(

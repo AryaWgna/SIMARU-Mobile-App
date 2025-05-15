@@ -179,10 +179,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
     final bool isKeyboardVisible = MediaQuery.of(context).viewInsets.bottom > 0;
 
     return Scaffold(
-      appBar: const PreferredSize(
-        preferredSize: Size.fromHeight(82),
-        child: CustomAppBar(),
-      ),
+      appBar: const CustomAppBar(),
       body: _screens[_selectedIndex],
       floatingActionButton: isKeyboardVisible
           ? null

@@ -53,24 +53,31 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget build(BuildContext context) {
     return Container(
       color: Colors.white,
-      child: SingleChildScrollView(
-        physics: const AlwaysScrollableScrollPhysics(),
-        child: Container(
-          color: Colors.white,
-          constraints: BoxConstraints(
-            minHeight: MediaQuery.of(context).size.height -
-                kBottomNavigationBarHeight -
-                MediaQuery.of(context).padding.top -
-                82,
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              _buildStatCards(),
-              const SizedBox(height: 16),
-              TodayActivitiesWidget(),
-              const SizedBox(height: 16),
-            ],
+      child: RefreshIndicator(
+        onRefresh: () async {
+          _loadData();
+        },
+        child: SingleChildScrollView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          child: Container(
+            color: Colors.white,
+            constraints: BoxConstraints(
+              minHeight: MediaQuery.of(context).size.height -
+                  kBottomNavigationBarHeight -
+                  MediaQuery.of(context).padding.top -
+                  82,
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _buildStatCards(),
+                const SizedBox(height: 16),
+                const Divider(
+                    height: 1, thickness: 1, color: Color(0xFFEEEEEE)),
+                const TodayActivitiesWidget(),
+                const SizedBox(height: 16),
+              ],
+            ),
           ),
         ),
       ),
@@ -197,8 +204,9 @@ class _HomeScreenState extends State<HomeScreen> {
                 if (title == "Nilai Aset Bersih")
                   Consumer<NetAssetValueController>(
                       builder: (context, controller, _) {
-                    if (controller.netAssetValue == null)
+                    if (controller.netAssetValue == null) {
                       return const SizedBox.shrink();
+                    }
                     return Text(
                       "Per ${controller.netAssetValue?.asOfDate ?? '-'}",
                       style: GoogleFonts.inter(
@@ -300,8 +308,8 @@ class _HomeScreenState extends State<HomeScreen> {
               color: const Color(0xFF213268).withOpacity(0.1),
               borderRadius: BorderRadius.circular(8),
             ),
-            child: Icon(Icons.attach_money,
-                color: const Color(0xFF213268), size: 20),
+            child: const Icon(Icons.attach_money,
+                color: Color(0xFF213268), size: 20),
           ),
         ],
       ),
@@ -359,7 +367,7 @@ class _HomeScreenState extends State<HomeScreen> {
               color: Colors.white,
               borderRadius: BorderRadius.circular(8),
             ),
-            child: Icon(Icons.build, color: Colors.black54, size: 20),
+            child: const Icon(Icons.build, color: Colors.black54, size: 20),
           ),
         ],
       ),
@@ -425,7 +433,7 @@ class _HomeScreenState extends State<HomeScreen> {
               color: Colors.white,
               borderRadius: BorderRadius.circular(8),
             ),
-            child: Icon(Icons.grid_4x4, color: Colors.black54, size: 20),
+            child: const Icon(Icons.grid_4x4, color: Colors.black54, size: 20),
           ),
         ],
       ),

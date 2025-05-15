@@ -1,7 +1,11 @@
 import 'package:flutter/material.dart';
+import 'dart:convert';
+import '../../controllers/auth_controller.dart';
 import 'asset_document.dart';
 import 'asset_mutation.dart';
 import 'asset_details.dart';
+import 'package:pull_to_refresh_flutter3/pull_to_refresh_flutter3.dart';
+import 'package:skeletonizer/skeletonizer.dart';
 
 class AssetHistory extends StatefulWidget {
   final Map<String, dynamic>? assetData;
@@ -21,6 +25,285 @@ class AssetHistory extends StatefulWidget {
 
 class _AssetHistoryState extends State<AssetHistory> {
   DateTime selectedDate = DateTime.now();
+  bool isLoading = true;
+  String? errorMessage;
+  List<dynamic> histories = [];
+  final RefreshController _refreshController =
+      RefreshController(initialRefresh: false);
+
+  @override
+  void initState() {
+    super.initState();
+    _fetchAssetHistory();
+  }
+
+  // Format tanggal API
+  String formatAPIDateParam(DateTime date) {
+    // Format tanggal yang diharapkan API: YYYY-MM-DD
+    return '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
+  }
+
+  void _onRefresh() async {
+    // Monitor network fetching
+    await _fetchAssetHistory(showLoading: false);
+
+    // If failed, you can use refreshFailed()
+    _refreshController.refreshCompleted();
+  }
+
+  Future<void> _fetchAssetHistory({bool showLoading = true}) async {
+    if (widget.assetData == null) {
+      setState(() {
+        isLoading = false;
+        errorMessage = 'Data aset tidak tersedia';
+      });
+      return;
+    }
+
+    if (showLoading) {
+      setState(() {
+        isLoading = true;
+        errorMessage = null;
+      });
+    }
+
+    try {
+      // Debug: tampilkan semua key yang tersedia di assetData
+      print('Asset data keys available: ${widget.assetData!.keys.toList()}');
+      print('Asset data: ${widget.assetData}');
+
+      // Gunakan asset_id untuk konsistensi dengan dokumen
+      var assetId = widget.assetData!['asset_id']?.toString();
+
+      // Jika asset_id tidak tersedia, coba ambil dari property lain
+      if (assetId == null || assetId.isEmpty) {
+        // Coba dari id
+        assetId = widget.assetData!['id']?.toString();
+
+        // Jika masih null, coba asset_master_id
+        if (assetId == null || assetId.isEmpty) {
+          assetId = widget.assetData!['asset_master_id']?.toString();
+        }
+      }
+
+      if (assetId == null || assetId.isEmpty) {
+        setState(() {
+          isLoading = false;
+          errorMessage = 'ID aset tidak ditemukan (asset_id)';
+        });
+        return;
+      }
+
+      final formattedDate = formatAPIDateParam(selectedDate);
+      print(
+          'Mengambil riwayat untuk aset dengan ID: $assetId pada tanggal: $formattedDate');
+
+      // Gunakan endpoint tanpa parameter tanggal
+      // API mungkin tidak mendukung parameter tanggal atau mengharapkan format yang berbeda
+      String url = '/asset-histories/$assetId';
+
+      // Debug endpoint yang digunakan
+      print('URL request yang digunakan: $url');
+
+      final response = await ApiService.get(
+        url,
+        context: context,
+      );
+
+      print('Response status: ${response.statusCode}');
+      print('Response body: ${response.body}');
+
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        if (data['success'] == true) {
+          List<dynamic> allHistories = [];
+
+          // Cek format respons - biasanya dalam 'data' dan kemungkinan 'histories'
+          if (data['data'] != null) {
+            if (data['data'] is List) {
+              // Jika data adalah array langsung
+              allHistories = data['data'];
+            } else if (data['data']['histories'] != null &&
+                data['data']['histories'] is List) {
+              // Jika data memiliki property histories
+              allHistories = data['data']['histories'];
+            } else if (data['data']['items'] != null &&
+                data['data']['items'] is List) {
+              // Jika data memiliki property items
+              allHistories = data['data']['items'];
+            } else {
+              // Jika data adalah object tunggal
+              allHistories = [data['data']];
+            }
+          }
+
+          print('Jumlah riwayat sebelum filter: ${allHistories.length}');
+
+          // Filter hasil berdasarkan tanggal yang dipilih dalam aplikasi
+          // Ini diproses pada sisi client, bukan server
+          final filteredHistories =
+              _filterHistoriesByDate(allHistories, selectedDate);
+          print('Jumlah riwayat setelah filter: ${filteredHistories.length}');
+
+          setState(() {
+            histories = filteredHistories;
+            isLoading = false;
+          });
+        } else {
+          setState(() {
+            isLoading = false;
+            errorMessage = data['message'] ?? 'Gagal memuat riwayat aset';
+          });
+        }
+      } else if (response.statusCode == 400) {
+        // Penanganan khusus untuk error 400
+        String errorMsg =
+            'Permintaan tidak valid. Format parameter mungkin tidak sesuai.';
+        try {
+          final data = json.decode(response.body);
+          if (data['message'] != null) {
+            errorMsg = data['message'];
+          } else if (data['error'] != null) {
+            errorMsg = data['error'];
+          }
+          print('Error 400 detail: $data');
+        } catch (e) {
+          print('Failed to parse error response: $e');
+        }
+
+        setState(() {
+          isLoading = false;
+          errorMessage = errorMsg;
+          histories = [];
+        });
+
+        // Jika mendapat error 400, coba endpoint alternatif
+        _tryAlternativeEndpoint(assetId);
+      } else if (response.statusCode == 404) {
+        setState(() {
+          isLoading = false;
+          histories = [];
+        });
+      } else if (response.statusCode == 500) {
+        // Handle error 500 dengan pesan yang lebih jelas
+        String serverError;
+        try {
+          final data = json.decode(response.body);
+          serverError =
+              data['message'] ?? 'Terjadi kesalahan pada server (500)';
+        } catch (e) {
+          serverError = 'Terjadi kesalahan pada server (500)';
+        }
+
+        print('Error 500: $serverError');
+        setState(() {
+          isLoading = false;
+          errorMessage =
+              'Kesalahan server: $serverError. Silakan coba dengan ID aset yang benar.';
+        });
+
+        // Coba endpoint alternatif jika error 500
+        _tryAlternativeEndpoint(assetId);
+      } else {
+        setState(() {
+          isLoading = false;
+          errorMessage = 'Gagal memuat riwayat: Error ${response.statusCode}';
+        });
+      }
+    } catch (e) {
+      print('Error saat mengambil riwayat aset: $e');
+      setState(() {
+        isLoading = false;
+        errorMessage = 'Terjadi kesalahan: ${e.toString()}';
+      });
+    }
+  }
+
+  // Metode baru untuk mencoba endpoint alternatif
+  Future<void> _tryAlternativeEndpoint(String assetId) async {
+    print('Mencoba endpoint alternatif untuk riwayat...');
+
+    try {
+      // Coba endpoint alternatif untuk riwayat
+      var alternativeEndpoint = '/histories/asset/$assetId';
+      print('Endpoint alternatif: $alternativeEndpoint');
+
+      final response = await ApiService.get(
+        alternativeEndpoint,
+        context: context,
+      );
+
+      print('Response alternatif status: ${response.statusCode}');
+      print('Response alternatif body: ${response.body}');
+
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+
+        if (data['success'] == true) {
+          List<dynamic> allHistories = [];
+
+          if (data['data'] != null) {
+            if (data['data'] is List) {
+              allHistories = data['data'];
+            } else if (data['data']['histories'] != null &&
+                data['data']['histories'] is List) {
+              allHistories = data['data']['histories'];
+            } else if (data['data']['items'] != null &&
+                data['data']['items'] is List) {
+              allHistories = data['data']['items'];
+            } else {
+              allHistories = [data['data']];
+            }
+          }
+
+          print(
+              'Jumlah riwayat sebelum filter (endpoint alternatif): ${allHistories.length}');
+
+          final filteredHistories =
+              _filterHistoriesByDate(allHistories, selectedDate);
+          print(
+              'Jumlah riwayat setelah filter (endpoint alternatif): ${filteredHistories.length}');
+
+          setState(() {
+            histories = filteredHistories;
+            isLoading = false;
+            errorMessage = null; // Hapus pesan error sebelumnya
+          });
+        }
+      }
+    } catch (e) {
+      print('Error pada endpoint alternatif: $e');
+      // Tidak mengubah state karena ini hanya upaya backup
+    }
+  }
+
+  // Fungsi untuk memfilter riwayat berdasarkan tanggal
+  List<dynamic> _filterHistoriesByDate(List<dynamic> histories, DateTime date) {
+    final targetDate = DateTime(date.year, date.month, date.day);
+    print('Filtering untuk tanggal: $targetDate');
+
+    return histories.where((history) {
+      if (history['action_date'] != null) {
+        try {
+          final DateTime historyDate = DateTime.parse(history['action_date']);
+          final bool match = historyDate.year == targetDate.year &&
+              historyDate.month == targetDate.month &&
+              historyDate.day == targetDate.day;
+
+          // Debug output
+          if (match) {
+            print('Tanggal cocok: ${history['action_date']}');
+          }
+
+          return match;
+        } catch (e) {
+          print('Error parsing date: ${history['action_date']} - $e');
+          return false;
+        }
+      }
+      return false;
+    }).toList();
+  }
 
   // Format tanggal
   String formatDate(DateTime date) {
@@ -55,6 +338,20 @@ class _AssetHistoryState extends State<AssetHistory> {
       'Sabtu'
     ];
     return days[date.weekday % 7];
+  }
+
+  // Format tanggal dari API
+  String formatAPIDate(String dateString) {
+    try {
+      final date = DateTime.parse(dateString);
+      // Format hanya waktu (jam:menit)
+      final hour = date.hour.toString().padLeft(2, '0');
+      final minute = date.minute.toString().padLeft(2, '0');
+
+      return '$hour:$minute';
+    } catch (e) {
+      return '';
+    }
   }
 
   // Fungsi untuk memilih tanggal
@@ -108,6 +405,8 @@ class _AssetHistoryState extends State<AssetHistory> {
       setState(() {
         selectedDate = picked;
       });
+      // Ambil riwayat untuk tanggal baru
+      _fetchAssetHistory();
     }
   }
 
@@ -116,6 +415,8 @@ class _AssetHistoryState extends State<AssetHistory> {
     setState(() {
       selectedDate = selectedDate.add(Duration(days: days));
     });
+    // Ambil riwayat untuk tanggal baru
+    _fetchAssetHistory();
   }
 
   @override
@@ -341,64 +642,230 @@ class _AssetHistoryState extends State<AssetHistory> {
                   child: Container(
                     width: double.infinity,
                     color: Colors.white,
-                    child: SingleChildScrollView(
-                      child: Container(
-                        padding: const EdgeInsets.only(top: 30, bottom: 30),
-                        child: Stack(
-                          children: [
-                            // Vertical Timeline Line - Berhenti di lingkaran terakhir
-                            Builder(builder: (context) {
-                              // Data timeline items
-                              final List<String> timelineItems = [
-                                'Item 1',
-                                'Item 2',
-                                'Item 3',
-                              ];
-
-                              // Hitung tinggi total item
-                              final double totalHeight =
-                                  (timelineItems.length - 1) * (69 + 20);
-
-                              return Positioned(
-                                left: 35,
-                                top: 0,
-                                height: totalHeight,
-                                width: 3,
-                                child: Container(
-                                  color: const Color(0xFFAAAAAA),
-                                ),
-                              );
-                            }),
-
-                            // Timeline Items
-                            Column(
-                              children: [
-                                _buildTimelineItem(
-                                  'Jhon Doe mengubah status dari ',
-                                  'Tersedia',
-                                  ' ke ',
-                                  'Dipinjam',
-                                ),
-                                const SizedBox(height: 20),
-                                _buildTimelineItem(
-                                  'Jane Doe mengubah status dari ',
-                                  'Dipinjam',
-                                  ' ke ',
-                                  'Tersedia',
-                                ),
-                                const SizedBox(height: 20),
-                                _buildTimelineItem(
-                                  'Jane Doe mengubah status dari ',
-                                  'Tersedia',
-                                  ' ke ',
-                                  'Dipinjam',
-                                ),
-                              ],
+                    child: isLoading
+                        ? Skeletonizer(
+                            enabled: true,
+                            child: SingleChildScrollView(
+                              padding: const EdgeInsets.symmetric(vertical: 30),
+                              child: Column(
+                                children: [
+                                  _buildSkeletonTimelineItem(),
+                                  const SizedBox(height: 20),
+                                  _buildSkeletonTimelineItem(),
+                                  const SizedBox(height: 20),
+                                  _buildSkeletonTimelineItem(),
+                                ],
+                              ),
                             ),
-                          ],
-                        ),
-                      ),
-                    ),
+                          )
+                        : errorMessage != null
+                            ? Center(
+                                child: Padding(
+                                  padding: const EdgeInsets.all(16.0),
+                                  child: Column(
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    children: [
+                                      Icon(
+                                        Icons.error_outline,
+                                        color: Colors.red[700],
+                                        size: 48,
+                                      ),
+                                      const SizedBox(height: 16),
+                                      Text(
+                                        errorMessage!,
+                                        style: TextStyle(
+                                          color: Colors.red[700],
+                                          fontSize: 16,
+                                        ),
+                                        textAlign: TextAlign.center,
+                                      ),
+                                      const SizedBox(height: 24),
+                                      ElevatedButton(
+                                        onPressed: _fetchAssetHistory,
+                                        style: ElevatedButton.styleFrom(
+                                          backgroundColor:
+                                              const Color(0xFF213268),
+                                          foregroundColor: Colors.white,
+                                          shape: RoundedRectangleBorder(
+                                            borderRadius:
+                                                BorderRadius.circular(8),
+                                          ),
+                                        ),
+                                        child: const Text('Coba Lagi'),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              )
+                            : histories.isEmpty
+                                ? Center(
+                                    child: Padding(
+                                      padding: const EdgeInsets.all(16.0),
+                                      child: Column(
+                                        mainAxisAlignment:
+                                            MainAxisAlignment.center,
+                                        children: [
+                                          Icon(
+                                            Icons.history,
+                                            color: Colors.grey[400],
+                                            size: 64,
+                                          ),
+                                          const SizedBox(height: 16),
+                                          const Text(
+                                            'Tidak ada riwayat',
+                                            style: TextStyle(
+                                              fontSize: 18,
+                                              fontWeight: FontWeight.w500,
+                                              color: Color(0xFF666666),
+                                            ),
+                                          ),
+                                          const SizedBox(height: 8),
+                                          const Text(
+                                            'Tidak ada aktivitas pada tanggal ini',
+                                            style: TextStyle(
+                                              fontSize: 14,
+                                              color: Color(0xFF999999),
+                                            ),
+                                            textAlign: TextAlign.center,
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  )
+                                : SmartRefresher(
+                                    enablePullDown: true,
+                                    controller: _refreshController,
+                                    onRefresh: _onRefresh,
+                                    header: const WaterDropHeader(
+                                      complete: Text(
+                                        'Berhasil diperbarui',
+                                        style:
+                                            TextStyle(color: Color(0xFF213268)),
+                                      ),
+                                      failed: Text(
+                                        'Gagal memperbarui',
+                                        style: TextStyle(color: Colors.red),
+                                      ),
+                                    ),
+                                    child: SingleChildScrollView(
+                                      child: Container(
+                                        padding: const EdgeInsets.only(
+                                            top: 30, bottom: 30),
+                                        child: Stack(
+                                          children: [
+                                            // Vertical Timeline Line - Berhenti di lingkaran terakhir
+                                            Builder(builder: (context) {
+                                              // Hitung tinggi total item
+                                              final double totalHeight =
+                                                  (histories.length - 1) *
+                                                      (69 + 20);
+
+                                              return Positioned(
+                                                left: 35,
+                                                top: 0,
+                                                height: totalHeight > 0
+                                                    ? totalHeight
+                                                    : 0,
+                                                width: 3,
+                                                child: Container(
+                                                  color:
+                                                      const Color(0xFFAAAAAA),
+                                                ),
+                                              );
+                                            }),
+
+                                            // Timeline Items
+                                            Column(
+                                              children: histories
+                                                  .map<Widget>((history) {
+                                                final actionType =
+                                                    history['action_type'] ??
+                                                        '';
+                                                final message =
+                                                    history['message'] ?? '';
+                                                final time = formatAPIDate(
+                                                    history['action_date'] ??
+                                                        '');
+
+                                                if (actionType ==
+                                                    'ASSET_STATUS_CHANGE') {
+                                                  final oldStatus =
+                                                      history['old_status'] ??
+                                                          '';
+                                                  final newStatus =
+                                                      history['new_status'] ??
+                                                          '';
+                                                  final employeeNumber = history[
+                                                              'user']?[
+                                                          'employee_number'] ??
+                                                      '';
+
+                                                  return Column(
+                                                    children: [
+                                                      _buildTimelineItem(
+                                                        actionType: actionType,
+                                                        message:
+                                                            '$employeeNumber mengubah status dari ',
+                                                        oldStatus:
+                                                            _translateStatus(
+                                                                oldStatus),
+                                                        connecting: ' ke ',
+                                                        newStatus:
+                                                            _translateStatus(
+                                                                newStatus),
+                                                        time: time,
+                                                      ),
+                                                      const SizedBox(
+                                                          height: 20),
+                                                    ],
+                                                  );
+                                                } else if (actionType ==
+                                                    'DOCUMENT_UPLOAD') {
+                                                  final documentTitle =
+                                                      history['document']
+                                                              ?['title'] ??
+                                                          '';
+                                                  final employeeNumber = history[
+                                                              'user']?[
+                                                          'employee_number'] ??
+                                                      '';
+
+                                                  return Column(
+                                                    children: [
+                                                      _buildDocumentTimelineItem(
+                                                        message: message
+                                                                .contains(
+                                                                    'uploaded')
+                                                            ? '$employeeNumber mengunggah dokumen $documentTitle'
+                                                            : message.contains(
+                                                                    'updated')
+                                                                ? '$employeeNumber memperbarui dokumen'
+                                                                : message,
+                                                        time: time,
+                                                      ),
+                                                      const SizedBox(
+                                                          height: 20),
+                                                    ],
+                                                  );
+                                                } else {
+                                                  return Column(
+                                                    children: [
+                                                      _buildSimpleTimelineItem(
+                                                        message: message,
+                                                        time: time,
+                                                      ),
+                                                      const SizedBox(
+                                                          height: 20),
+                                                    ],
+                                                  );
+                                                }
+                                              }).toList(),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                    ),
+                                  ),
                   ),
                 ),
               ],
@@ -410,20 +877,69 @@ class _AssetHistoryState extends State<AssetHistory> {
     );
   }
 
-  Widget _buildTimelineItem(
-      String text1, String status1, String text2, String status2) {
+  String _translateStatus(String status) {
+    switch (status.toLowerCase()) {
+      case 'available':
+      case 'returned':
+        return 'Tersedia';
+      case 'checked out':
+        return 'Dipinjam';
+      case 'under repair':
+        return 'Perbaikan';
+      case 'lost':
+        return 'Hilang';
+      case 'dispose':
+        return 'Dibuang';
+      default:
+        return status;
+    }
+  }
+
+  Widget _buildTimelineItem({
+    required String actionType,
+    required String message,
+    required String oldStatus,
+    required String connecting,
+    required String newStatus,
+    required String time,
+  }) {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 21),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Container(
-            width: 30,
-            height: 30,
-            decoration: const BoxDecoration(
-              color: Color(0xFF213268),
-              shape: BoxShape.circle,
-            ),
+          Column(
+            children: [
+              Container(
+                width: 30,
+                height: 30,
+                decoration: const BoxDecoration(
+                  color: Color(0xFF213268),
+                  shape: BoxShape.circle,
+                ),
+              ),
+              if (time.isNotEmpty)
+                Padding(
+                  padding: const EdgeInsets.only(top: 4),
+                  child: Container(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFF5F5F5),
+                      borderRadius: BorderRadius.circular(4),
+                      border: Border.all(color: const Color(0xFFEEEEEE)),
+                    ),
+                    child: Text(
+                      time,
+                      style: const TextStyle(
+                        fontFamily: 'Inter',
+                        fontSize: 10,
+                        color: Color(0xFF666666),
+                      ),
+                    ),
+                  ),
+                ),
+            ],
           ),
           const SizedBox(width: 13),
           Expanded(
@@ -448,21 +964,21 @@ class _AssetHistoryState extends State<AssetHistory> {
                     color: Colors.black,
                   ),
                   children: [
-                    TextSpan(text: text1),
+                    TextSpan(text: message),
                     TextSpan(
-                      text: status1,
+                      text: oldStatus,
                       style: TextStyle(
-                        color: status1 == 'Tersedia'
+                        color: oldStatus == 'Tersedia'
                             ? Colors.green
                             : Colors.orange,
                         fontWeight: FontWeight.bold,
                       ),
                     ),
-                    TextSpan(text: text2),
+                    TextSpan(text: connecting),
                     TextSpan(
-                      text: status2,
+                      text: newStatus,
                       style: TextStyle(
-                        color: status2 == 'Tersedia'
+                        color: newStatus == 'Tersedia'
                             ? Colors.green
                             : Colors.orange,
                         fontWeight: FontWeight.bold,
@@ -470,6 +986,222 @@ class _AssetHistoryState extends State<AssetHistory> {
                     ),
                   ],
                 ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildDocumentTimelineItem({
+    required String message,
+    required String time,
+  }) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 21),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Column(
+            children: [
+              Container(
+                width: 30,
+                height: 30,
+                decoration: const BoxDecoration(
+                  color: Color(0xFF213268),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(
+                  Icons.description,
+                  color: Colors.white,
+                  size: 18,
+                ),
+              ),
+              if (time.isNotEmpty)
+                Padding(
+                  padding: const EdgeInsets.only(top: 4),
+                  child: Container(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFF5F5F5),
+                      borderRadius: BorderRadius.circular(4),
+                      border: Border.all(color: const Color(0xFFEEEEEE)),
+                    ),
+                    child: Text(
+                      time,
+                      style: const TextStyle(
+                        fontFamily: 'Inter',
+                        fontSize: 10,
+                        color: Color(0xFF666666),
+                      ),
+                    ),
+                  ),
+                ),
+            ],
+          ),
+          const SizedBox(width: 13),
+          Expanded(
+            child: Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: const Color(0xFFE5E5E5),
+                borderRadius: BorderRadius.circular(5),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.25),
+                    blurRadius: 4,
+                    offset: const Offset(0, 4),
+                  ),
+                ],
+              ),
+              child: Text(
+                message,
+                style: const TextStyle(
+                  fontFamily: 'Inter',
+                  fontSize: 14,
+                  color: Colors.black,
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSimpleTimelineItem({
+    required String message,
+    required String time,
+  }) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 21),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Column(
+            children: [
+              Container(
+                width: 30,
+                height: 30,
+                decoration: const BoxDecoration(
+                  color: Color(0xFF213268),
+                  shape: BoxShape.circle,
+                ),
+              ),
+              if (time.isNotEmpty)
+                Padding(
+                  padding: const EdgeInsets.only(top: 4),
+                  child: Container(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFF5F5F5),
+                      borderRadius: BorderRadius.circular(4),
+                      border: Border.all(color: const Color(0xFFEEEEEE)),
+                    ),
+                    child: Text(
+                      time,
+                      style: const TextStyle(
+                        fontFamily: 'Inter',
+                        fontSize: 10,
+                        color: Color(0xFF666666),
+                      ),
+                    ),
+                  ),
+                ),
+            ],
+          ),
+          const SizedBox(width: 13),
+          Expanded(
+            child: Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: const Color(0xFFE5E5E5),
+                borderRadius: BorderRadius.circular(5),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.25),
+                    blurRadius: 4,
+                    offset: const Offset(0, 4),
+                  ),
+                ],
+              ),
+              child: Text(
+                message,
+                style: const TextStyle(
+                  fontFamily: 'Inter',
+                  fontSize: 14,
+                  color: Colors.black,
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSkeletonTimelineItem() {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 21),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Column(
+            children: [
+              Container(
+                width: 30,
+                height: 30,
+                decoration: const BoxDecoration(
+                  color: Color(0xFF213268),
+                  shape: BoxShape.circle,
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.only(top: 4),
+                child: Container(
+                  width: 30,
+                  height: 14,
+                  decoration: BoxDecoration(
+                    color: Colors.grey[300],
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(width: 13),
+          Expanded(
+            child: Container(
+              height: 80,
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: const Color(0xFFE5E5E5),
+                borderRadius: BorderRadius.circular(5),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Container(
+                    height: 16,
+                    width: double.infinity,
+                    decoration: BoxDecoration(
+                      color: Colors.grey[300],
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Container(
+                    height: 16,
+                    width: 200,
+                    decoration: BoxDecoration(
+                      color: Colors.grey[300],
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                  ),
+                ],
               ),
             ),
           ),

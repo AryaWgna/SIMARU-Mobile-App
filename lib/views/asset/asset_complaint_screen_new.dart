@@ -6,17 +6,16 @@ import 'package:http_parser/http_parser.dart';
 import 'dart:convert';
 import '../../core/config/api_config.dart';
 import '../../services/socket_service.dart';
-import 'package:dotted_border/dotted_border.dart';
 
 class AssetComplaintScreen extends StatefulWidget {
   final Map<String, dynamic>? assetData;
   final String assetCode;
 
   const AssetComplaintScreen({
-    Key? key,
+    super.key,
     required this.assetData,
     required this.assetCode,
-  }) : super(key: key);
+  });
 
   @override
   State<AssetComplaintScreen> createState() => _AssetComplaintScreenState();
@@ -302,7 +301,7 @@ class _AssetComplaintScreenState extends State<AssetComplaintScreen> {
 
       // Cek response code dan status
       if (response.statusCode == 201 || response.statusCode == 200) {
-        if (jsonResponse['status'] == true) {
+        if (jsonResponse['success'] == true) {
           if (mounted) {
             // Menampilkan pesan sukses dan kembali ke halaman sebelumnya
             ScaffoldMessenger.of(context).showSnackBar(
@@ -467,15 +466,15 @@ class _AssetComplaintScreenState extends State<AssetComplaintScreen> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Row(
+                          const Row(
                             children: [
-                              const Icon(
+                              Icon(
                                 Icons.info_outline,
                                 color: Color(0xFF213268),
                                 size: 18,
                               ),
-                              const SizedBox(width: 8),
-                              const Text(
+                              SizedBox(width: 8),
+                              Text(
                                 'Informasi Aset',
                                 style: TextStyle(
                                   fontFamily: 'Inter',

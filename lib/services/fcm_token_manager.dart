@@ -4,7 +4,7 @@ import 'package:http/http.dart' as http;
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
 class FcmTokenManager {
-  static final FlutterSecureStorage _storage = FlutterSecureStorage();
+  static const FlutterSecureStorage _storage = FlutterSecureStorage();
   static const String _fcmTokenKey = 'fcm_token';
   static const String _apiEndpoint =
       'http://192.168.43.221:5000/notifications/fcm-token'; // Ganti dengan API endpoint Anda

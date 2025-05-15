@@ -90,7 +90,7 @@ class NetAssetValueController extends ChangeNotifier {
 
       if (response.statusCode == 200) {
         final jsonResponse = json.decode(response.body);
-        if (jsonResponse['status'] == true) {
+        if (jsonResponse['success'] == true) {
           _netAssetValue = NetAssetModel.fromJson(jsonResponse['data']);
           print('Loaded net asset value: $_netAssetValue');
           print(

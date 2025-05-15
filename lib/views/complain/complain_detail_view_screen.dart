@@ -9,9 +9,9 @@ class ComplainDetailViewScreen extends StatefulWidget {
   final String id;
 
   const ComplainDetailViewScreen({
-    Key? key,
+    super.key,
     required this.id,
-  }) : super(key: key);
+  });
 
   @override
   State<ComplainDetailViewScreen> createState() =>
@@ -41,7 +41,7 @@ class _ComplainDetailViewScreenState extends State<ComplainDetailViewScreen> {
 
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
-        if (data['status'] == true) {
+        if (data['success'] == true) {
           setState(() {
             complaintDetail = data['data'];
             isLoading = false;
@@ -74,7 +74,7 @@ class _ComplainDetailViewScreenState extends State<ComplainDetailViewScreen> {
       appBar: AppBar(
         backgroundColor: const Color(0xFF213268),
         elevation: 0,
-        title: Text('Detail Keluhan', style: TextStyle(color: Colors.white)),
+        title: const Text('Detail Keluhan', style: TextStyle(color: Colors.white)),
         leading: IconButton(
           icon: const Icon(Icons.arrow_back, color: Colors.white),
           onPressed: () => Navigator.pop(context),

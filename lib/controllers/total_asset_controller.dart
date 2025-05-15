@@ -116,9 +116,12 @@ class TotalAssetController extends ChangeNotifier {
         '/dashboard/summary',
       );
 
+      print('Dashboard API response status code: ${response.statusCode}');
+      print('Dashboard API response body: ${response.body}');
+
       if (response.statusCode == 200) {
         final jsonResponse = json.decode(response.body);
-        if (jsonResponse['status'] == true) {
+        if (jsonResponse['success'] == true) {
           _dashboardSummary =
               DashboardSummaryModel.fromJson(jsonResponse['data']);
           print(

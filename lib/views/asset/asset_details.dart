@@ -8,7 +8,8 @@ import 'checkout.dart';
 import 'checkin.dart';
 import '../dashboard/dashboard.dart';
 import '../../core/config/api_config.dart';
-import 'package:dotted_border/dotted_border.dart';
+import 'dart:convert';
+import '../../controllers/auth_controller.dart' as auth;
 
 class AssetDetails extends StatefulWidget {
   final String qrData;
@@ -26,6 +27,11 @@ class AssetDetails extends StatefulWidget {
 }
 
 class _AssetDetailsState extends State<AssetDetails> {
+  Map<String, dynamic>? masterAssetData;
+  bool isLoadingMasterData = false;
+  bool hasMasterDataError = false;
+  String masterDataErrorMessage = '';
+
   @override
   void initState() {
     super.initState();
@@ -33,6 +39,157 @@ class _AssetDetailsState extends State<AssetDetails> {
     print('[ASSET_DETAILS] Widget dimuat dengan data: ${widget.assetData}');
     print('[ASSET_DETAILS] QR Data: ${widget.qrData}');
     print('[ASSET_DETAILS] Previous screen: ${widget.previousScreen}');
+
+    // Ambil master asset data jika ada asset_master_id
+    if (widget.assetData != null) {
+      int? assetMasterId = widget.assetData!['asset_master_id'] ??
+          widget.assetData!['asset_master']?['asset_master_id'];
+
+      if (assetMasterId != null) {
+        _fetchMasterAssetData(assetMasterId);
+      } else {
+        // Jika tidak ada asset_master_id, coba ambil dengan kode aset
+        final String assetCode =
+            widget.assetData!['asset_code'] ?? widget.qrData;
+        _fetchMasterAssetDataByCode(assetCode);
+      }
+    }
+  }
+
+  Future<void> _fetchMasterAssetData(int assetMasterId) async {
+    setState(() {
+      isLoadingMasterData = true;
+      hasMasterDataError = false;
+    });
+
+    try {
+      print(
+          '[ASSET_DETAILS] Mengambil data master aset dengan ID: $assetMasterId');
+      final endpoint = '/asset-masters/$assetMasterId';
+
+      final response = await auth.ApiService.get(endpoint, context: context);
+
+      if (response.statusCode == 200) {
+        final responseData = jsonDecode(response.body);
+        print('[ASSET_DETAILS] Response data master aset: $responseData');
+
+        if (responseData['success'] == true && responseData['data'] != null) {
+          setState(() {
+            masterAssetData = responseData['data'];
+            isLoadingMasterData = false;
+          });
+        } else {
+          setState(() {
+            hasMasterDataError = true;
+            masterDataErrorMessage =
+                responseData['message'] ?? 'Gagal mengambil data master aset';
+            isLoadingMasterData = false;
+          });
+        }
+      } else {
+        setState(() {
+          hasMasterDataError = true;
+          masterDataErrorMessage =
+              'Error ${response.statusCode}: Gagal mengambil data master aset';
+          isLoadingMasterData = false;
+        });
+      }
+    } catch (e) {
+      setState(() {
+        hasMasterDataError = true;
+        masterDataErrorMessage = 'Error: $e';
+        isLoadingMasterData = false;
+      });
+      print('[ASSET_DETAILS] Error saat mengambil data master aset: $e');
+    }
+  }
+
+  Future<void> _fetchMasterAssetDataByCode(String assetCode) async {
+    setState(() {
+      isLoadingMasterData = true;
+      hasMasterDataError = false;
+    });
+
+    try {
+      print(
+          '[ASSET_DETAILS] Mencari data master aset dengan kode aset: $assetCode');
+
+      // Coba cari master aset dengan kode aset yang ada
+      if (assetCode.contains('-')) {
+        // Format NMED-ITEQ-250422-0002-01, kode master aset adalah bagian tanpa digit terakhir (01)
+        final parts = assetCode.split('-');
+        if (parts.length >= 4) {
+          // Ambil semua bagian kecuali yang terakhir
+          final masterCode = parts.sublist(0, parts.length - 1).join('-');
+          print('[ASSET_DETAILS] Menggunakan master code: $masterCode');
+
+          // Gunakan endpoint baru sesuai dokumentasi API
+          final endpoint = '/assets/code/${Uri.encodeComponent(masterCode)}';
+          final response =
+              await auth.ApiService.get(endpoint, context: context);
+
+          if (response.statusCode == 200) {
+            final responseData = jsonDecode(response.body);
+
+            if (responseData['success'] == true &&
+                responseData['data'] != null) {
+              setState(() {
+                // Ambil data master dari respons
+                if (responseData['data']['asset_master'] != null) {
+                  masterAssetData = responseData['data']['asset_master'];
+                } else {
+                  masterAssetData = responseData['data'];
+                }
+                isLoadingMasterData = false;
+              });
+              return;
+            }
+          }
+        }
+      }
+
+      // Jika pendekatan di atas gagal, coba endpoint by-asset-code
+      final searchEndpoint = '/assets/qr/${Uri.encodeComponent(assetCode)}';
+      final searchResponse =
+          await auth.ApiService.get(searchEndpoint, context: context);
+
+      if (searchResponse.statusCode == 200) {
+        final responseData = jsonDecode(searchResponse.body);
+
+        if (responseData['success'] == true && responseData['data'] != null) {
+          setState(() {
+            // Ambil data master dari respons
+            if (responseData['data']['asset_master'] != null) {
+              masterAssetData = responseData['data']['asset_master'];
+            } else {
+              masterAssetData = responseData['data'];
+            }
+            isLoadingMasterData = false;
+          });
+        } else {
+          setState(() {
+            hasMasterDataError = true;
+            masterDataErrorMessage = 'Tidak dapat menemukan data master aset';
+            isLoadingMasterData = false;
+          });
+        }
+      } else {
+        setState(() {
+          hasMasterDataError = true;
+          masterDataErrorMessage =
+              'Error ${searchResponse.statusCode}: Gagal mengambil data master aset';
+          isLoadingMasterData = false;
+        });
+      }
+    } catch (e) {
+      setState(() {
+        hasMasterDataError = true;
+        masterDataErrorMessage = 'Error: $e';
+        isLoadingMasterData = false;
+      });
+      print(
+          '[ASSET_DETAILS] Error saat mengambil data master aset dengan kode: $e');
+    }
   }
 
   @override
@@ -47,6 +204,7 @@ class _AssetDetailsState extends State<AssetDetails> {
 
     final assetCode = assetData['asset_code'] ?? widget.qrData;
     final assetName = assetData['asset_name'] ?? 'Tidak diketahui';
+    final assetMasterCode = assetData['asset_master_code'] ?? '-';
 
     // Perbaikan untuk current_status - agar sesuai dengan database
     // Gunakan nilai dari database atau 'available' sebagai default yang aman
@@ -63,15 +221,31 @@ class _AssetDetailsState extends State<AssetDetails> {
     final condition = formatText(conditionRaw);
 
     final warrantyDate = assetData['warranty_end_date'] ?? '-';
+    final serialNumber = assetData['serial_number'] ?? '-';
+    final purchasePrice = assetData['purchase_price'] != null
+        ? formatCurrency(assetData['purchase_price'])
+        : '-';
+    final purchaseDate = assetData['purchase_date'] != null
+        ? formatDate(assetData['purchase_date'])
+        : '-';
+    final disposalDate = assetData['disposal_date'] != null
+        ? formatDate(assetData['disposal_date'])
+        : '-';
+    final userInCharge = assetData['responsible_user'] != null
+        ? 'User ID: ${assetData['responsible_user']['user_id'] ?? '-'}'
+        : '-';
 
     // Kategori dan subcategori
-    final category = assetData['subcategory']?['subcategory_name'] ?? '-';
+    final subCategory = assetData['subcategory']?['subcategory_name'] ?? '-';
 
     // Hanya Asset Type yang diformat rapi
     final assetTypeRaw = assetData['subcategory']?['asset_type'] ?? '-';
     final assetType = formatText(assetTypeRaw);
 
     final locationName = assetData['room']?['room_name'] ?? '-';
+    final buildingName =
+        assetData['room']?['building']?['building_name'] ?? '-';
+    final description = assetData['description'] ?? '-';
 
     // Mengambil jalur gambar dan membangun URL lengkap
     final imagePath = assetData['picture_path'];
@@ -208,182 +382,342 @@ class _AssetDetailsState extends State<AssetDetails> {
                         ],
                       ),
                     ),
+                  ],
+                ),
+              ),
 
-                    // Action Buttons
-                    assetStatus.toLowerCase() != 'lost' &&
-                            assetStatus.toLowerCase() != 'dispose' &&
-                            assetStatus.toLowerCase() != 'under repair'
-                        ? Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                            children: [
-                              // Tampilkan tombol Pinjam/Kembali berdasarkan status aset
-                              _buildActionButton(
-                                // Ganti icon berdasarkan status (pinjam/kembali)
-                                icon: assetStatus.toLowerCase() == 'check out'
-                                    ? Icons.login
-                                    : Icons.logout,
-                                // Ganti label berdasarkan status
-                                label: assetStatus.toLowerCase() == 'check out'
-                                    ? 'Kembali'
-                                    : 'Pinjam',
-                                onTap: () async {
-                                  // Logic berbeda berdasarkan status aset
-                                  if (assetStatus.toLowerCase() ==
-                                      'check out') {
-                                    // Jika status "check out", arahkan ke halaman CheckInScreen
-                                    final result = await Navigator.push(
-                                      context,
-                                      MaterialPageRoute(
-                                          builder: (context) => CheckInScreen(
-                                              assetData: assetData)),
-                                    );
+              // Action Buttons jika diperlukan
+              if (assetStatus.toLowerCase() != 'lost' &&
+                  assetStatus.toLowerCase() != 'dispose' &&
+                  assetStatus.toLowerCase() != 'under repair')
+                Container(
+                  padding: const EdgeInsets.symmetric(vertical: 20),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                    children: [
+                      _buildActionButton(
+                        icon: assetStatus.toLowerCase() == 'check out'
+                            ? Icons.login
+                            : Icons.logout,
+                        label: assetStatus.toLowerCase() == 'check out'
+                            ? 'Kembali'
+                            : 'Pinjam',
+                        onTap: () async {
+                          if (assetStatus.toLowerCase() == 'check out') {
+                            final result = await Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                  builder: (context) =>
+                                      CheckInScreen(assetData: assetData)),
+                            );
+                            if (result != null &&
+                                result is Map<String, dynamic>) {
+                              setState(() {
+                                widget.assetData?.addAll(result);
+                              });
+                            }
+                          } else {
+                            final result = await Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                  builder: (context) =>
+                                      CheckoutScreen(assetData: assetData)),
+                            );
+                            if (result != null &&
+                                result is Map<String, dynamic>) {
+                              setState(() {
+                                widget.assetData?.addAll(result);
+                              });
+                            }
+                          }
+                        },
+                      ),
+                      _buildActionButton(
+                        icon: Icons.report_problem_outlined,
+                        label: 'Komplain',
+                        onTap: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                                builder: (context) => AssetComplaintScreen(
+                                      assetData: assetData,
+                                      assetCode: assetCode,
+                                    )),
+                          );
+                        },
+                      ),
+                      _buildActionButton(
+                        icon: Icons.help_outline,
+                        label: 'Hilang',
+                        onTap: () async {
+                          final result = await Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                                builder: (context) =>
+                                    LostScreen(assetData: assetData)),
+                          );
+                          if (result != null &&
+                              result is Map<String, dynamic>) {
+                            setState(() {
+                              widget.assetData?.addAll(result);
+                            });
+                          }
+                        },
+                      ),
+                    ],
+                  ),
+                )
+              else
+                Container(
+                  padding:
+                      const EdgeInsets.symmetric(vertical: 16, horizontal: 24),
+                  margin:
+                      const EdgeInsets.symmetric(horizontal: 20, vertical: 20),
+                  decoration: BoxDecoration(
+                    color: _getStatusBackgroundColor(assetStatus),
+                    borderRadius: BorderRadius.circular(8),
+                    border:
+                        Border.all(color: _getStatusBorderColor(assetStatus)),
+                  ),
+                  child: Column(
+                    children: [
+                      Icon(
+                        _getStatusIcon(assetStatus),
+                        color: _getStatusColor(assetStatus),
+                        size: 32,
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        _getStatusUnavailableMessage(assetStatus),
+                        style: TextStyle(
+                          color: _getStatusColor(assetStatus),
+                          fontWeight: FontWeight.bold,
+                          fontSize: 16,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        'Tidak dapat melakukan tindakan pada aset ini',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          color: _getStatusColor(assetStatus),
+                          fontSize: 14,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
 
-                                    // Perbarui data jika ada hasil dari CheckInScreen
-                                    if (result != null &&
-                                        result is Map<String, dynamic>) {
-                                      setState(() {
-                                        // Update data aset dengan data yang baru
-                                        widget.assetData?.addAll(result);
-                                      });
-                                    }
-                                  } else {
-                                    // Jika status bukan "check out", arahkan ke halaman CheckoutScreen
-                                    final result = await Navigator.push(
-                                      context,
-                                      MaterialPageRoute(
-                                          builder: (context) => CheckoutScreen(
-                                              assetData: assetData)),
-                                    );
-
-                                    // Perbarui data jika ada hasil dari CheckoutScreen
-                                    if (result != null &&
-                                        result is Map<String, dynamic>) {
-                                      setState(() {
-                                        // Update data aset dengan data yang baru
-                                        widget.assetData?.addAll(result);
-                                      });
-                                    }
-                                  }
-                                },
-                              ),
-                              _buildActionButton(
-                                icon: Icons.report_problem_outlined,
-                                label: 'Komplain',
-                                onTap: () {
-                                  // Ambil asset_id dari data asset
-                                  final String assetId =
-                                      assetData['asset_id']?.toString() ?? '';
-
-                                  Navigator.push(
-                                    context,
-                                    MaterialPageRoute(
-                                        builder: (context) =>
-                                            AssetComplaintScreen(
-                                              assetData: assetData,
-                                              assetCode: assetCode,
-                                            )),
-                                  );
-                                },
-                              ),
-                              _buildActionButton(
-                                icon: Icons.help_outline,
-                                label: 'Hilang',
-                                onTap: () async {
-                                  final result = await Navigator.push(
-                                    context,
-                                    MaterialPageRoute(
-                                        builder: (context) =>
-                                            LostScreen(assetData: assetData)),
-                                  );
-
-                                  // Perbarui data jika ada hasil dari LostScreen
-                                  if (result != null &&
-                                      result is Map<String, dynamic>) {
-                                    setState(() {
-                                      // Update data aset dengan data yang baru
-                                      widget.assetData?.addAll(result);
-                                    });
-                                  }
-                                },
-                              ),
-                            ],
-                          )
-                        : Container(
-                            padding: const EdgeInsets.symmetric(
-                                vertical: 16, horizontal: 24),
-                            margin: const EdgeInsets.symmetric(horizontal: 20),
-                            decoration: BoxDecoration(
-                              color: _getStatusBackgroundColor(assetStatus),
-                              borderRadius: BorderRadius.circular(8),
-                              border: Border.all(
-                                  color: _getStatusBorderColor(assetStatus)),
-                            ),
-                            child: Column(
-                              children: [
-                                Icon(
-                                  _getStatusIcon(assetStatus),
-                                  color: _getStatusColor(assetStatus),
-                                  size: 32,
-                                ),
-                                const SizedBox(height: 8),
-                                Text(
-                                  _getStatusUnavailableMessage(assetStatus),
-                                  style: TextStyle(
-                                    color: _getStatusColor(assetStatus),
-                                    fontWeight: FontWeight.bold,
-                                    fontSize: 16,
-                                  ),
-                                ),
-                                const SizedBox(height: 4),
-                                Text(
-                                  'Tidak dapat melakukan tindakan pada aset ini',
-                                  textAlign: TextAlign.center,
-                                  style: TextStyle(
-                                    color: _getStatusColor(assetStatus),
-                                    fontSize: 14,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-
-                    const SizedBox(height: 20),
-
-                    // Asset Information Title
-                    Container(
-                      margin: const EdgeInsets.only(bottom: 12),
-                      alignment: Alignment.centerLeft,
-                      child: const Text(
-                        'Informasi Aset',
+              // Informasi Master Asset
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                width: double.infinity,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // Judul Informasi Master Asset
+                    const Padding(
+                      padding: EdgeInsets.only(bottom: 12),
+                      child: Text(
+                        'Informasi Master Asset',
                         style: TextStyle(
                           fontFamily: 'Inter',
                           fontSize: 18,
-                          fontWeight: FontWeight.w500,
+                          fontWeight: FontWeight.w600,
                           color: Color(0xFF213268),
                         ),
                       ),
                     ),
 
-                    // Asset Information Table with swapped fields
-                    Table(
-                      columnWidths: const {
-                        0: FlexColumnWidth(1.2),
-                        1: FlexColumnWidth(2.5),
-                      },
-                      border: TableBorder.all(
-                        color: const Color(0xFFEEF1F4),
-                        width: 1,
+                    // Loading indicator atau error message jika diperlukan
+                    if (isLoadingMasterData)
+                      const Center(
+                        child: Padding(
+                          padding: EdgeInsets.all(16.0),
+                          child: CircularProgressIndicator(
+                            color: Color(0xFF213268),
+                          ),
+                        ),
+                      )
+                    else if (hasMasterDataError)
+                      GestureDetector(
+                        onTap: () {
+                          final String assetCode =
+                              widget.assetData?['asset_code'] ?? widget.qrData;
+                          int? assetMasterId =
+                              widget.assetData?['asset_master_id'] ??
+                                  widget.assetData?['asset_master']
+                                      ?['asset_master_id'];
+
+                          if (assetMasterId != null) {
+                            _fetchMasterAssetData(assetMasterId);
+                          } else {
+                            _fetchMasterAssetDataByCode(assetCode);
+                          }
+                        },
+                        child: Center(
+                          child: Padding(
+                            padding: const EdgeInsets.all(16.0),
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Text(
+                                  'Gagal memuat data: $masterDataErrorMessage',
+                                  style: const TextStyle(color: Colors.red),
+                                  textAlign: TextAlign.center,
+                                ),
+                                const SizedBox(height: 8),
+                                const Icon(
+                                  Icons.refresh,
+                                  color: Color(0xFF213268),
+                                ),
+                                const Text(
+                                  'Tap untuk coba lagi',
+                                  style: TextStyle(
+                                    color: Color(0xFF213268),
+                                    fontSize: 12,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      )
+                    else
+                      // Tabel Informasi Master Asset
+                      Table(
+                        columnWidths: const {
+                          0: FlexColumnWidth(1.2),
+                          1: FlexColumnWidth(2.0),
+                        },
+                        border: TableBorder.all(
+                          color: const Color(0xFFEEF1F4),
+                          width: 1,
+                        ),
+                        children: [
+                          _buildTableRow(
+                              'Asset Master Code',
+                              masterAssetData?['asset_master_code'] ??
+                                  assetData['asset_master']
+                                      ?['asset_master_code'] ??
+                                  assetData['asset_master_code'] ??
+                                  '-'),
+                          _buildTableRow(
+                              'Nama Master Asset',
+                              masterAssetData?['asset_name'] ??
+                                  assetData['asset_master']?['asset_name'] ??
+                                  assetData['asset_master_name'] ??
+                                  assetName),
+                          _buildTableRow(
+                              'Tipe Asset',
+                              formatText(masterAssetData?['asset_type'] ??
+                                  assetData['asset_master']?['asset_type'] ??
+                                  assetData['subcategory']?['asset_type'] ??
+                                  assetTypeRaw)),
+                          _buildTableRow(
+                              'Sub Kategori',
+                              masterAssetData?['subcategory_name'] ??
+                                  assetData['asset_master']
+                                      ?['subcategory_name'] ??
+                                  assetData['subcategory']
+                                      ?['subcategory_name'] ??
+                                  subCategory),
+                          _buildTableRow(
+                              'Merek',
+                              masterAssetData?['brand_name'] ??
+                                  assetData['asset_master']?['brand']
+                                      ?['brand_name'] ??
+                                  assetData['brand']?['brand_name'] ??
+                                  brand),
+                          _buildTableRow(
+                              'Perlu Kalibrasi',
+                              formatBoolean(
+                                  masterAssetData?['needs_calibration'] ??
+                                      assetData['asset_master']
+                                          ?['needs_calibration'] ??
+                                      false)),
+                          _buildTableRow(
+                              'Dapat Didepresiasi',
+                              formatBoolean(
+                                  masterAssetData?['is_depreciable'] ??
+                                      assetData['asset_master']
+                                          ?['is_depreciable'] ??
+                                      false)),
+                          _buildTableRow(
+                              'Deskripsi',
+                              masterAssetData?['description'] ??
+                                  assetData['asset_master']?['description'] ??
+                                  description),
+                        ],
                       ),
+
+                    const SizedBox(height: 24),
+
+                    // Judul Informasi Asset
+                    const Padding(
+                      padding: EdgeInsets.only(bottom: 12),
+                      child: Text(
+                        'Informasi Asset',
+                        style: TextStyle(
+                          fontFamily: 'Inter',
+                          fontSize: 18,
+                          fontWeight: FontWeight.w600,
+                          color: Color(0xFF213268),
+                        ),
+                      ),
+                    ),
+
+                    // Tabel Informasi Asset dengan 2 kolom
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        _buildTableRow('Kategori', category),
-                        _buildTableRow('Tipe Aset', assetType),
-                        _buildTableRow('Lokasi', locationName),
-                        _buildTableRow('Merek', brand),
-                        _buildTableRow('Tanggal Garansi', warrantyDate),
-                        _buildTableRow('Kondisi', condition),
-                        _buildTableRow('Nomor Model', modelNumber),
+                        // Kolom kiri
+                        Expanded(
+                          child: Table(
+                            columnWidths: const {
+                              0: FlexColumnWidth(1.2),
+                              1: FlexColumnWidth(1.2),
+                            },
+                            border: TableBorder.all(
+                              color: const Color(0xFFEEF1F4),
+                              width: 1,
+                            ),
+                            children: [
+                              _buildTableRow('Ruangan', locationName),
+                              _buildTableRow('Gedung', buildingName),
+                              _buildTableRow('Kondisi', condition),
+                              _buildTableRow(
+                                  'Tanggal Berakhir Garansi', warrantyDate),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        // Kolom kanan
+                        Expanded(
+                          child: Table(
+                            columnWidths: const {
+                              0: FlexColumnWidth(1.5),
+                              1: FlexColumnWidth(1.2),
+                            },
+                            border: TableBorder.all(
+                              color: const Color(0xFFEEF1F4),
+                              width: 1,
+                            ),
+                            children: [
+                              _buildTableRow('Nomor Seri', serialNumber),
+                              _buildTableRow(
+                                  'Karyawan Penanggung Jawab', userInCharge),
+                              _buildTableRow('Harga Beli', purchasePrice),
+                              _buildTableRow('Tanggal Beli', purchaseDate),
+                              _buildTableRow(
+                                  'Tanggal Dimusnahkan', disposalDate),
+                            ],
+                          ),
+                        ),
                       ],
                     ),
+
+                    const SizedBox(height: 24),
                   ],
                 ),
               ),
@@ -531,39 +865,19 @@ class _AssetDetailsState extends State<AssetDetails> {
             ),
           ),
 
-          // AppBar Content dengan logo di tengah dan tombol back di kiri
+          // AppBar Content dengan logo di tengah tanpa tombol back
           Positioned(
             top: statusBarHeight,
             left: 0,
             right: 0,
             height: 82,
-            child: Row(
-              children: [
-                // Tombol kembali
-                IconButton(
-                  icon: const Icon(
-                    Icons.arrow_back,
-                    color: Colors.white,
-                    size: 24,
-                  ),
-                  onPressed: () {
-                    _navigateBack();
-                  },
-                ),
-                // Logo di tengah
-                Expanded(
-                  child: Center(
-                    child: Image.asset(
-                      'images/Logo_RS_UMMI_white.png',
-                      width: 208.14,
-                      height: 55,
-                      fit: BoxFit.contain,
-                    ),
-                  ),
-                ),
-                // Ruang untuk simetri dengan tombol back
-                const SizedBox(width: 48),
-              ],
+            child: Center(
+              child: Image.asset(
+                'images/Logo_RS_UMMI_white.png',
+                width: 208.14,
+                height: 55,
+                fit: BoxFit.contain,
+              ),
             ),
           ),
         ],
@@ -812,5 +1126,32 @@ class _AssetDetailsState extends State<AssetDetails> {
       default:
         return Colors.grey.shade300;
     }
+  }
+
+  // Format mata uang
+  String formatCurrency(dynamic value) {
+    if (value == null) return '-';
+    try {
+      double numValue = double.parse(value.toString());
+      return numValue.toStringAsFixed(2).replaceAllMapped(
+          RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (Match m) => '${m[1]},');
+    } catch (e) {
+      return value.toString();
+    }
+  }
+
+  // Format tanggal
+  String formatDate(String date) {
+    try {
+      final DateTime parsedDate = DateTime.parse(date);
+      return '${parsedDate.year}-${parsedDate.month.toString().padLeft(2, '0')}-${parsedDate.day.toString().padLeft(2, '0')}';
+    } catch (e) {
+      return date;
+    }
+  }
+
+  // Helper function untuk format boolean values
+  String formatBoolean(bool value) {
+    return value ? 'Ya' : 'Tidak';
   }
 }

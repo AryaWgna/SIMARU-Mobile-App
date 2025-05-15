@@ -12,6 +12,7 @@ class RecentActivityController extends ChangeNotifier {
   int _currentPage = 1;
   bool _hasMoreData = true;
   final int _limit = 10;
+  bool _isSuccess = false;
 
   List<HistoryModel> get activities => _activities;
   Map<String, List<HistoryModel>> get activitiesByMonth => _activitiesByMonth;
@@ -19,6 +20,7 @@ class RecentActivityController extends ChangeNotifier {
   bool get isLoading => _isLoading;
   String? get error => _error;
   bool get hasMoreData => _hasMoreData;
+  bool get isSuccess => _isSuccess;
 
   Future<void> loadRecentActivities({bool refresh = true}) async {
     if (refresh) {
@@ -30,16 +32,20 @@ class RecentActivityController extends ChangeNotifier {
 
     try {
       _isLoading = true;
-      if (refresh) _error = null;
+      _error = null;
+      _isSuccess = false;
       notifyListeners();
 
       final response = await ApiService.get(
         '/asset-histories/activities/user/1?limit=$_limit&page=$_currentPage',
       );
 
+      print('Activity API response status code: ${response.statusCode}');
+      print('Activity API response body: ${response.body}');
+
       if (response.statusCode == 200) {
         final jsonResponse = json.decode(response.body);
-        if (jsonResponse['status'] == true) {
+        if (jsonResponse['success'] == true) {
           final dataSection = jsonResponse['data'];
 
           if (dataSection == null) {
@@ -56,6 +62,7 @@ class RecentActivityController extends ChangeNotifier {
               _activitiesByMonth = {};
             }
             _hasMoreData = false;
+            _isSuccess = true;
             _isLoading = false;
             notifyListeners();
             return;
@@ -84,6 +91,7 @@ class RecentActivityController extends ChangeNotifier {
 
           // Group activities by month
           _groupActivitiesByMonth();
+          _isSuccess = true;
         } else {
           _error = jsonResponse['message'] ?? 'Failed to load activities';
         }
@@ -114,7 +122,7 @@ class RecentActivityController extends ChangeNotifier {
       if (response.statusCode == 200) {
         final jsonResponse = json.decode(response.body);
 
-        if (jsonResponse['status'] == true) {
+        if (jsonResponse['success'] == true) {
           final dataSection = jsonResponse['data'];
 
           if (dataSection == null) {
@@ -214,7 +222,7 @@ class RecentActivityController extends ChangeNotifier {
   List<HistoryModel> getTodayActivities() {
     final now = DateTime.now();
     final today = DateTime(now.year, now.month, now.day);
-    
+
     return _activities.where((activity) {
       final activityDate = DateTime(
         activity.actionDate.year,

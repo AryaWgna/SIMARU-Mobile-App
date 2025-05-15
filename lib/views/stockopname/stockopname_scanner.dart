@@ -1,13 +1,10 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
-import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:qr_code_scanner/qr_code_scanner.dart';
-import 'package:provider/provider.dart';
 import 'dart:convert';
 import '../../controllers/auth_controller.dart' as auth;
 import 'package:google_fonts/google_fonts.dart';
 import 'scan_result_screen.dart';
-import 'package:flutter/rendering.dart' as ui;
 
 class StockopnameScanner extends StatefulWidget {
   final String previousScreen;
@@ -18,14 +15,14 @@ class StockopnameScanner extends StatefulWidget {
   final String opnameCode;
 
   const StockopnameScanner({
-    Key? key,
+    super.key,
     required this.roomId,
     required this.roomName,
     required this.totalAssets,
     required this.opnameId,
     required this.opnameCode,
     this.previousScreen = 'stockopname',
-  }) : super(key: key);
+  });
 
   @override
   State<StockopnameScanner> createState() => _StockopnameScannerState();
@@ -40,7 +37,7 @@ class ScannerLinePainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     // Hitung ukuran dan posisi scanner
-    final double scannerSize = 250;
+    const double scannerSize = 250;
     final double scannerLeft = (size.width - scannerSize) / 2;
     final double scannerTop = (size.height - scannerSize) / 2;
 
@@ -145,9 +142,13 @@ class _StockopnameScannerState extends State<StockopnameScanner>
     try {
       final assetCode = qrCode.trim();
 
-      // Validasi format QR
-      bool isValidFormat =
-          assetCode.startsWith('ANMD-') || RegExp(r'^\d+$').hasMatch(assetCode);
+      // Validasi format QR yang lebih longgar
+      // bool isValidFormat =
+      //     assetCode.startsWith('ANMD-') || RegExp(r'^\d+$').hasMatch(assetCode);
+
+      // Hanya memvalidasi bahwa kode tidak kosong, untuk memudahkan pengujian
+      bool isValidFormat = assetCode.isNotEmpty;
+
       if (!isValidFormat) {
         _showError('Format kode QR tidak valid');
         setState(() {
@@ -155,6 +156,9 @@ class _StockopnameScannerState extends State<StockopnameScanner>
         });
         return;
       }
+
+      // Tambahkan log untuk debugging
+      print('QR Code dipindai: $assetCode');
 
       // Cek apakah asset sudah di-scan sebelumnya
       if (scannedAssetCodes.contains(assetCode)) {
@@ -176,10 +180,12 @@ class _StockopnameScannerState extends State<StockopnameScanner>
         context: context,
       );
 
+      print('API response: ${response.statusCode} - ${response.body}');
+
       if (response.statusCode == 200 || response.statusCode == 201) {
         final data = jsonDecode(response.body);
 
-        if (data['status'] == true) {
+        if (data['success'] == true) {
           // Tambahkan ke daftar asset yang sudah di-scan
           setState(() {
             scannedAssetCodes.add(assetCode);
@@ -210,6 +216,7 @@ class _StockopnameScannerState extends State<StockopnameScanner>
       }
     } catch (e) {
       _showError('Error: $e');
+      print('Error saat memproses QR: $e');
     } finally {
       setState(() {
         isProcessing = false;
@@ -253,7 +260,7 @@ class _StockopnameScannerState extends State<StockopnameScanner>
       if (response.statusCode == 200 || response.statusCode == 201) {
         final data = jsonDecode(response.body);
 
-        if (data['status'] == true) {
+        if (data['success'] == true) {
           if (mounted) {
             // Navigate to scan result screen
             Navigator.pushReplacement(
@@ -516,7 +523,7 @@ class _StockopnameScannerState extends State<StockopnameScanner>
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    CircularProgressIndicator(
+                    const CircularProgressIndicator(
                       valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
                     ),
                     const SizedBox(height: 16),

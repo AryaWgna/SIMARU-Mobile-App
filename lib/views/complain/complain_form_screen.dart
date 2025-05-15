@@ -8,7 +8,7 @@ import 'package:http/http.dart' as http;
 import 'dart:convert';
 
 class ComplainFormScreen extends StatefulWidget {
-  const ComplainFormScreen({Key? key}) : super(key: key);
+  const ComplainFormScreen({super.key});
 
   @override
   State<ComplainFormScreen> createState() => _ComplainFormScreenState();
@@ -118,7 +118,7 @@ class _ComplainFormScreenState extends State<ComplainFormScreen> {
       var jsonResponse = json.decode(responseData);
 
       if (response.statusCode == 200 || response.statusCode == 201) {
-        if (jsonResponse['status'] == true) {
+        if (jsonResponse['success'] == true) {
           if (mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
               const SnackBar(content: Text('Complaint submitted successfully')),

@@ -22,9 +22,9 @@ class _CheckInScreenState extends State<CheckInScreen> {
   final _storage = const FlutterSecureStorage();
 
   List<Map<String, String>> conditions = [
-    {'value': 'GOOD', 'label': 'GOOD'},
-    {'value': 'DAMAGED', 'label': 'DAMAGED'},
-    {'value': 'NEEDS_REPAIR', 'label': 'NEEDS_REPAIR'},
+    {'value': 'GOOD', 'label': 'BAIK'},
+    {'value': 'DAMAGED', 'label': 'RUSAK'},
+    {'value': 'NEEDS_REPAIR', 'label': 'PERLU PERBAIKAN'},
   ];
 
   @override
@@ -75,8 +75,7 @@ class _CheckInScreenState extends State<CheckInScreen> {
 
       if (response.statusCode == 200 || response.statusCode == 201) {
         final data = json.decode(response.body);
-        final bool isSuccess =
-            data['success'] == true || data['status'] == true;
+        final bool isSuccess = data['success'] == true;
 
         if (isSuccess) {
           // Tampilkan pesan sukses

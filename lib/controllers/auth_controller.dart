@@ -224,8 +224,8 @@ class ApiService {
     developer.log('--------------------------------', name: 'API_RESPONSE');
   }
 
-  static Future<void> login(String employee_number, String password) async {
-    if (employee_number.isEmpty || password.isEmpty) {
+  static Future<void> login(String employeeNumber, String password) async {
+    if (employeeNumber.isEmpty || password.isEmpty) {
       throw ApiException(
           message: 'employee_number dan password tidak boleh kosong',
           code: 'VALIDATION_ERROR');
@@ -234,10 +234,10 @@ class ApiService {
     try {
       final url = ApiConfig.loginUrl;
       print('Attempting login to: $url');
-      print('employee_number: $employee_number');
+      print('employee_number: $employeeNumber');
 
       final requestBody = {
-        'employee_number': employee_number,
+        'employee_number': employeeNumber,
         'password': password,
       };
 
@@ -269,7 +269,7 @@ class ApiService {
           final jsonResponse = jsonDecode(response.body);
           print('Response decoded: $jsonResponse');
 
-          if (jsonResponse['status'] == true) {
+          if (jsonResponse['success'] == true) {
             print('Login success flag found in response');
             // Cek keberadaan data
             if (jsonResponse['data'] == null) {
@@ -299,7 +299,7 @@ class ApiService {
               await _secureStorage.write(
                   key: 'refreshToken', value: refreshToken);
               await _secureStorage.write(
-                  key: 'employee_number', value: employee_number);
+                  key: 'employee_number', value: employeeNumber);
               await _secureStorage.write(key: 'password', value: password);
               print('Credentials stored successfully');
             } catch (e) {
@@ -307,7 +307,7 @@ class ApiService {
               // Backup ke variabel memori jika gagal
               _tempAccessToken = accessToken;
               _tempRefreshToken = refreshToken;
-              _tempemployee_number = employee_number;
+              _tempemployee_number = employeeNumber;
               _tempPassword = password;
               print('Credentials stored in temporary variables');
             }
@@ -424,7 +424,7 @@ class ApiService {
       if (response.statusCode == 200) {
         final jsonResponse = jsonDecode(response.body);
 
-        if (jsonResponse['status'] == true) {
+        if (jsonResponse['success'] == true) {
           final newAccessToken = jsonResponse['data']['accessToken'];
           final newRefreshToken =
               jsonResponse['data']['refreshToken'] ?? refreshToken;
@@ -647,7 +647,7 @@ class ApiService {
 
       if (response.statusCode == 200) {
         final responseData = json.decode(response.body);
-        if (responseData['status'] == true) {
+        if (responseData['success'] == true) {
           return responseData['data'];
         } else {
           throw Exception(responseData['message'] ?? 'Failed to load profile');
@@ -669,7 +669,7 @@ class ApiService {
 
       if (response.statusCode == 200) {
         final responseData = json.decode(response.body);
-        if (responseData['status'] == true) {
+        if (responseData['success'] == true) {
           return responseData['data'];
         } else {
           throw Exception(

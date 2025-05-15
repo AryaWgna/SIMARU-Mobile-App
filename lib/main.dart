@@ -69,7 +69,7 @@ void main() async {
   );
 
   // Inisialisasi penuh Firebase setelah UI muncul
-  Future.delayed(Duration(seconds: 1), () async {
+  Future.delayed(const Duration(seconds: 1), () async {
     await messagingService.initialize();
   });
 }

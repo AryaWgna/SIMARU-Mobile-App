@@ -87,7 +87,7 @@ class _QRScannerScreenState extends State<QRScannerScreen>
 
   void _onQRViewCreated(QRViewController controller) {
     setState(() {
-      this.qrViewController = controller;
+      qrViewController = controller;
       this.controller = controller;
       isCameraInitialized = true;
     });
@@ -198,6 +198,23 @@ class _QRScannerScreenState extends State<QRScannerScreen>
               ),
             ),
 
+            // Informasi format QR yang didukung
+            const Positioned(
+              top: 120,
+              left: 0,
+              right: 0,
+              child: Center(
+                child: Text(
+                  'Format: ASSET-XXX, MED-XXX, NMED-XXX, ANMD-XXX',
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w400,
+                    color: Colors.white70,
+                  ),
+                ),
+              ),
+            ),
+
             // Hasil scan
             if (scannedCode != null)
               Positioned(
@@ -212,13 +229,28 @@ class _QRScannerScreenState extends State<QRScannerScreen>
                       color: Colors.white.withOpacity(0.8),
                       borderRadius: BorderRadius.circular(8),
                     ),
-                    child: Text(
-                      'Data: $scannedCode',
-                      style: const TextStyle(
-                        color: Colors.black87,
-                        fontSize: 14,
-                        fontFamily: 'Inter',
-                      ),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Text(
+                          'QR Code:',
+                          style: TextStyle(
+                            color: Colors.black54,
+                            fontSize: 12,
+                            fontFamily: 'Inter',
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        Text(
+                          scannedCode!,
+                          style: const TextStyle(
+                            color: Colors.black87,
+                            fontSize: 14,
+                            fontFamily: 'Inter',
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ],
                     ),
                   ),
                 ),
@@ -334,6 +366,16 @@ class _QRScannerScreenState extends State<QRScannerScreen>
 
     if (isError) {
       backgroundColor = Colors.red;
+      // Tambahkan informasi lebih detail untuk pesan error format QR
+      if (message.contains('Format kode QR tidak valid')) {
+        message =
+            'Format kode QR tidak valid. Gunakan format ASSET-XXX, MED-XXX, NMED-XXX, atau ANMD-XXX.';
+      }
+      // Tambahkan informasi lebih detail untuk error aset tidak ditemukan
+      else if (message.contains('Aset tidak ditemukan')) {
+        message =
+            'Aset tidak ditemukan. Pastikan QR code terdaftar dalam sistem.';
+      }
     } else if (isWarning) {
       backgroundColor = Colors.orange;
     }
@@ -347,7 +389,7 @@ class _QRScannerScreenState extends State<QRScannerScreen>
         SnackBar(
           content: Text(message),
           backgroundColor: backgroundColor,
-          duration: const Duration(seconds: 2),
+          duration: const Duration(seconds: 3),
           behavior: SnackBarBehavior.floating,
           margin: EdgeInsets.only(
             bottom: MediaQuery.of(context).size.height * 0.1,
@@ -391,10 +433,7 @@ class _QRScannerScreenState extends State<QRScannerScreen>
 
       // Tampilkan notifikasi untuk membantu debugging
       showNotice(
-          "QR: " +
-              assetCode.substring(
-                  0, assetCode.length > 15 ? 15 : assetCode.length) +
-              "...",
+          "QR: ${assetCode.substring(0, assetCode.length > 15 ? 15 : assetCode.length)}...",
           isSuccess: true);
 
       // Kirim ke server melalui WebSocket jika berbeda dari scan terakhir
@@ -421,10 +460,13 @@ class _QRScannerScreenState extends State<QRScannerScreen>
       bool isValidFormat = assetCode.startsWith('ANMD-') ||
           RegExp(r'^\d+$').hasMatch(assetCode) ||
           assetCode.startsWith('NMED-') ||
-          assetCode.startsWith('MED-');
+          assetCode.startsWith('MED-') ||
+          assetCode.startsWith('ASSET-');
 
       if (!isValidFormat) {
         print('[DEBUG] Format QR tidak valid: $assetCode');
+        print(
+            '[DEBUG] Format yang diterima: ANMD-*, NMED-*, MED-*, ASSET-*, atau angka');
         if (mounted) {
           showNotice(
               'Format kode QR tidak valid. Gunakan QR code aset yang benar.',
@@ -435,182 +477,88 @@ class _QRScannerScreenState extends State<QRScannerScreen>
         return;
       }
 
-      // Ekstrak ID dari kode QR dengan pendekatan yang lebih fleksibel
-      String assetId;
-
-      // Cek apakah QR code sesuai dengan format baru NMED-ITEQ-250422-0002-01 atau MED-MEEQ-250422-0002-01
-      if ((assetCode.startsWith('NMED-') || assetCode.startsWith('MED-')) &&
-          assetCode.contains('-')) {
-        final parts = assetCode.split('-');
-        print('[DEBUG] QR format baru dipecah menjadi: $parts');
-
-        // Format baru: NMED-ITEQ-250422-0002-01 atau MED-MEEQ-250422-0002-01
-        if (parts.length >= 5) {
-          // Gunakan seluruh kode QR untuk format baru
-          assetId = assetCode;
-          print('[DEBUG] Format baru - menggunakan kode QR lengkap: $assetId');
-        } else {
-          // Format tidak sesuai, gunakan seluruh kode QR
-          assetId = assetCode;
-          print(
-              '[DEBUG] Format baru tidak standar, gunakan QR lengkap: $assetId');
-        }
-      }
-      // Cek apakah QR code sesuai dengan format ANMD-YYMMDD-XXXX (format lama)
-      else if (assetCode.startsWith('ANMD-') && assetCode.contains('-')) {
-        final parts = assetCode.split('-');
-        print('[DEBUG] QR dipecah menjadi: $parts');
-
-        // Format diketahui dari tabel: ANMD-250324-0001, ANMD-250324-0002, ANMD-250324-0003
-        if (parts.length == 3) {
-          // Ambil bagian terakhir (0001, 0002, dll) dan hapus leading zeros
-          var numericId = parts[2].replaceAll(RegExp(r'^0+(?=\d)'), '');
-          if (numericId.isEmpty) numericId = '0';
-          assetId = numericId;
-          print('[DEBUG] ID diekstrak dari ANMD-YYMMDD-XXXX: $assetId');
-        } else {
-          // Format tidak sesuai, gunakan seluruh kode QR
-          assetId = assetCode;
-          print(
-              '[DEBUG] Format ANMD- tidak standar, gunakan QR lengkap: $assetId');
-        }
-      } else if (RegExp(r'^\d+$').hasMatch(assetCode)) {
-        // Jika QR code hanya berisi angka, gunakan langsung sebagai ID
-        assetId = assetCode;
-        print('[DEBUG] QR adalah ID numerik: $assetId');
-      } else {
-        // Format lain, gunakan QR code lengkap
-        assetId = assetCode;
-        print('[DEBUG] Format QR tidak dikenali, gunakan QR lengkap: $assetId');
-      }
-
-      // Mencoba mendapatkan aset dengan endpoint yang benar
+      // Mencoba mendapatkan aset dengan endpoint yang benar sesuai dokumentasi API
       try {
-        // Cek apakah format baru (NMED-ITEQ-... atau MED-MEEQ-...)
-        bool isNewFormat =
-            (assetCode.startsWith('NMED-') || assetCode.startsWith('MED-'));
+        // Langsung menggunakan endpoint /assets/qr/{assetCode}
+        var endpoint = '/assets/code/${Uri.encodeComponent(assetCode)}';
+        print(
+            '[DEBUG] Mencoba endpoint: $endpoint dengan assetCode: $assetCode');
 
-        // Pendekatan untuk format QR baru
-        if (isNewFormat) {
-          print('[DEBUG] Menggunakan pendekatan khusus untuk format QR baru');
+        var response = await auth.ApiService.get(endpoint, context: context);
+        print('[DEBUG] Status response: ${response.statusCode}');
 
-          // Gunakan endpoint by-asset-code sebagai pendekatan pertama untuk format baru
-          var endpoint = '/assets/code/' + Uri.encodeComponent(assetCode);
-          print(
-              '[DEBUG] PENDEKATAN KHUSUS: Mencoba endpoint by-asset-code: $endpoint');
+        // Tampilkan respons untuk debugging
+        print('[DEBUG] Response body: ${response.body}');
 
-          var response = await auth.ApiService.get(endpoint, context: context);
-          print(
-              '[DEBUG] PENDEKATAN KHUSUS: Status response: ${response.statusCode}');
+        // Jika endpoint pertama berhasil, proses responsnya
+        if (response.statusCode == 200) {
+          _processSuccessResponse(response, assetCode);
+          return;
+        }
 
-          // Jika salah satu endpoint khusus berhasil, proses responsnya
+        // Jika kode dimulai dengan ASSET-, coba dengan /assets/qr/{assetCode}
+        if (assetCode.startsWith('ASSET-')) {
+          endpoint = '/assets/qr/${Uri.encodeComponent(assetCode)}';
+          print('[DEBUG] Mencoba endpoint alternatif untuk ASSET-: $endpoint');
+
+          response = await auth.ApiService.get(endpoint, context: context);
+          print('[DEBUG] Status response alternatif: ${response.statusCode}');
+          print('[DEBUG] Response body alternatif: ${response.body}');
+
           if (response.statusCode == 200) {
-            // Process response dan navigate ke halaman detail
-            print('[DEBUG] Pendekatan khusus format baru berhasil!');
             _processSuccessResponse(response, assetCode);
             return;
           }
         }
 
-        // Pendekatan utama: Cari berdasarkan ID aset dari tabel
-        var endpoint = '/assets/' + assetId;
-        print(
-            '[DEBUG] PENDEKATAN 1: Mencoba endpoint: $endpoint dengan assetId: $assetId');
-
-        var response = await auth.ApiService.get(endpoint, context: context);
-        print('[DEBUG] PENDEKATAN 1: Status response: ${response.statusCode}');
-
-        // Jika gagal dengan pendekatan ID, coba dengan pendekatan asset_code
-        if (response.statusCode != 200) {
-          print(
-              '[DEBUG] PENDEKATAN 1 gagal, mencoba PENDEKATAN 2 dengan asset_code');
-
-          // Pendekatan 2: Cari berdasarkan asset_code di tabel
-          endpoint = '/assets/code/' + Uri.encodeComponent(assetCode);
-          print(
-              '[DEBUG] PENDEKATAN 2: Mencoba endpoint: $endpoint dengan asset_code: $assetCode');
+        // Jika gagal, coba endpoint alternatif
+        var assetId = '';
+        // Jika QR code adalah angka, mungkin itu ID aset
+        if (RegExp(r'^\d+$').hasMatch(assetCode)) {
+          assetId = assetCode;
+          endpoint = '/assets/$assetId';
+          print('[DEBUG] Mencoba endpoint dengan assetId: $endpoint');
 
           response = await auth.ApiService.get(endpoint, context: context);
-          print(
-              '[DEBUG] PENDEKATAN 2: Status response: ${response.statusCode}');
+          print('[DEBUG] Status response: ${response.statusCode}');
 
-          // Jika gagal lagi, coba dengan parameter query
-          if (response.statusCode != 200) {
-            print(
-                '[DEBUG] PENDEKATAN 2 gagal, mencoba PENDEKATAN 3 dengan parameter query');
-
-            // Pendekatan 3: Gunakan parameter query
-            endpoint = '/assets?code=' + Uri.encodeComponent(assetCode);
-            print('[DEBUG] PENDEKATAN 3: Mencoba endpoint: $endpoint');
-
-            response = await auth.ApiService.get(endpoint, context: context);
-            print(
-                '[DEBUG] PENDEKATAN 3: Status response: ${response.statusCode}');
-
-            // Jika pendekatan 3 gagal, coba dengan pendekatan kode aset lengkap
-            if (response.statusCode != 200) {
-              print(
-                  '[DEBUG] PENDEKATAN 3 gagal, mencoba PENDEKATAN 4 dengan kode QR lengkap');
-
-              // Pendekatan 4: Coba gunakan kode QR lengkap untuk pencarian
-              var fullQRCode = assetCode;
-              endpoint = '/assets/full-code/${Uri.encodeComponent(fullQRCode)}';
-              print(
-                  '[DEBUG] PENDEKATAN 4: Mencoba endpoint: $endpoint dengan fullQRCode: $fullQRCode');
-
-              response = await auth.ApiService.get(endpoint, context: context);
-              print(
-                  '[DEBUG] PENDEKATAN 4: Status response: ${response.statusCode}');
-            }
+          if (response.statusCode == 200) {
+            _processSuccessResponse(response, assetCode);
+            return;
           }
         }
 
+        // Jika masih gagal, coba endpoint pencarian
+        endpoint = '/assets?search=${Uri.encodeComponent(assetCode)}';
+        print('[DEBUG] Mencoba endpoint pencarian: $endpoint');
+
+        response = await auth.ApiService.get(endpoint, context: context);
+        print('[DEBUG] Status response pencarian: ${response.statusCode}');
+
         if (response.statusCode == 200) {
-          print(
-              '[DEBUG] Response berhasil diterima, menggunakan _processSuccessResponse');
-          _processSuccessResponse(response, assetCode);
-          return;
-        } else if (response.statusCode == 403) {
-          print(
-              '[DEBUG] Error 403: Tidak memiliki izin untuk mengakses aset ini');
-          if (mounted) {
+          final responseData = jsonDecode(response.body);
+
+          if (responseData['success'] == true &&
+              responseData['data'] != null &&
+              responseData['data'] is List &&
+              responseData['data'].isNotEmpty) {
+            // Jika pencarian mengembalikan hasil, proses hasil pertama
+            print('[DEBUG] Hasil pencarian ditemukan!');
+            _processSuccessResponse(response, assetCode);
+            return;
+          }
+        }
+
+        // Jika semua upaya gagal
+        if (mounted) {
+          if (response.statusCode == 403) {
             showNotice('Tidak memiliki izin akses', isError: true);
-          }
-          resetCameraAndState();
-          return;
-        } else if (response.statusCode == 404) {
-          print('[DEBUG] Error 404: Asset tidak ditemukan');
-          if (mounted) {
+          } else if (response.statusCode == 404) {
             showNotice('Aset tidak ditemukan', isError: true);
-          }
-          resetCameraAndState();
-          return;
-        } else {
-          print('[DEBUG] Error tidak dikenal: ${response.statusCode}');
-
-          // Periksa response body jika ada pesan "asset retrieved successfully"
-          try {
-            final responseData = jsonDecode(response.body);
-            final message = responseData['message'] ?? '';
-
-            if (message
-                .toLowerCase()
-                .contains('asset retrieved successfully')) {
-              print(
-                  '[DEBUG] Terdeteksi "asset retrieved successfully" pada status code non-200');
-              // Panggil metode untuk mendapatkan aset berdasarkan kode setelah menerima pesan sukses
-              _getAssetByCode(assetCode);
-              return;
-            }
-          } catch (e) {
-            print('[DEBUG] Error saat mencoba parse response body: $e');
-          }
-
-          if (mounted) {
+          } else {
             showNotice('QR tidak terdaftar', isError: true);
           }
           resetCameraAndState();
-          return;
         }
       } catch (e) {
         print('[DEBUG] Error saat mengambil data aset: $e');
@@ -640,13 +588,13 @@ class _QRScannerScreenState extends State<QRScannerScreen>
       print('[DEBUG] Respons data lengkap: $responseData');
 
       // Periksa struktur response: API baru menggunakan "success" bukan "status"
-      final bool isSuccess =
-          responseData['success'] == true || responseData['status'] == true;
+      final bool isSuccess = responseData['success'] == true;
 
       // Tambahkan pengecekan khusus untuk pesan "asset retrieved successfully"
       final message = responseData['message'] ?? '';
       final bool isSuccessMessage =
-          message.toLowerCase().contains('asset retrieved successfully');
+          message.toLowerCase().contains('asset retrieved successfully') ||
+              message.toLowerCase().contains('aset berhasil diambil');
 
       if (isSuccessMessage) {
         print('[DEBUG] Terdeteksi pesan sukses: $message');
@@ -708,8 +656,22 @@ class _QRScannerScreenState extends State<QRScannerScreen>
                   '-'
             },
             'room': {'room_name': assetData['room_name'] ?? '-'},
-            'picture_path': assetData['qr_code'] ?? assetData['picture_path']
+            'picture_path': assetData['qr_code'] ?? assetData['picture_path'],
           };
+
+          // Tambahkan asset_master_id untuk mengambil data master aset
+          if (assetData['asset_master_id'] != null) {
+            cleanAssetData['asset_master_id'] = assetData['asset_master_id'];
+          } else if (assetData['asset_master'] != null &&
+              assetData['asset_master']['asset_master_id'] != null) {
+            cleanAssetData['asset_master_id'] =
+                assetData['asset_master']['asset_master_id'];
+          }
+
+          // Tambahkan data asset_master jika tersedia
+          if (assetData['asset_master'] != null) {
+            cleanAssetData['asset_master'] = assetData['asset_master'];
+          }
 
           // Ganti assetData dengan versi yang telah dibersihkan
           assetData = cleanAssetData;
@@ -755,12 +717,7 @@ class _QRScannerScreenState extends State<QRScannerScreen>
                   } catch (e) {
                     print('[DEBUG] Error navigasi: $e');
                     showNotice(
-                        "Error navigasi: " +
-                            e.toString().substring(
-                                0,
-                                e.toString().length > 30
-                                    ? 30
-                                    : e.toString().length),
+                        "Error navigasi: ${e.toString().substring(0, e.toString().length > 30 ? 30 : e.toString().length)}",
                         isError: true);
                     // Coba cara lain jika navigasi gagal
                     if (mounted) {
@@ -795,7 +752,8 @@ class _QRScannerScreenState extends State<QRScannerScreen>
 
         // Periksa apakah pesan berisi "asset retrieved successfully"
         final message = responseData['message'] ?? 'Data aset tidak ditemukan';
-        if (message.toLowerCase().contains('asset retrieved successfully')) {
+        if (message.toLowerCase().contains('asset retrieved successfully') ||
+            message.toLowerCase().contains('aset berhasil diambil')) {
           print(
               '[DEBUG] Pesan berisi "asset retrieved successfully" tapi data null');
 
@@ -824,48 +782,13 @@ class _QRScannerScreenState extends State<QRScannerScreen>
         isWarning: true);
 
     try {
-      // Coba pendekatan menggunakan ID dari QR code NMED-ITEQ-250422-0002-03
-      String extractedId = "";
-      if (assetCode.contains("-")) {
-        final parts = assetCode.split('-');
-        if (parts.length >= 5) {
-          extractedId = parts[parts.length - 1]
-              .replaceFirst(RegExp(r'^0+'), ''); // Hapus leading zeros
-          if (extractedId.isEmpty)
-            extractedId =
-                parts[parts.length - 1]; // Jika hanya nol, gunakan aslinya
-          print('[DEBUG] Extracted ID from format baru: $extractedId');
-        }
-      }
-
-      // Jika berhasil ekstrak ID, coba dengan ID tersebut
-      if (extractedId.isNotEmpty) {
-        final endpoint = '/assets/' + extractedId;
-        print('[DEBUG] _getAssetByCode: Mencoba endpoint dengan ID: $endpoint');
-
-        final response = await auth.ApiService.get(endpoint, context: context);
-        print(
-            '[DEBUG] _getAssetByCode dengan ID: Status response: ${response.statusCode}');
-
-        if (response.statusCode == 200) {
-          // Berhasil dengan ID yang diekstrak
-          final responseData = jsonDecode(response.body);
-          if (responseData['success'] == true && responseData['data'] != null) {
-            print(
-                '[DEBUG] Berhasil mendapatkan data dengan ID yang diekstrak dari QR code');
-            showNotice("Data aset berhasil ditemukan!", isSuccess: true);
-            _processSuccessResponse(response, assetCode);
-            return;
-          }
-        }
-      }
-
-      // Pendekatan menggunakan kode aset lengkap
-      final endpoint = '/assets/code/' + Uri.encodeComponent(assetCode);
+      // Langsung gunakan endpoint yang benar sesuai dokumentasi API
+      var endpoint = '/assets/code/${Uri.encodeComponent(assetCode)}';
       print('[DEBUG] _getAssetByCode: Mencoba endpoint: $endpoint');
 
-      final response = await auth.ApiService.get(endpoint, context: context);
+      var response = await auth.ApiService.get(endpoint, context: context);
       print('[DEBUG] _getAssetByCode: Status response: ${response.statusCode}');
+      print('[DEBUG] _getAssetByCode: Response body: ${response.body}');
 
       if (response.statusCode == 200) {
         // Proses respons dan langsung navigasi ke halaman detail
@@ -886,34 +809,61 @@ class _QRScannerScreenState extends State<QRScannerScreen>
           return;
         } else {
           print('[DEBUG] Endpoint alternatif berhasil tapi tidak ada data');
-          if (mounted) {
-            showNotice('Data aset sukses ditemukan tapi tidak lengkap',
-                isWarning: true);
-          }
         }
-      } else {
-        // Coba pendekatan terakhir - pencarian
-        final searchEndpoint =
-            '/assets/search?q=' + Uri.encodeComponent(assetCode);
-        print(
-            '[DEBUG] _getAssetByCode: Mencoba endpoint pencarian: $searchEndpoint');
+      }
 
-        final searchResponse =
-            await auth.ApiService.get(searchEndpoint, context: context);
-        if (searchResponse.statusCode == 200) {
-          final searchData = jsonDecode(searchResponse.body);
-          if (searchData['success'] == true && searchData['data'] != null) {
-            print('[DEBUG] Berhasil mendapatkan data dari endpoint pencarian');
-            _processSuccessResponse(searchResponse, assetCode);
+      // Jika kode dimulai dengan ASSET-, coba dengan endpoint /assets/qr/{assetCode}
+      if (assetCode.startsWith('ASSET-')) {
+        endpoint = '/assets/qr/${Uri.encodeComponent(assetCode)}';
+        print(
+            '[DEBUG] _getAssetByCode: Mencoba endpoint spesifik untuk ASSET-: $endpoint');
+
+        response = await auth.ApiService.get(endpoint, context: context);
+        print(
+            '[DEBUG] _getAssetByCode: Status response ASSET-: ${response.statusCode}');
+        print(
+            '[DEBUG] _getAssetByCode: Response body ASSET-: ${response.body}');
+
+        if (response.statusCode == 200) {
+          final responseData = jsonDecode(response.body);
+
+          if (responseData['success'] == true && responseData['data'] != null) {
+            print(
+                '[DEBUG] Berhasil mendapatkan data ASSET- dari endpoint spesifik');
+            _processSuccessResponse(response, assetCode);
             return;
           }
         }
+      }
 
-        print('[DEBUG] Semua endpoint alternatif gagal');
-        if (mounted) {
-          showNotice('Aset ditemukan tapi detail tidak dapat diambil',
-              isWarning: true);
+      // Coba pendekatan terakhir - pencarian
+      final searchEndpoint = '/assets?search=${Uri.encodeComponent(assetCode)}';
+      print(
+          '[DEBUG] _getAssetByCode: Mencoba endpoint pencarian: $searchEndpoint');
+
+      final searchResponse =
+          await auth.ApiService.get(searchEndpoint, context: context);
+      print(
+          '[DEBUG] _getAssetByCode: Status response pencarian: ${searchResponse.statusCode}');
+      print(
+          '[DEBUG] _getAssetByCode: Response body pencarian: ${searchResponse.body}');
+
+      if (searchResponse.statusCode == 200) {
+        final searchData = jsonDecode(searchResponse.body);
+        if (searchData['success'] == true &&
+            searchData['data'] != null &&
+            searchData['data'] is List &&
+            searchData['data'].isNotEmpty) {
+          print('[DEBUG] Berhasil mendapatkan data dari endpoint pencarian');
+          _processSuccessResponse(searchResponse, assetCode);
+          return;
         }
+      }
+
+      print('[DEBUG] Semua endpoint alternatif gagal');
+      if (mounted) {
+        showNotice('Aset ditemukan tapi detail tidak dapat diambil',
+            isWarning: true);
       }
     } catch (e) {
       print('[DEBUG] Error pada _getAssetByCode: $e');

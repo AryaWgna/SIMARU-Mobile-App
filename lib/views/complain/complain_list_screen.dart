@@ -46,7 +46,7 @@ class _ComplainListScreenState extends State<ComplainListScreen> {
 
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
-        if (data['status'] == true) {
+        if (data['success'] == true) {
           setState(() {
             _complaints = data['data'];
             _isLoading = false;
@@ -216,8 +216,7 @@ class _ComplainListScreenState extends State<ComplainListScreen> {
                                                   borderRadius:
                                                       BorderRadius.circular(8),
                                                   child: Image.network(
-                                                    ApiService.baseUrl +
-                                                        '/public' +
+                                                    '${ApiService.baseUrl}/public' +
                                                         (complaint[
                                                                 'complaint_picture_path'] ??
                                                             ''),

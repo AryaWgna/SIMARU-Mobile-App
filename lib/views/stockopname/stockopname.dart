@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../pages/qr_scanner_screen.dart';
 import 'dart:convert';
-import 'package:http/http.dart' as http;
 import '../../controllers/auth_controller.dart';
 import 'stockopname_scanner.dart';
 
@@ -66,7 +65,7 @@ class StockOpname {
 }
 
 class StockopnameScreen extends StatefulWidget {
-  const StockopnameScreen({Key? key}) : super(key: key);
+  const StockopnameScreen({super.key});
 
   @override
   State<StockopnameScreen> createState() => _StockopnameScreenState();
@@ -137,7 +136,7 @@ class _StockopnameScreenState extends State<StockopnameScreen> {
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
-        if (data['status'] == true) {
+        if (data['success'] == true) {
           final List<dynamic> buildingsJson = data['data'] ?? [];
           setState(() {
             buildings =
@@ -145,7 +144,7 @@ class _StockopnameScreenState extends State<StockopnameScreen> {
             isLoadingBuildings = false;
           });
         } else {
-          // Gunakan data simulasi jika status tidak true
+          // Gunakan data simulasi jika success tidak true
           setState(() {
             isLoadingBuildings = false;
             buildings = [
@@ -200,7 +199,7 @@ class _StockopnameScreenState extends State<StockopnameScreen> {
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
-        if (data['status'] == true) {
+        if (data['success'] == true) {
           final List<dynamic> roomsJson = data['data'];
           setState(() {
             rooms = roomsJson.map((json) => Room.fromJson(json)).toList();
@@ -208,7 +207,7 @@ class _StockopnameScreenState extends State<StockopnameScreen> {
             isLoadingRooms = false;
           });
         } else {
-          // Gunakan data simulasi jika status tidak true
+          // Gunakan data simulasi jika success tidak true
           _setSimulatedRooms(buildingId);
         }
       } else {
@@ -272,14 +271,14 @@ class _StockopnameScreenState extends State<StockopnameScreen> {
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
-        if (data['status'] == true) {
+        if (data['success'] == true) {
           final List<dynamic> opnamesJson = data['data'];
           setState(() {
             pendingOpnames =
                 opnamesJson.map((json) => StockOpname.fromJson(json)).toList();
           });
         } else {
-          // Gunakan data simulasi jika status tidak true
+          // Gunakan data simulasi jika success tidak true
           _setSimulatedPendingOpnames();
         }
       } else {
@@ -327,7 +326,7 @@ class _StockopnameScreenState extends State<StockopnameScreen> {
       if (response.statusCode == 200 || response.statusCode == 201) {
         final data = jsonDecode(response.body);
 
-        if (data['status'] == true) {
+        if (data['success'] == true) {
           // Refresh daftar opname yang sedang berjalan
           _fetchPendingOpnames();
 
@@ -899,7 +898,7 @@ class _StockopnameScreenState extends State<StockopnameScreen> {
                     Navigator.push(
                       context,
                       MaterialPageRoute(
-                        builder: (context) => QRScannerScreen(
+                        builder: (context) => const QRScannerScreen(
                           previousScreen: 'stockopname',
                         ),
                       ),

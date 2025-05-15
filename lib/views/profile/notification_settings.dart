@@ -3,7 +3,7 @@ import 'package:provider/provider.dart';
 import '../../services/firebase_messaging_service.dart';
 
 class NotificationSettingsScreen extends StatefulWidget {
-  const NotificationSettingsScreen({Key? key}) : super(key: key);
+  const NotificationSettingsScreen({super.key});
 
   @override
   State<NotificationSettingsScreen> createState() =>
@@ -89,7 +89,7 @@ class _NotificationSettingsScreenState
 
                   // You should get the auth token from your auth service
                   // This is just an example, replace with your actual auth token
-                  final authToken = 'your_auth_token';
+                  const authToken = 'your_auth_token';
 
                   await messagingService.sendFcmTokenToServer(authToken);
 

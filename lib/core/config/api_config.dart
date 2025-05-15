@@ -54,7 +54,7 @@ class ApiConfig {
     if (month != null) params.add('month=$month');
 
     if (params.isNotEmpty) {
-      url += '?' + params.join('&');
+      url += '?${params.join('&')}';
     }
 
     return url;
@@ -70,7 +70,7 @@ class ApiConfig {
     if (limit != null) params.add('limit=$limit');
 
     if (params.isNotEmpty) {
-      url += '?' + params.join('&');
+      url += '?${params.join('&')}';
     }
 
     return url;
