@@ -12,9 +12,15 @@ import 'services/firebase_messaging_service.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'firebase_options.dart';
+// Import untuk mengatasi masalah anti-screenshot
+import 'dart:io';
+import 'package:no_screenshot/no_screenshot.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  // Pastikan fitur anti-screenshot dinonaktifkan saat aplikasi dimulai
+  await _disableGlobalScreenshotProtection();
 
   // Inisialisasi Firebase dengan detail logging dan error handling
   try {
@@ -74,6 +80,21 @@ void main() async {
   });
 }
 
+// Fungsi untuk menonaktifkan anti-screenshot secara global
+Future<void> _disableGlobalScreenshotProtection() async {
+  try {
+    if (Platform.isAndroid || Platform.isIOS) {
+      print(
+          "App Start: Memastikan anti-screenshot dinonaktifkan secara global");
+      final noScreenshot = NoScreenshot();
+      await noScreenshot.screenshotOn();
+      print("App Start: Anti-screenshot berhasil dinonaktifkan");
+    }
+  } catch (e) {
+    print("App Start: Error saat menonaktifkan anti-screenshot: $e");
+  }
+}
+
 class MyApp extends StatelessWidget {
   const MyApp({super.key});
 
@@ -87,11 +108,15 @@ class MyApp extends StatelessWidget {
       routes: {
         '/': (context) {
           developer.log('Navigating to LoginScreen', name: 'APP_NAVIGATION');
+          // Pastikan anti-screenshot dinonaktifkan saat navigasi ke login screen
+          _disableGlobalScreenshotProtection();
           return const LoginScreen();
         },
         '/home': (context) {
           developer.log('Navigating to DashboardScreen',
               name: 'APP_NAVIGATION');
+          // Pastikan anti-screenshot dinonaktifkan saat navigasi ke dashboard
+          _disableGlobalScreenshotProtection();
           return const DashboardScreen();
         },
       },

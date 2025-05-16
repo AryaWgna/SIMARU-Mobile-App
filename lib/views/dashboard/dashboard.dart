@@ -8,6 +8,10 @@ import '../../widgets/custom_app_bar.dart';
 import '../../controllers/auth_controller.dart';
 import '../../auth/login.dart';
 
+// Import untuk mengatasi masalah anti-screenshot
+import 'dart:io';
+import 'package:no_screenshot/no_screenshot.dart';
+
 class DashboardScreen extends StatefulWidget {
   final int initialIndex;
 
@@ -22,11 +26,15 @@ class _DashboardScreenState extends State<DashboardScreen> {
   final List<Widget> _screens = [];
   String? _errorMessage;
   bool _tokenChecked = false;
+  final NoScreenshot _noScreenshot = NoScreenshot();
 
   @override
   void initState() {
     super.initState();
     _selectedIndex = widget.initialIndex;
+
+    // Pastikan fitur anti-screenshot dinonaktifkan saat dashboard dibuka
+    _disableAnyActiveScreenshotProtection();
 
     try {
       print("Initializing DashboardScreen screens...");
@@ -50,7 +58,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
         );
       };
 
-      // Kita tidak perlu mengecek token di sini jika sudah dicek di login screen
       // Hanya lakukan pengecekan jika aplikasi diluncurkan langsung ke dashboard
       WidgetsBinding.instance.addPostFrameCallback((_) {
         _maybeValidateToken();
@@ -59,6 +66,24 @@ class _DashboardScreenState extends State<DashboardScreen> {
       print("Error initializing DashboardScreen screens: $e");
       print("Stack trace: $s");
     }
+  }
+
+  // Method untuk menonaktifkan fitur anti-screenshot yang mungkin masih aktif
+  Future<void> _disableAnyActiveScreenshotProtection() async {
+    try {
+      if (Platform.isAndroid || Platform.isIOS) {
+        print("Dashboard: Memastikan anti-screenshot dinonaktifkan");
+        await _noScreenshot.screenshotOn();
+        print("Dashboard: Anti-screenshot berhasil dinonaktifkan");
+      }
+    } catch (e) {
+      print("Dashboard: Error saat menonaktifkan anti-screenshot: $e");
+    }
+  }
+
+  @override
+  void dispose() {
+    super.dispose();
   }
 
   // Validasi token hanya jika diperlukan

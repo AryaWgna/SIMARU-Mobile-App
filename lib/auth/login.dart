@@ -6,6 +6,9 @@ import 'dart:async';
 import 'dart:developer' as developer;
 import '../services/firebase_messaging_service.dart';
 import 'package:provider/provider.dart';
+// Import untuk mengatasi masalah anti-screenshot
+import 'dart:io';
+import 'package:no_screenshot/no_screenshot.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -21,13 +24,30 @@ class _LoginScreenState extends State<LoginScreen> {
   String? _errorMessage;
   bool _obscurePassword = true;
   bool _checkingToken = true;
+  final NoScreenshot _noScreenshot = NoScreenshot();
 
   @override
   void initState() {
     super.initState();
 
+    // Pastikan fitur anti-screenshot dinonaktifkan di login screen
+    _disableAnyActiveScreenshotProtection();
+
     // Check if user is already logged in with valid token
     _checkExistingToken();
+  }
+
+  // Method untuk menonaktifkan fitur anti-screenshot yang mungkin masih aktif
+  Future<void> _disableAnyActiveScreenshotProtection() async {
+    try {
+      if (Platform.isAndroid || Platform.isIOS) {
+        print("LoginScreen: Memastikan anti-screenshot dinonaktifkan");
+        await _noScreenshot.screenshotOn();
+        print("LoginScreen: Anti-screenshot berhasil dinonaktifkan");
+      }
+    } catch (e) {
+      print("LoginScreen: Error saat menonaktifkan anti-screenshot: $e");
+    }
   }
 
   Future<void> _checkExistingToken() async {

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
+import 'package:google_fonts/google_fonts.dart';
 import '../../controllers/recent_activity_controller.dart';
 import '../../models/history_model.dart';
 
@@ -104,8 +105,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
               children: [
                 Text(
                   formattedDate,
-                  style: const TextStyle(
-                    fontFamily: 'Inter',
+                  style: GoogleFonts.inter(
                     fontSize: 16,
                     fontWeight: FontWeight.w500,
                     color: Colors.black,
@@ -114,8 +114,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
                 const SizedBox(height: 4),
                 Text(
                   formattedTime,
-                  style: const TextStyle(
-                    fontFamily: 'Inter',
+                  style: GoogleFonts.inter(
                     fontSize: 14,
                     fontWeight: FontWeight.w500,
                     color: Color(0xFF757575),
@@ -142,8 +141,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
                   Text(
                     'ID Aset: ${activity.assetInfo.assetCode}',
                     textAlign: TextAlign.left,
-                    style: const TextStyle(
-                      fontFamily: 'Inter',
+                    style: GoogleFonts.inter(
                       fontSize: 12,
                       fontWeight: FontWeight.w400,
                       color: Color(0xFF757575),
@@ -151,50 +149,14 @@ class _HistoryScreenState extends State<HistoryScreen> {
                   ),
                   Text(
                     activity.assetInfo.assetName,
-                    style: const TextStyle(
-                      fontFamily: 'Inter',
+                    style: GoogleFonts.inter(
                       fontSize: 14,
                       fontWeight: FontWeight.w600,
                       color: Color(0xFF213268),
                     ),
                   ),
                   const SizedBox(height: 4),
-                  Row(
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 8,
-                          vertical: 2,
-                        ),
-                        decoration: BoxDecoration(
-                          color: _getStatusColor(activity.newStatus),
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: Text(
-                          activity.newStatus,
-                          style: const TextStyle(
-                            fontFamily: 'Inter',
-                            fontSize: 10,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.white,
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 4),
-                    ],
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    activity.message,
-                    style: const TextStyle(
-                      fontFamily: 'Inter',
-                      fontSize: 12,
-                      fontWeight: FontWeight.w400,
-                      color: Colors.black,
-                    ),
-                    overflow: TextOverflow.ellipsis,
-                    maxLines: 2,
-                  ),
+                  _buildStatusMessage(activity),
                 ],
               ),
             ),
@@ -204,18 +166,161 @@ class _HistoryScreenState extends State<HistoryScreen> {
     );
   }
 
-  Color _getStatusColor(String status) {
+  Widget _buildStatusBadge(HistoryModel activity) {
+    final badgeText = _getStatusText(activity.newStatus);
+    final badgeColor = _getStatusColor(badgeText);
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      decoration: BoxDecoration(
+        color: badgeColor,
+        borderRadius: BorderRadius.circular(6),
+      ),
+      child: Text(
+        badgeText,
+        style: GoogleFonts.inter(
+          fontSize: 14,
+          fontWeight: FontWeight.w600,
+          color: Colors.white,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildStatusMessage(HistoryModel activity) {
+    // Cek apakah pesan berisi perubahan status
+    if (activity.message.contains('mengubah status dari')) {
+      // Ekstrak status lama dan baru dari pesan
+      final parts = activity.message.split(' ');
+      final employeeId = parts[0];
+
+      // Cari posisi kata "dari" dan "menjadi"
+      final dariIndex = parts.indexOf('dari');
+      final menjadiIndex = parts.indexOf('menjadi');
+
+      if (dariIndex != -1 && menjadiIndex != -1 && dariIndex < menjadiIndex) {
+        // Dapatkan status lama dan baru
+        String oldStatus = "";
+        if (dariIndex + 1 < parts.length) {
+          oldStatus = parts[dariIndex + 1];
+          // Jika status adalah "dalam perbaikan", gabungkan kedua kata
+          if (oldStatus.toLowerCase() == "dalam" &&
+              dariIndex + 2 < parts.length &&
+              parts[dariIndex + 2].toLowerCase() == "perbaikan") {
+            oldStatus = "dalam perbaikan";
+          }
+        }
+
+        String newStatus = "";
+        if (menjadiIndex + 1 < parts.length) {
+          newStatus = parts[menjadiIndex + 1];
+          // Jika status adalah "dalam perbaikan", gabungkan kedua kata
+          if (newStatus.toLowerCase() == "dalam" &&
+              menjadiIndex + 2 < parts.length &&
+              parts[menjadiIndex + 2].toLowerCase() == "perbaikan") {
+            newStatus = "dalam perbaikan";
+          }
+        }
+
+        // Jika status mengandung kata "lost" atau "damaged", ubah ke bahasa Indonesia
+        if (oldStatus.toLowerCase() == "lost") oldStatus = "hilang";
+        if (newStatus.toLowerCase() == "lost") newStatus = "hilang";
+        if (oldStatus.toLowerCase() == "damaged") oldStatus = "rusak";
+        if (newStatus.toLowerCase() == "damaged") newStatus = "rusak";
+
+        return RichText(
+          text: TextSpan(
+            style: GoogleFonts.inter(
+              fontSize: 12,
+              color: Colors.black,
+            ),
+            children: [
+              TextSpan(text: '$employeeId mengubah status dari '),
+              _buildInlineStatusBadge(oldStatus),
+              TextSpan(text: ' ke '),
+              _buildInlineStatusBadge(newStatus),
+            ],
+          ),
+        );
+      }
+    }
+
+    // Jika tidak berisi perubahan status, tampilkan pesan biasa
+    return Text(
+      activity.message,
+      style: GoogleFonts.inter(
+        fontSize: 12,
+        fontWeight: FontWeight.w400,
+        color: Colors.black,
+      ),
+      overflow: TextOverflow.ellipsis,
+      maxLines: 2,
+    );
+  }
+
+  InlineSpan _buildInlineStatusBadge(String status) {
+    final badgeText = _getStatusText(status);
+    final badgeColor = _getStatusColor(badgeText);
+
+    return WidgetSpan(
+      alignment: PlaceholderAlignment.middle,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+        decoration: BoxDecoration(
+          color: badgeColor,
+          borderRadius: BorderRadius.circular(4),
+        ),
+        child: Text(
+          badgeText,
+          style: GoogleFonts.inter(
+            fontSize: 10,
+            fontWeight: FontWeight.w600,
+            color: Colors.white,
+          ),
+        ),
+      ),
+    );
+  }
+
+  String _getStatusText(String status) {
+    // Standarisasi status dalam bahasa Indonesia
     switch (status.toLowerCase()) {
       case 'tersedia':
-        return Colors.green;
-      case 'dipinjam':
-        return Colors.orange;
+      case 'available':
       case 'dikembalikan':
-        return Colors.blue;
+      case 'returned':
+        return "TERSEDIA";
+      case 'dipinjam':
+      case 'borrowed':
+      case 'checked out':
+        return "DIPINJAM";
       case 'dalam perbaikan':
-        return Colors.red;
+      case 'perbaikan':
+      case 'dalam':
+      case 'in repair':
+      case 'rusak':
+      case 'damaged':
+        return "PERBAIKAN";
       case 'dimusnahkan':
-        return Colors.grey[800]!;
+      case 'disposed':
+      case 'hilang':
+      case 'lost':
+        return "HILANG";
+      default:
+        return status.toUpperCase();
+    }
+  }
+
+  Color _getStatusColor(String status) {
+    switch (status) {
+      case 'HILANG':
+        return const Color(0xFFFF5252); // Merah
+      case 'PERBAIKAN':
+        return const Color(0xFF29B6F6); // Biru
+      case 'TERSEDIA':
+        return const Color(0xFF8BC34A); // Hijau
+      case 'DIPINJAM':
+        return const Color(0xFFFFB74D); // Oranye
       default:
         return Colors.grey;
     }
@@ -230,8 +335,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
           padding: const EdgeInsets.only(bottom: 10, top: 16),
           child: Text(
             monthYear,
-            style: const TextStyle(
-              fontFamily: 'Inter',
+            style: GoogleFonts.inter(
               fontSize: 24,
               fontWeight: FontWeight.w600,
               color: Color(0xFF213268),
@@ -251,7 +355,8 @@ class _HistoryScreenState extends State<HistoryScreen> {
       appBar: AppBar(
         backgroundColor: const Color(0xFF213268),
         elevation: 0,
-        title: const Text('Riwayat Aktivitas', style: TextStyle(color: Colors.white)),
+        title: Text('Riwayat Aktivitas',
+            style: GoogleFonts.inter(color: Colors.white)),
         leading: IconButton(
           icon: const Icon(Icons.arrow_back, color: Colors.white),
           onPressed: () => Navigator.pop(context),
@@ -263,13 +368,12 @@ class _HistoryScreenState extends State<HistoryScreen> {
           Container(
             width: double.infinity,
             padding: const EdgeInsets.fromLTRB(24, 16, 24, 0),
-            child: const Column(
+            child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
                   'Menampilkan semua aktivitas Anda',
-                  style: TextStyle(
-                    fontFamily: 'Inter',
+                  style: GoogleFonts.inter(
                     fontSize: 16,
                     fontWeight: FontWeight.w400,
                     color: Color(0xFF757575),
@@ -300,10 +404,9 @@ class _HistoryScreenState extends State<HistoryScreen> {
                       children: [
                         Text(
                           controller.error!,
-                          style: const TextStyle(
+                          style: GoogleFonts.inter(
                             color: Colors.red,
                             fontSize: 14,
-                            fontFamily: 'Inter',
                           ),
                           textAlign: TextAlign.center,
                         ),
@@ -336,11 +439,10 @@ class _HistoryScreenState extends State<HistoryScreen> {
                       children: [
                         SizedBox(
                           height: MediaQuery.of(context).size.height * 0.6,
-                          child: const Center(
+                          child: Center(
                             child: Text(
                               'Tidak ada aktivitas ditemukan',
-                              style: TextStyle(
-                                fontFamily: 'Inter',
+                              style: GoogleFonts.inter(
                                 fontSize: 16,
                                 color: Color(0xFF757575),
                               ),
@@ -453,7 +555,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
                   color: Colors.grey[100],
                   child: Text(
                     'Halaman ${pagination.currentPage} dari ${pagination.totalPages} (${pagination.totalItems} item)',
-                    style: const TextStyle(
+                    style: GoogleFonts.inter(
                       fontSize: 12,
                       color: Colors.grey,
                     ),

@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../../models/notification_model.dart';
 import '../../models/notification_types.dart';
-import '../../services/notification_service.dart';
 
 class NotificationDetailScreen extends StatefulWidget {
   final NotificationModel notification;

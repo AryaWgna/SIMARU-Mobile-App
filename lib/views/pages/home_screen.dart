@@ -221,10 +221,10 @@ class _HomeScreenState extends State<HomeScreen> {
           Container(
             padding: const EdgeInsets.all(8),
             decoration: BoxDecoration(
-              color: const Color(0xFF213268).withOpacity(0.1),
+              color: Colors.white,
               borderRadius: BorderRadius.circular(8),
             ),
-            child: Icon(icon, color: const Color(0xFF213268), size: 20),
+            child: Icon(icon, color: bgColor, size: 20),
           ),
         ],
       ),
@@ -241,11 +241,14 @@ class _HomeScreenState extends State<HomeScreen> {
       );
     }
 
+    // Warna untuk kartu Nilai Aset Bersih
+    const Color cardColor = Color(0xFFFFCCBC);
+
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       decoration: BoxDecoration(
-        color: const Color(0xFFFFCCBC),
+        color: cardColor,
         borderRadius: BorderRadius.circular(8),
       ),
       child: Row(
@@ -305,11 +308,14 @@ class _HomeScreenState extends State<HomeScreen> {
           Container(
             padding: const EdgeInsets.all(8),
             decoration: BoxDecoration(
-              color: const Color(0xFF213268).withOpacity(0.1),
+              color: Colors.white,
               borderRadius: BorderRadius.circular(8),
             ),
-            child: const Icon(Icons.attach_money,
-                color: Color(0xFF213268), size: 20),
+            child: Icon(
+              Icons.attach_money,
+              color: cardColor,
+              size: 20,
+            ),
           ),
         ],
       ),
@@ -320,11 +326,15 @@ class _HomeScreenState extends State<HomeScreen> {
     // Ensure we have a valid value to display
     final calibrationCount = controller.totalCalibrationsNeeded;
 
+    // Warna untuk kartu Kalibrasi & Perawatan
+    const Color cardColor = Color(0xFFFFF9C4);
+    const Color iconColor = Color(0xFFFFB74D); // Warna oranye untuk ikon
+
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       decoration: BoxDecoration(
-        color: const Color(0xFFFFF9C4),
+        color: cardColor,
         borderRadius: BorderRadius.circular(8),
       ),
       child: Row(
@@ -367,7 +377,11 @@ class _HomeScreenState extends State<HomeScreen> {
               color: Colors.white,
               borderRadius: BorderRadius.circular(8),
             ),
-            child: const Icon(Icons.build, color: Colors.black54, size: 20),
+            child: Icon(
+              Icons.build,
+              color: iconColor,
+              size: 20,
+            ),
           ),
         ],
       ),
@@ -375,11 +389,14 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Widget _buildAssetCard(TotalAssetController controller) {
+    // Warna untuk kartu Total Aset
+    const Color cardColor = Color(0xFFDCEDC8);
+
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       decoration: BoxDecoration(
-        color: const Color(0xFFDCEDC8),
+        color: cardColor,
         borderRadius: BorderRadius.circular(8),
       ),
       child: Row(
@@ -433,7 +450,11 @@ class _HomeScreenState extends State<HomeScreen> {
               color: Colors.white,
               borderRadius: BorderRadius.circular(8),
             ),
-            child: const Icon(Icons.grid_4x4, color: Colors.black54, size: 20),
+            child: Icon(
+              Icons.grid_4x4,
+              color: cardColor,
+              size: 20,
+            ),
           ),
         ],
       ),

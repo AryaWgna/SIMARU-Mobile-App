@@ -142,19 +142,6 @@ class _TodayActivitiesWidgetState extends State<TodayActivitiesWidget> {
   Widget _buildHistoryItem(HistoryModel activity) {
     final formattedTime = DateFormat('HH:mm').format(activity.actionDate);
 
-    // Tentukan status badge berdasarkan status
-    String badgeText = activity.newStatus;
-    Color badgeColor = _getStatusColor(activity.newStatus);
-
-    // Cek apakah ada status khusus seperti "lost" atau lainnya
-    if (activity.message.toLowerCase().contains("hilang")) {
-      badgeText = "Lost";
-      badgeColor = Colors.red[700]!;
-    } else if (activity.message.toLowerCase().contains("rusak")) {
-      badgeText = "Damaged";
-      badgeColor = Colors.orange[700]!;
-    }
-
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(16),
@@ -173,36 +160,14 @@ class _TodayActivitiesWidgetState extends State<TodayActivitiesWidget> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Expanded(
-                child: Text(
-                  activity.assetInfo.assetName,
-                  style: GoogleFonts.inter(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w600,
-                    color: const Color(0xFF213268),
-                  ),
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                decoration: BoxDecoration(
-                  color: badgeColor,
-                  borderRadius: BorderRadius.circular(4),
-                ),
-                child: Text(
-                  badgeText,
-                  style: GoogleFonts.inter(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w500,
-                    color: Colors.white,
-                  ),
-                ),
-              ),
-            ],
+          Text(
+            activity.assetInfo.assetName,
+            style: GoogleFonts.inter(
+              fontSize: 16,
+              fontWeight: FontWeight.w600,
+              color: const Color(0xFF213268),
+            ),
+            overflow: TextOverflow.ellipsis,
           ),
           const SizedBox(height: 8),
           Row(
@@ -237,32 +202,145 @@ class _TodayActivitiesWidgetState extends State<TodayActivitiesWidget> {
             ],
           ),
           const SizedBox(height: 8),
-          Text(
-            activity.message,
-            style: GoogleFonts.inter(
-              fontSize: 14,
-              color: Colors.black87,
-            ),
-            maxLines: 2,
-            overflow: TextOverflow.ellipsis,
-          ),
+          _buildStatusMessage(activity),
         ],
       ),
     );
   }
 
-  Color _getStatusColor(String status) {
+  Widget _buildStatusMessage(HistoryModel activity) {
+    // Cek apakah pesan berisi perubahan status
+    if (activity.message.contains('mengubah status dari')) {
+      // Ekstrak status lama dan baru dari pesan
+      final parts = activity.message.split(' ');
+      final employeeId = parts[0];
+
+      // Cari posisi kata "dari" dan "menjadi"
+      final dariIndex = parts.indexOf('dari');
+      final menjadiIndex = parts.indexOf('menjadi');
+
+      if (dariIndex != -1 && menjadiIndex != -1 && dariIndex < menjadiIndex) {
+        // Dapatkan status lama dan baru
+        String oldStatus = "";
+        if (dariIndex + 1 < parts.length) {
+          oldStatus = parts[dariIndex + 1];
+          // Jika status adalah "dalam perbaikan", gabungkan kedua kata
+          if (oldStatus.toLowerCase() == "dalam" &&
+              dariIndex + 2 < parts.length &&
+              parts[dariIndex + 2].toLowerCase() == "perbaikan") {
+            oldStatus = "dalam perbaikan";
+          }
+        }
+
+        String newStatus = "";
+        if (menjadiIndex + 1 < parts.length) {
+          newStatus = parts[menjadiIndex + 1];
+          // Jika status adalah "dalam perbaikan", gabungkan kedua kata
+          if (newStatus.toLowerCase() == "dalam" &&
+              menjadiIndex + 2 < parts.length &&
+              parts[menjadiIndex + 2].toLowerCase() == "perbaikan") {
+            newStatus = "dalam perbaikan";
+          }
+        }
+
+        // Jika status mengandung kata "lost" atau "damaged", ubah ke bahasa Indonesia
+        if (oldStatus.toLowerCase() == "lost") oldStatus = "hilang";
+        if (newStatus.toLowerCase() == "lost") newStatus = "hilang";
+        if (oldStatus.toLowerCase() == "damaged") oldStatus = "rusak";
+        if (newStatus.toLowerCase() == "damaged") newStatus = "rusak";
+
+        return RichText(
+          text: TextSpan(
+            style: GoogleFonts.inter(
+              fontSize: 14,
+              color: Colors.black87,
+            ),
+            children: [
+              TextSpan(text: '$employeeId mengubah status dari '),
+              _buildStatusBadge(oldStatus),
+              TextSpan(text: ' ke '),
+              _buildStatusBadge(newStatus),
+            ],
+          ),
+        );
+      }
+    }
+
+    // Jika tidak berisi perubahan status, tampilkan pesan biasa
+    return Text(
+      activity.message,
+      style: GoogleFonts.inter(
+        fontSize: 14,
+        color: Colors.black87,
+      ),
+      maxLines: 2,
+      overflow: TextOverflow.ellipsis,
+    );
+  }
+
+  InlineSpan _buildStatusBadge(String status) {
+    final badgeText = _getStatusText(status);
+    final badgeColor = _getStatusColor(badgeText);
+
+    return WidgetSpan(
+      alignment: PlaceholderAlignment.middle,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+        decoration: BoxDecoration(
+          color: badgeColor,
+          borderRadius: BorderRadius.circular(4),
+        ),
+        child: Text(
+          badgeText,
+          style: GoogleFonts.inter(
+            fontSize: 12,
+            fontWeight: FontWeight.w600,
+            color: Colors.white,
+          ),
+        ),
+      ),
+    );
+  }
+
+  String _getStatusText(String status) {
+    // Standarisasi status dalam bahasa Indonesia
     switch (status.toLowerCase()) {
       case 'tersedia':
-        return Colors.green;
-      case 'dipinjam':
-        return Colors.orange;
+      case 'available':
       case 'dikembalikan':
-        return Colors.blue;
+      case 'returned':
+        return "TERSEDIA";
+      case 'dipinjam':
+      case 'borrowed':
+      case 'checked out':
+        return "DIPINJAM";
       case 'dalam perbaikan':
-        return Colors.red;
+      case 'perbaikan':
+      case 'dalam':
+      case 'in repair':
+      case 'rusak':
+      case 'damaged':
+        return "PERBAIKAN";
       case 'dimusnahkan':
-        return Colors.grey[800]!;
+      case 'disposed':
+      case 'hilang':
+      case 'lost':
+        return "HILANG";
+      default:
+        return status.toUpperCase();
+    }
+  }
+
+  Color _getStatusColor(String status) {
+    switch (status) {
+      case 'HILANG':
+        return const Color(0xFFFF5252); // Merah
+      case 'PERBAIKAN':
+        return const Color(0xFF29B6F6); // Biru
+      case 'TERSEDIA':
+        return const Color(0xFF8BC34A); // Hijau
+      case 'DIPINJAM':
+        return const Color(0xFFFFB74D); // Oranye
       default:
         return Colors.grey;
     }

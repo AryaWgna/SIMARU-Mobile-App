@@ -29,6 +29,54 @@ const String ANTI_SCREENSHOT_MESSAGE =
 const bool IS_PRODUCTION = true; // Set ke false untuk development
 const String SECURITY_VERSION = "v1.1";
 
+// Singleton untuk mengelola status anti-screenshot secara global
+class ScreenshotProtectionManager {
+  static final ScreenshotProtectionManager _instance =
+      ScreenshotProtectionManager._internal();
+
+  factory ScreenshotProtectionManager() {
+    return _instance;
+  }
+
+  ScreenshotProtectionManager._internal();
+
+  bool _isProtectionEnabled = false;
+  final NoScreenshot _noScreenshot = NoScreenshot();
+
+  // Metode untuk mengaktifkan proteksi anti-screenshot
+  Future<void> enableProtection() async {
+    if (!_isProtectionEnabled) {
+      try {
+        if (Platform.isAndroid || Platform.isIOS) {
+          await _noScreenshot.screenshotOff();
+          _isProtectionEnabled = true;
+          print("ScreenshotProtectionManager: Protection enabled");
+        }
+      } catch (e) {
+        print("ScreenshotProtectionManager: Error enabling protection: $e");
+      }
+    }
+  }
+
+  // Metode untuk menonaktifkan proteksi anti-screenshot
+  Future<void> disableProtection() async {
+    if (_isProtectionEnabled) {
+      try {
+        if (Platform.isAndroid || Platform.isIOS) {
+          await _noScreenshot.screenshotOn();
+          _isProtectionEnabled = false;
+          print("ScreenshotProtectionManager: Protection disabled");
+        }
+      } catch (e) {
+        print("ScreenshotProtectionManager: Error disabling protection: $e");
+      }
+    }
+  }
+
+  // Getter untuk status proteksi
+  bool get isProtectionEnabled => _isProtectionEnabled;
+}
+
 class AssetDocument extends StatefulWidget {
   final Map<String, dynamic>? assetData;
   final String qrData;
@@ -51,12 +99,13 @@ class _AssetDocumentState extends State<AssetDocument>
   String? errorMessage;
   List<dynamic> documents = [];
   bool _showAntiScreenshotMessage = false;
-  late NoScreenshot _noScreenshot;
   Timer? _securityTimer;
   String _randomSecurityId = '';
   StreamSubscription? _iosScreenshotSubscription;
   final RefreshController _refreshController =
       RefreshController(initialRefresh: false);
+  final ScreenshotProtectionManager _protectionManager =
+      ScreenshotProtectionManager();
 
   @override
   void initState() {
@@ -64,15 +113,13 @@ class _AssetDocumentState extends State<AssetDocument>
     // Deteksi screensaver dan app lifecycle
     WidgetsBinding.instance.addObserver(this);
 
-    // Inisialisasi dan aktifkan fitur anti-screenshot
-    _noScreenshot = NoScreenshot();
-
     // Generate security ID
     _randomSecurityId = _generateRandomId();
 
     // Mengaktifkan anti-screenshot dengan pendekatan ganda
     WidgetsBinding.instance.addPostFrameCallback((_) async {
-      await _secureScreen();
+      // Aktifkan proteksi anti-screenshot
+      await _protectionManager.enableProtection();
 
       // Setup deteksi screenshot untuk iOS
       if (Platform.isIOS) {
@@ -82,14 +129,14 @@ class _AssetDocumentState extends State<AssetDocument>
       // Menggunakan SystemChrome sebagai pendekatan alternatif
       if (Platform.isAndroid) {
         try {
-          // Mengatur preferensi keamanan
+          // Mengatur preferensi keamanan hanya untuk halaman ini
           SystemChrome.setEnabledSystemUIMode(SystemUiMode.manual, overlays: [
             SystemUiOverlay.top,
             SystemUiOverlay.bottom,
           ]);
 
           // Mengaktifkan mode keamanan pada sistem UI
-          SystemChrome.setSystemUIOverlayStyle(SystemUiOverlayStyle(
+          SystemChrome.setSystemUIOverlayStyle(const SystemUiOverlayStyle(
             statusBarColor: Colors.transparent,
           ));
 
@@ -126,11 +173,18 @@ class _AssetDocumentState extends State<AssetDocument>
 
   @override
   void dispose() {
-    _clearSecureScreen();
+    // Pastikan untuk menonaktifkan anti-screenshot saat halaman ini ditutup
+    _protectionManager.disableProtection();
+
     // Kembalikan setting UI ke normal
     if (Platform.isAndroid) {
+      // Pastikan untuk melepaskan pengaturan khusus saat keluar dari halaman ini
       SystemChrome.setEnabledSystemUIMode(SystemUiMode.manual,
           overlays: SystemUiOverlay.values);
+      // Kembalikan statusBarColor ke default atau transparant
+      SystemChrome.setSystemUIOverlayStyle(const SystemUiOverlayStyle(
+        statusBarColor: Colors.transparent,
+      ));
     }
     // Hapus observer
     WidgetsBinding.instance.removeObserver(this);
@@ -150,8 +204,14 @@ class _AssetDocumentState extends State<AssetDocument>
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed) {
-      // Ketika aplikasi dibuka kembali, mungkin setelah screenshot
+      // Ketika halaman ini dibuka kembali, aktifkan kembali anti-screenshot
+      _protectionManager.enableProtection();
+
+      // Ketika aplikasi dibuka kembali, periksa apakah screenshot diambil
       print("Aplikasi dibuka kembali, mungkin setelah screenshot");
+      _showAntiScreenshotNotification();
+    } else if (state == AppLifecycleState.paused) {
+      // Ketika aplikasi di-pause, secara proaktif tampilkan pesan anti-screenshot
       _showAntiScreenshotNotification();
     }
   }
@@ -163,7 +223,7 @@ class _AssetDocumentState extends State<AssetDocument>
     });
 
     // Sembunyikan pesan setelah 3 detik
-    Future.delayed(Duration(seconds: 3), () {
+    Future.delayed(const Duration(seconds: 3), () {
       if (mounted) {
         setState(() {
           _showAntiScreenshotMessage = false;
@@ -172,36 +232,30 @@ class _AssetDocumentState extends State<AssetDocument>
     });
   }
 
-  // Aktifkan keamanan anti-screenshot
-  Future<void> _secureScreen() async {
-    try {
-      if (Platform.isAndroid || Platform.isIOS) {
-        print("Mengaktifkan fitur anti-screenshot");
-
-        // Aktifkan fitur anti-screenshot
-        await _noScreenshot.screenshotOff();
-
-        // Mendeteksi screenshot melalui app lifecycle
-        print("Fitur anti-screenshot berhasil diaktifkan");
-      } else {
-        print("Anti-screenshot hanya tersedia di Android dan iOS");
-      }
-    } catch (e) {
-      print("Error saat mengaktifkan anti-screenshot: $e");
-    }
+  // Generate random ID for security tracking
+  String _generateRandomId() {
+    final random = Random();
+    return DateTime.now().microsecondsSinceEpoch.toString() +
+        random.nextInt(10000).toString();
   }
 
-  // Bersihkan flag keamanan saat halaman ditutup
-  Future<void> _clearSecureScreen() async {
-    try {
-      if (Platform.isAndroid || Platform.isIOS) {
-        print("Menonaktifkan fitur anti-screenshot");
-        await _noScreenshot.screenshotOn();
-        print("Fitur anti-screenshot berhasil dinonaktifkan");
+  // Start timer untuk cek keamanan secara berkala
+  void _startSecurityTimer() {
+    // Cek keamanan setiap 2 detik
+    _securityTimer = Timer.periodic(const Duration(seconds: 2), (timer) {
+      // Regenerate security ID secara berkala
+      if (mounted) {
+        setState(() {
+          _randomSecurityId = _generateRandomId();
+        });
       }
-    } catch (e) {
-      print("Error saat menonaktifkan anti-screenshot: $e");
-    }
+
+      // Re-enable anti-screenshot secara berkala
+      _protectionManager.enableProtection();
+
+      // Debug log
+      print("Security check: $_randomSecurityId");
+    });
   }
 
   void _onRefresh() async {
@@ -515,7 +569,7 @@ class _AssetDocumentState extends State<AssetDocument>
   @override
   Widget build(BuildContext context) {
     return AnnotatedRegion<SystemUiOverlayStyle>(
-      value: SystemUiOverlayStyle(
+      value: const SystemUiOverlayStyle(
         statusBarColor: Colors.transparent,
         statusBarIconBrightness: Brightness.light,
       ),
@@ -642,7 +696,7 @@ class _AssetDocumentState extends State<AssetDocument>
                   Positioned.fill(
                     child: Container(
                       color: Colors.black.withOpacity(0.85),
-                      child: Center(
+                      child: const Center(
                         child: Column(
                           mainAxisSize: MainAxisSize.min,
                           children: [
@@ -651,7 +705,7 @@ class _AssetDocumentState extends State<AssetDocument>
                               color: Colors.white,
                               size: 64,
                             ),
-                            const SizedBox(height: 16),
+                            SizedBox(height: 16),
                             Text(
                               ANTI_SCREENSHOT_MESSAGE,
                               style: TextStyle(
@@ -1022,32 +1076,6 @@ class _AssetDocumentState extends State<AssetDocument>
     );
   }
 
-  // Generate random ID for security tracking
-  String _generateRandomId() {
-    final random = Random();
-    return DateTime.now().microsecondsSinceEpoch.toString() +
-        random.nextInt(10000).toString();
-  }
-
-  // Start timer untuk cek keamanan secara berkala
-  void _startSecurityTimer() {
-    // Cek keamanan setiap 2 detik
-    _securityTimer = Timer.periodic(const Duration(seconds: 2), (timer) {
-      // Regenerate security ID secara berkala
-      if (mounted) {
-        setState(() {
-          _randomSecurityId = _generateRandomId();
-        });
-      }
-
-      // Re-enable anti-screenshot secara berkala
-      _secureScreen();
-
-      // Debug log
-      print("Security check: $_randomSecurityId");
-    });
-  }
-
   // Komponen skeleton untuk document card
   Widget _buildSkeletonDocumentCard() {
     return Container(
@@ -1157,9 +1185,10 @@ class _SecurePdfViewerPageState extends State<SecurePdfViewerPage>
   String? _errorMessage;
   bool _pdfLoadError = false;
   bool _showAntiScreenshotMessage = false;
-  late NoScreenshot _noScreenshot;
   Timer? _securityTimer;
   String _randomSecurityId = '';
+  final ScreenshotProtectionManager _protectionManager =
+      ScreenshotProtectionManager();
 
   @override
   void initState() {
@@ -1167,15 +1196,13 @@ class _SecurePdfViewerPageState extends State<SecurePdfViewerPage>
     // Tambahkan observer
     WidgetsBinding.instance.addObserver(this);
 
-    // Inisialisasi dan aktifkan fitur anti-screenshot
-    _noScreenshot = NoScreenshot();
-
     // Generate security ID
     _randomSecurityId = _generateRandomId();
 
-    // Segera aktifkan anti-screenshot saat halaman dibuka
+    // Segera aktifkan anti-screenshot hanya untuk halaman PDF viewer
     WidgetsBinding.instance.addPostFrameCallback((_) async {
-      await _secureScreen();
+      // Aktifkan proteksi anti-screenshot
+      await _protectionManager.enableProtection();
 
       // Setup deteksi screenshot untuk iOS
       if (Platform.isIOS) {
@@ -1207,7 +1234,8 @@ class _SecurePdfViewerPageState extends State<SecurePdfViewerPage>
 
   @override
   void dispose() {
-    _clearSecureScreen();
+    // Pastikan untuk menonaktifkan anti-screenshot saat keluar dari halaman ini
+    _protectionManager.disableProtection();
     WidgetsBinding.instance.removeObserver(this);
 
     // Hentikan deteksi screenshot iOS
@@ -1225,8 +1253,14 @@ class _SecurePdfViewerPageState extends State<SecurePdfViewerPage>
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed) {
-      // Ketika aplikasi dibuka kembali, mungkin setelah screenshot
+      // Ketika halaman ini dibuka kembali, aktifkan kembali anti-screenshot
+      _protectionManager.enableProtection();
+
+      // Ketika aplikasi dibuka kembali, periksa apakah screenshot diambil
       print("PDF Viewer: Aplikasi dibuka kembali, mungkin setelah screenshot");
+      _showAntiScreenshotNotification();
+    } else if (state == AppLifecycleState.paused) {
+      // Ketika aplikasi di-pause, secara proaktif tampilkan pesan anti-screenshot
       _showAntiScreenshotNotification();
     }
   }
@@ -1238,45 +1272,13 @@ class _SecurePdfViewerPageState extends State<SecurePdfViewerPage>
     });
 
     // Sembunyikan pesan setelah 3 detik
-    Future.delayed(Duration(seconds: 3), () {
+    Future.delayed(const Duration(seconds: 3), () {
       if (mounted) {
         setState(() {
           _showAntiScreenshotMessage = false;
         });
       }
     });
-  }
-
-  // Aktifkan keamanan anti-screenshot
-  Future<void> _secureScreen() async {
-    try {
-      if (Platform.isAndroid || Platform.isIOS) {
-        print("PDF Viewer: Mengaktifkan fitur anti-screenshot");
-
-        // Aktifkan fitur anti-screenshot
-        await _noScreenshot.screenshotOff();
-
-        // Mendeteksi screenshot melalui app lifecycle
-        print("PDF Viewer: Fitur anti-screenshot berhasil diaktifkan");
-      } else {
-        print("Anti-screenshot hanya tersedia di Android dan iOS");
-      }
-    } catch (e) {
-      print("Error saat mengaktifkan anti-screenshot: $e");
-    }
-  }
-
-  // Bersihkan flag keamanan saat halaman ditutup
-  Future<void> _clearSecureScreen() async {
-    try {
-      if (Platform.isAndroid || Platform.isIOS) {
-        print("PDF Viewer: Menonaktifkan fitur anti-screenshot");
-        await _noScreenshot.screenshotOn();
-        print("PDF Viewer: Fitur anti-screenshot berhasil dinonaktifkan");
-      }
-    } catch (e) {
-      print("Error saat menonaktifkan anti-screenshot: $e");
-    }
   }
 
   // Generate random ID for security tracking
@@ -1298,7 +1300,7 @@ class _SecurePdfViewerPageState extends State<SecurePdfViewerPage>
       }
 
       // Re-enable anti-screenshot secara berkala
-      _secureScreen();
+      _protectionManager.enableProtection();
 
       // Debug log
       print("PDF Security check: $_randomSecurityId");
@@ -1402,7 +1404,7 @@ class _SecurePdfViewerPageState extends State<SecurePdfViewerPage>
             Positioned.fill(
               child: Container(
                 color: Colors.black.withOpacity(0.85),
-                child: Center(
+                child: const Center(
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
@@ -1411,7 +1413,7 @@ class _SecurePdfViewerPageState extends State<SecurePdfViewerPage>
                         color: Colors.white,
                         size: 64,
                       ),
-                      const SizedBox(height: 16),
+                      SizedBox(height: 16),
                       Text(
                         ANTI_SCREENSHOT_MESSAGE,
                         style: TextStyle(
@@ -1456,9 +1458,10 @@ class _SecureImageViewerPageState extends State<SecureImageViewerPage>
   String? _errorMessage;
   bool _imageLoadError = false;
   bool _showAntiScreenshotMessage = false;
-  late NoScreenshot _noScreenshot;
   Timer? _securityTimer;
   String _randomSecurityId = '';
+  final ScreenshotProtectionManager _protectionManager =
+      ScreenshotProtectionManager();
 
   @override
   void initState() {
@@ -1466,15 +1469,13 @@ class _SecureImageViewerPageState extends State<SecureImageViewerPage>
     // Tambahkan observer
     WidgetsBinding.instance.addObserver(this);
 
-    // Inisialisasi dan aktifkan fitur anti-screenshot
-    _noScreenshot = NoScreenshot();
-
     // Generate security ID
     _randomSecurityId = _generateRandomId();
 
-    // Segera aktifkan anti-screenshot saat halaman dibuka
+    // Segera aktifkan anti-screenshot hanya untuk halaman Image viewer
     WidgetsBinding.instance.addPostFrameCallback((_) async {
-      await _secureScreen();
+      // Aktifkan proteksi anti-screenshot
+      await _protectionManager.enableProtection();
 
       // Setup deteksi screenshot untuk iOS
       if (Platform.isIOS) {
@@ -1506,7 +1507,8 @@ class _SecureImageViewerPageState extends State<SecureImageViewerPage>
 
   @override
   void dispose() {
-    _clearSecureScreen();
+    // Pastikan untuk menonaktifkan anti-screenshot saat keluar dari halaman ini
+    _protectionManager.disableProtection();
     _transformationController.dispose();
     WidgetsBinding.instance.removeObserver(this);
 
@@ -1525,9 +1527,15 @@ class _SecureImageViewerPageState extends State<SecureImageViewerPage>
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed) {
-      // Ketika aplikasi dibuka kembali, mungkin setelah screenshot
+      // Ketika halaman ini dibuka kembali, aktifkan kembali anti-screenshot
+      _protectionManager.enableProtection();
+
+      // Ketika aplikasi dibuka kembali, periksa apakah screenshot diambil
       print(
           "Image Viewer: Aplikasi dibuka kembali, mungkin setelah screenshot");
+      _showAntiScreenshotNotification();
+    } else if (state == AppLifecycleState.paused) {
+      // Ketika aplikasi di-pause, secara proaktif tampilkan pesan anti-screenshot
       _showAntiScreenshotNotification();
     }
   }
@@ -1539,7 +1547,7 @@ class _SecureImageViewerPageState extends State<SecureImageViewerPage>
     });
 
     // Sembunyikan pesan setelah 3 detik
-    Future.delayed(Duration(seconds: 3), () {
+    Future.delayed(const Duration(seconds: 3), () {
       if (mounted) {
         setState(() {
           _showAntiScreenshotMessage = false;
@@ -1548,36 +1556,11 @@ class _SecureImageViewerPageState extends State<SecureImageViewerPage>
     });
   }
 
-  // Aktifkan keamanan anti-screenshot
-  Future<void> _secureScreen() async {
-    try {
-      if (Platform.isAndroid || Platform.isIOS) {
-        print("Image Viewer: Mengaktifkan fitur anti-screenshot");
-
-        // Aktifkan fitur anti-screenshot
-        await _noScreenshot.screenshotOff();
-
-        // Mendeteksi screenshot melalui app lifecycle
-        print("Image Viewer: Fitur anti-screenshot berhasil diaktifkan");
-      } else {
-        print("Anti-screenshot hanya tersedia di Android dan iOS");
-      }
-    } catch (e) {
-      print("Error saat mengaktifkan anti-screenshot: $e");
-    }
-  }
-
-  // Bersihkan flag keamanan saat halaman ditutup
-  Future<void> _clearSecureScreen() async {
-    try {
-      if (Platform.isAndroid || Platform.isIOS) {
-        print("Image Viewer: Menonaktifkan fitur anti-screenshot");
-        await _noScreenshot.screenshotOn();
-        print("Image Viewer: Fitur anti-screenshot berhasil dinonaktifkan");
-      }
-    } catch (e) {
-      print("Error saat menonaktifkan anti-screenshot: $e");
-    }
+  // Generate random ID for security tracking
+  String _generateRandomId() {
+    final random = Random();
+    return DateTime.now().microsecondsSinceEpoch.toString() +
+        random.nextInt(10000).toString();
   }
 
   // Fungsi untuk handle double tap zoom
@@ -1619,13 +1602,6 @@ class _SecureImageViewerPageState extends State<SecureImageViewerPage>
     }
   }
 
-  // Generate random ID for security tracking
-  String _generateRandomId() {
-    final random = Random();
-    return DateTime.now().microsecondsSinceEpoch.toString() +
-        random.nextInt(10000).toString();
-  }
-
   // Start timer untuk cek keamanan secara berkala
   void _startSecurityTimer() {
     // Cek keamanan setiap 2 detik
@@ -1638,7 +1614,7 @@ class _SecureImageViewerPageState extends State<SecureImageViewerPage>
       }
 
       // Re-enable anti-screenshot secara berkala
-      _secureScreen();
+      _protectionManager.enableProtection();
 
       // Debug log
       print("Image Security check: $_randomSecurityId");
@@ -1787,7 +1763,7 @@ class _SecureImageViewerPageState extends State<SecureImageViewerPage>
             Positioned.fill(
               child: Container(
                 color: Colors.black.withOpacity(0.85),
-                child: Center(
+                child: const Center(
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
@@ -1796,7 +1772,7 @@ class _SecureImageViewerPageState extends State<SecureImageViewerPage>
                         color: Colors.white,
                         size: 64,
                       ),
-                      const SizedBox(height: 16),
+                      SizedBox(height: 16),
                       Text(
                         ANTI_SCREENSHOT_MESSAGE,
                         style: TextStyle(
