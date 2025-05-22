@@ -231,24 +231,25 @@ class _LoginScreenState extends State<LoginScreen> {
       _logError(e, stackTrace);
 
       if (mounted) {
+        late String errorMsg;
+
+        if (e is ApiException) {
+          errorMsg = e.message;
+          print("Api Exception message: ${e.message}");
+          print("Full ApiException: ${e.toString()}");
+        } else {
+          errorMsg = 'Terjadi kesalahan: ${e.toString()}';
+          print("Generic error: ${e.toString()}");
+        }
+
+        // Set error message
         setState(() {
-          // Tampilkan pesan error yang user-friendly
-          if (e is ApiException) {
-            _errorMessage = e.getUserFriendlyMessage();
-          } else {
-            _errorMessage = 'Terjadi kesalahan: ${e.toString()}';
-          }
+          _errorMessage = errorMsg;
         });
 
-        // Tampilkan snackbar untuk error
-        ScaffoldMessenger.of(context).clearSnackBars();
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(_errorMessage ?? 'Terjadi kesalahan saat login'),
-            backgroundColor: Colors.red[700],
-            behavior: SnackBarBehavior.floating,
-          ),
-        );
+        print("Error message is now: $_errorMessage");
+
+        // Snackbar dihapus sesuai permintaan
       }
     } finally {
       if (mounted) {
@@ -349,36 +350,8 @@ class _LoginScreenState extends State<LoginScreen> {
                     ),
                   ),
                   const SizedBox(height: 20),
-                  // Error message area
-                  if (_errorMessage != null)
-                    Container(
-                      padding: const EdgeInsets.all(10),
-                      margin: const EdgeInsets.only(bottom: 15),
-                      decoration: BoxDecoration(
-                        color: Colors.red[50],
-                        borderRadius: BorderRadius.circular(8),
-                        border: Border.all(color: Colors.red.shade300),
-                      ),
-                      child: Row(
-                        children: [
-                          Icon(Icons.error_outline, color: Colors.red[700]),
-                          const SizedBox(width: 10),
-                          Expanded(
-                            child: Text(
-                              _errorMessage!,
-                              style: TextStyle(color: Colors.red[700]),
-                            ),
-                          ),
-                          IconButton(
-                            icon: const Icon(Icons.close, size: 16),
-                            onPressed: () {
-                              setState(() => _errorMessage = null);
-                            },
-                            color: Colors.red[700],
-                          )
-                        ],
-                      ),
-                    ),
+                  // Ganti container error dengan widget error yang lebih interaktif
+                  _buildErrorContainer(),
                   Container(
                     padding: const EdgeInsets.all(12),
                     decoration: BoxDecoration(
@@ -548,6 +521,138 @@ class _LoginScreenState extends State<LoginScreen> {
           ),
         ),
       ],
+    );
+  }
+
+  // Widget error message yang lebih interaktif
+  Widget _buildErrorContainer() {
+    if (_errorMessage == null) return const SizedBox.shrink();
+
+    return TweenAnimationBuilder<double>(
+      duration: const Duration(milliseconds: 300),
+      tween: Tween<double>(begin: 0, end: 1),
+      builder: (context, value, child) {
+        return Transform.translate(
+          offset: Offset(0, -10 * (1 - value)),
+          child: Opacity(
+            opacity: value,
+            child: child,
+          ),
+        );
+      },
+      child: Container(
+        padding: const EdgeInsets.all(12),
+        margin: const EdgeInsets.only(bottom: 15),
+        decoration: BoxDecoration(
+          color: Colors.red[50],
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: Colors.red.shade300),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.red.withOpacity(0.1),
+              blurRadius: 4,
+              offset: const Offset(0, 2),
+            ),
+          ],
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(Icons.error_outline, color: Colors.red[700]),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    'Gagal Masuk',
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      color: Colors.red[700],
+                      fontSize: 16,
+                    ),
+                  ),
+                ),
+                InkWell(
+                  onTap: () => setState(() => _errorMessage = null),
+                  borderRadius: BorderRadius.circular(12),
+                  child: Padding(
+                    padding: const EdgeInsets.all(4),
+                    child: Icon(Icons.close, size: 16, color: Colors.red[700]),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            Text(
+              _errorMessage!,
+              style: TextStyle(color: Colors.red[700]),
+            ),
+            const SizedBox(height: 12),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.end,
+              children: [
+                // Tombol bantuan
+                TextButton.icon(
+                  onPressed: () {
+                    // Tampilkan dialog bantuan
+                    showDialog(
+                      context: context,
+                      builder: (ctx) => AlertDialog(
+                        title: const Text('Bantuan'),
+                        content: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text('Beberapa tips untuk masalah login:'),
+                            const SizedBox(height: 8),
+                            Text(
+                                '• Pastikan nomor karyawan dan password benar'),
+                            Text('• Periksa koneksi internet Anda'),
+                            Text('• Hubungi admin jika masalah berlanjut'),
+                          ],
+                        ),
+                        actions: [
+                          TextButton(
+                            onPressed: () => Navigator.of(ctx).pop(),
+                            child: const Text('Tutup'),
+                          ),
+                        ],
+                      ),
+                    );
+                  },
+                  icon: Icon(Icons.help_outline,
+                      size: 16, color: Colors.red[700]),
+                  label:
+                      Text('Bantuan', style: TextStyle(color: Colors.red[700])),
+                  style: TextButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(horizontal: 8),
+                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  ),
+                ),
+                const SizedBox(width: 8),
+                // Tombol coba lagi
+                TextButton.icon(
+                  onPressed: () {
+                    setState(() {
+                      _errorMessage = null;
+                      // Fokus pada field password
+                      _passwordController.clear();
+                      FocusScope.of(context).requestFocus(FocusNode());
+                    });
+                  },
+                  icon: Icon(Icons.refresh, size: 16, color: Colors.red[700]),
+                  label: Text('Coba Lagi',
+                      style: TextStyle(color: Colors.red[700])),
+                  style: TextButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(horizontal: 8),
+                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

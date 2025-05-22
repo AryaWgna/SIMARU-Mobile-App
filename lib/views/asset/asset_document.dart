@@ -107,6 +107,9 @@ class _AssetDocumentState extends State<AssetDocument>
   final ScreenshotProtectionManager _protectionManager =
       ScreenshotProtectionManager();
 
+  // Tambahkan counter refresh untuk mengatasi efek zoom kumulatif
+  int _refreshCount = 0;
+
   @override
   void initState() {
     super.initState();
@@ -116,45 +119,20 @@ class _AssetDocumentState extends State<AssetDocument>
     // Generate security ID
     _randomSecurityId = _generateRandomId();
 
-    // Mengaktifkan anti-screenshot dengan pendekatan ganda
+    // Nonaktifkan anti-screenshot di halaman utama
+    // Hanya aktifkan pada preview dokumen saja
+    _protectionManager
+        .disableProtection(); // Pastikan fitur off di halaman utama
+
     WidgetsBinding.instance.addPostFrameCallback((_) async {
-      // Aktifkan proteksi anti-screenshot
-      await _protectionManager.enableProtection();
-
-      // Setup deteksi screenshot untuk iOS
-      if (Platform.isIOS) {
-        _setupIOSScreenshotDetection();
-      }
-
-      // Menggunakan SystemChrome sebagai pendekatan alternatif
-      if (Platform.isAndroid) {
-        try {
-          // Mengatur preferensi keamanan hanya untuk halaman ini
-          SystemChrome.setEnabledSystemUIMode(SystemUiMode.manual, overlays: [
-            SystemUiOverlay.top,
-            SystemUiOverlay.bottom,
-          ]);
-
-          // Mengaktifkan mode keamanan pada sistem UI
-          SystemChrome.setSystemUIOverlayStyle(const SystemUiOverlayStyle(
-            statusBarColor: Colors.transparent,
-          ));
-
-          print("Keamanan tambahan melalui SystemChrome diaktifkan");
-        } catch (e) {
-          print("Error saat mengatur SystemChrome: $e");
-        }
-      }
-
       _fetchAssetDocuments();
-
-      // Start security timer
-      _startSecurityTimer();
     });
   }
 
   // Setup deteksi screenshot untuk iOS
   void _setupIOSScreenshotDetection() async {
+    // Fungsi dipertahankan untuk digunakan di viewer page
+    // tapi tidak dipanggil di halaman utama
     try {
       _channel.setMethodCallHandler((call) async {
         if (call.method == 'onScreenshotTaken') {
@@ -259,11 +237,45 @@ class _AssetDocumentState extends State<AssetDocument>
   }
 
   void _onRefresh() async {
-    // Monitor network fetching
+    // Segera aktifkan skeletonizer
+    if (mounted) {
+      setState(() {
+        isLoading = true;
+      });
+    }
+
+    // Fetch data dengan flag showLoading=false karena kita sudah mengaktifkan loading state
     await _fetchAssetDocuments(showLoading: false);
 
-    // If failed, you can use refreshFailed()
+    // Reset refresh controller
     _refreshController.refreshCompleted();
+
+    // Jika refresh counter mencapai 3, reset tampilan untuk mencegah zoom
+    _refreshCount++;
+    if (_refreshCount >= 3) {
+      _refreshCount = 0;
+
+      if (mounted) {
+        // Trigger rebuild dengan sedikit delay
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) {
+            Navigator.of(context).push(
+              PageRouteBuilder(
+                pageBuilder: (context, animation, secondaryAnimation) =>
+                    AssetDocument(
+                  assetData: widget.assetData,
+                  qrData: widget.qrData,
+                  previousScreen: widget.previousScreen,
+                ),
+                transitionDuration: Duration.zero,
+                reverseTransitionDuration: Duration.zero,
+              ),
+            );
+            Navigator.of(context).removeRoute(ModalRoute.of(context)!);
+          }
+        });
+      }
+    }
   }
 
   Future<void> _fetchAssetDocuments({bool showLoading = true}) async {
@@ -312,7 +324,7 @@ class _AssetDocumentState extends State<AssetDocument>
       print('Mengambil dokumen untuk aset dengan ID: $assetId');
 
       // Gunakan endpoint yang benar sesuai dengan dokumentasi API
-      var endpoint = '/asset-documents/asset/$assetId/documents';
+      var endpoint = '/asset-documents/asset/$assetId/all-documents';
       print('Endpoint yang digunakan: $endpoint');
 
       final response = await ApiService.get(
@@ -504,6 +516,8 @@ class _AssetDocumentState extends State<AssetDocument>
           builder: (context) => SecurePdfViewerPage(
             pdfUrl: fullUrl,
             title: document['document_title'] ?? 'Dokumen PDF',
+            // Aktifkan anti-screenshot hanya untuk viewer
+            enableAntiScreenshot: true,
           ),
         ),
       );
@@ -552,6 +566,8 @@ class _AssetDocumentState extends State<AssetDocument>
           builder: (context) => SecureImageViewerPage(
             imageUrl: fullUrl,
             title: document['document_title'] ?? 'Gambar',
+            // Aktifkan anti-screenshot hanya untuk viewer
+            enableAntiScreenshot: true,
           ),
         ),
       );
@@ -584,6 +600,10 @@ class _AssetDocumentState extends State<AssetDocument>
                 isLoading
                     ? Skeletonizer(
                         enabled: true,
+                        effect: ShimmerEffect(
+                          baseColor: Colors.grey.shade300,
+                          highlightColor: const Color(0xFFE5EFFF),
+                        ),
                         child: ListView.separated(
                           padding: const EdgeInsets.all(16),
                           itemCount: 3, // Tampilkan 3 skeleton item
@@ -667,27 +687,40 @@ class _AssetDocumentState extends State<AssetDocument>
                               )
                             : SmartRefresher(
                                 enablePullDown: true,
+                                enablePullUp: false,
+                                physics: const ClampingScrollPhysics(),
                                 controller: _refreshController,
                                 onRefresh: _onRefresh,
-                                header: const WaterDropHeader(
-                                  complete: Text(
-                                    'Berhasil diperbarui',
-                                    style: TextStyle(color: Color(0xFF213268)),
-                                  ),
-                                  failed: Text(
-                                    'Gagal memperbarui',
-                                    style: TextStyle(color: Colors.red),
-                                  ),
+                                footer: null,
+                                header: const WaterDropMaterialHeader(
+                                  backgroundColor: Color(0xFF213268),
+                                  color: Colors.white,
+                                  distance: 60.0,
                                 ),
-                                child: ListView.separated(
-                                  padding: const EdgeInsets.all(16),
-                                  itemCount: documents.length,
-                                  separatorBuilder: (context, index) =>
-                                      const SizedBox(height: 12),
-                                  itemBuilder: (context, index) {
-                                    final document = documents[index];
-                                    return _buildDocumentCard(document);
-                                  },
+                                child: ScrollConfiguration(
+                                  behavior:
+                                      ScrollConfiguration.of(context).copyWith(
+                                    overscroll: false,
+                                  ),
+                                  child: NotificationListener<
+                                      OverscrollIndicatorNotification>(
+                                    onNotification: (overscroll) {
+                                      overscroll.disallowIndicator();
+                                      return true;
+                                    },
+                                    child: ListView.separated(
+                                      shrinkWrap: true,
+                                      physics: const ClampingScrollPhysics(),
+                                      padding: const EdgeInsets.all(16),
+                                      itemCount: documents.length,
+                                      separatorBuilder: (context, index) =>
+                                          const SizedBox(height: 12),
+                                      itemBuilder: (context, index) {
+                                        final document = documents[index];
+                                        return _buildDocumentCard(document);
+                                      },
+                                    ),
+                                  ),
                                 ),
                               ),
 
@@ -932,13 +965,6 @@ class _AssetDocumentState extends State<AssetDocument>
                 color: Color(0xFF213268),
                 borderRadius:
                     BorderRadius.vertical(bottom: Radius.circular(20)),
-                boxShadow: [
-                  BoxShadow(
-                    color: Color(0xFF56C5F1),
-                    blurRadius: 3,
-                    offset: Offset(0, 3),
-                  ),
-                ],
               ),
             ),
           ),
@@ -1082,9 +1108,10 @@ class _AssetDocumentState extends State<AssetDocument>
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: Colors.grey.shade200),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.1),
+            color: const Color(0xFF213268).withOpacity(0.08),
             blurRadius: 4,
             offset: const Offset(0, 2),
           ),
@@ -1108,15 +1135,22 @@ class _AssetDocumentState extends State<AssetDocument>
                   ),
                 ),
                 const SizedBox(width: 8),
-                const Icon(
-                  Icons.picture_as_pdf,
-                  color: Color(0xFF25B1FF),
-                  size: 24,
+                Container(
+                  width: 24,
+                  height: 24,
+                  decoration: const BoxDecoration(
+                    color: Color(0xFF25B1FF),
+                    shape: BoxShape.circle,
+                  ),
                 ),
               ],
             ),
           ),
-          const Divider(height: 1, thickness: 1, color: Color(0xFFEEEEEE)),
+          Container(
+            height: 1,
+            width: double.infinity,
+            color: Colors.grey.shade200,
+          ),
           Padding(
             padding: const EdgeInsets.all(12),
             child: Column(
@@ -1168,11 +1202,13 @@ class _AssetDocumentState extends State<AssetDocument>
 class SecurePdfViewerPage extends StatefulWidget {
   final String pdfUrl;
   final String title;
+  final bool enableAntiScreenshot; // Parameter baru
 
   const SecurePdfViewerPage({
     super.key,
     required this.pdfUrl,
     required this.title,
+    this.enableAntiScreenshot = false, // Default ke false
   });
 
   @override
@@ -1199,18 +1235,20 @@ class _SecurePdfViewerPageState extends State<SecurePdfViewerPage>
     // Generate security ID
     _randomSecurityId = _generateRandomId();
 
-    // Segera aktifkan anti-screenshot hanya untuk halaman PDF viewer
+    // Segera aktifkan anti-screenshot hanya jika diminta
     WidgetsBinding.instance.addPostFrameCallback((_) async {
-      // Aktifkan proteksi anti-screenshot
-      await _protectionManager.enableProtection();
+      if (widget.enableAntiScreenshot) {
+        // Aktifkan proteksi anti-screenshot
+        await _protectionManager.enableProtection();
 
-      // Setup deteksi screenshot untuk iOS
-      if (Platform.isIOS) {
-        _setupIOSScreenshotDetection();
+        // Setup deteksi screenshot untuk iOS
+        if (Platform.isIOS) {
+          _setupIOSScreenshotDetection();
+        }
+
+        // Start security timer
+        _startSecurityTimer();
       }
-
-      // Start security timer
-      _startSecurityTimer();
     });
   }
 
@@ -1239,7 +1277,7 @@ class _SecurePdfViewerPageState extends State<SecurePdfViewerPage>
     WidgetsBinding.instance.removeObserver(this);
 
     // Hentikan deteksi screenshot iOS
-    if (Platform.isIOS) {
+    if (Platform.isIOS && widget.enableAntiScreenshot) {
       _channel.invokeMethod('stopScreenshotDetection');
     }
 
@@ -1438,11 +1476,13 @@ class _SecurePdfViewerPageState extends State<SecurePdfViewerPage>
 class SecureImageViewerPage extends StatefulWidget {
   final String imageUrl;
   final String title;
+  final bool enableAntiScreenshot; // Parameter baru
 
   const SecureImageViewerPage({
     super.key,
     required this.imageUrl,
     required this.title,
+    this.enableAntiScreenshot = false, // Default ke false
   });
 
   @override
@@ -1472,18 +1512,20 @@ class _SecureImageViewerPageState extends State<SecureImageViewerPage>
     // Generate security ID
     _randomSecurityId = _generateRandomId();
 
-    // Segera aktifkan anti-screenshot hanya untuk halaman Image viewer
+    // Segera aktifkan anti-screenshot hanya jika diminta
     WidgetsBinding.instance.addPostFrameCallback((_) async {
-      // Aktifkan proteksi anti-screenshot
-      await _protectionManager.enableProtection();
+      if (widget.enableAntiScreenshot) {
+        // Aktifkan proteksi anti-screenshot
+        await _protectionManager.enableProtection();
 
-      // Setup deteksi screenshot untuk iOS
-      if (Platform.isIOS) {
-        _setupIOSScreenshotDetection();
+        // Setup deteksi screenshot untuk iOS
+        if (Platform.isIOS) {
+          _setupIOSScreenshotDetection();
+        }
+
+        // Start security timer
+        _startSecurityTimer();
       }
-
-      // Start security timer
-      _startSecurityTimer();
     });
   }
 
@@ -1513,7 +1555,7 @@ class _SecureImageViewerPageState extends State<SecureImageViewerPage>
     WidgetsBinding.instance.removeObserver(this);
 
     // Hentikan deteksi screenshot iOS
-    if (Platform.isIOS) {
+    if (Platform.isIOS && widget.enableAntiScreenshot) {
       _channel.invokeMethod('stopScreenshotDetection');
     }
 

@@ -9,6 +9,15 @@ class AssetUnderRepairController extends ChangeNotifier {
   bool get isLoading => _isLoading;
   String? get error => _error;
 
+  // Method untuk mengatur status loading secara manual
+  void setLoading(bool loading) {
+    if (_isLoading != loading) {
+      _isLoading = loading;
+      notifyListeners();
+      print('AssetUnderRepairController loading state set to: $_isLoading');
+    }
+  }
+
   void setTotalAssetController(TotalAssetController controller) {
     _totalAssetController = controller;
     notifyListeners();

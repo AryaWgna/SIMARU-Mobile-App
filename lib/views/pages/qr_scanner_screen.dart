@@ -480,7 +480,7 @@ class _QRScannerScreenState extends State<QRScannerScreen>
       // Mencoba mendapatkan aset dengan endpoint yang benar sesuai dokumentasi API
       try {
         // Langsung menggunakan endpoint /assets/qr/{assetCode}
-        var endpoint = '/assets/code/${Uri.encodeComponent(assetCode)}';
+        var endpoint = '/assets/qr/${Uri.encodeComponent(assetCode)}';
         print(
             '[DEBUG] Mencoba endpoint: $endpoint dengan assetCode: $assetCode');
 
@@ -783,7 +783,7 @@ class _QRScannerScreenState extends State<QRScannerScreen>
 
     try {
       // Langsung gunakan endpoint yang benar sesuai dokumentasi API
-      var endpoint = '/assets/code/${Uri.encodeComponent(assetCode)}';
+      var endpoint = '/assets/qr/${Uri.encodeComponent(assetCode)}';
       print('[DEBUG] _getAssetByCode: Mencoba endpoint: $endpoint');
 
       var response = await auth.ApiService.get(endpoint, context: context);

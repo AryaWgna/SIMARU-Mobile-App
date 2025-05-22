@@ -28,21 +28,7 @@ class ApiException implements Exception {
 
   // Helper untuk membuat pesan yang user-friendly
   String getUserFriendlyMessage() {
-    if (statusCode == 401) {
-      return 'Sesi Anda telah berakhir. Silakan login kembali.';
-    } else if (statusCode == 403) {
-      return 'employee_number atau password salah. Silakan periksa kembali.';
-    } else if (statusCode == 404) {
-      return 'Layanan tidak ditemukan. Silakan hubungi administrator.';
-    } else if (statusCode == 500) {
-      return 'Terjadi kesalahan pada server. Silakan coba lagi nanti.';
-    } else if (message.contains('SocketException') ||
-        message.contains('Connection refused')) {
-      return 'Tidak dapat terhubung ke server. Periksa koneksi internet Anda.';
-    } else if (message.contains('timeout')) {
-      return 'Koneksi timeout. Server mungkin sedang sibuk, silakan coba lagi.';
-    }
-
+    // Langsung kembalikan pesan asli dari server
     return message;
   }
 }
@@ -234,7 +220,6 @@ class ApiService {
     try {
       final url = ApiConfig.loginUrl;
       print('Attempting login to: $url');
-      print('employee_number: $employeeNumber');
 
       final requestBody = {
         'employee_number': employeeNumber,
@@ -264,115 +249,79 @@ class ApiService {
       print('Login response received. Status: ${response.statusCode}');
       print('Response body: ${response.body}');
 
-      if (response.statusCode == 200) {
-        try {
-          final jsonResponse = jsonDecode(response.body);
-          print('Response decoded: $jsonResponse');
+      final jsonResponse = jsonDecode(response.body);
 
-          if (jsonResponse['success'] == true) {
-            print('Login success flag found in response');
-            // Cek keberadaan data
-            if (jsonResponse['data'] == null) {
-              print('Data not found in response');
-              throw ApiException(
-                  message: 'Data tidak ditemukan dalam respon',
-                  code: 'INVALID_RESPONSE',
-                  statusCode: 200);
-            }
+      // Log response structure for debugging
+      print('Response keys: ${jsonResponse.keys.toList()}');
 
-            final accessToken = jsonResponse['data']['accessToken'];
-            final refreshToken = jsonResponse['data']['refreshToken'];
+      // Jika response tidak sukses, langsung throw error dengan pesan dari server
+      if (!jsonResponse['success']) {
+        String errorMessage = 'Login gagal';
 
-            if (accessToken == null || refreshToken == null) {
-              print('Tokens not found in response data');
-              throw ApiException(
-                  message: 'Token tidak ditemukan dalam respon',
-                  code: 'MISSING_TOKEN',
-                  statusCode: 200);
-            }
-
-            print('Tokens found, storing credentials...');
-            // Simpan token
-            try {
-              await _secureStorage.write(
-                  key: 'accessToken', value: accessToken);
-              await _secureStorage.write(
-                  key: 'refreshToken', value: refreshToken);
-              await _secureStorage.write(
-                  key: 'employee_number', value: employeeNumber);
-              await _secureStorage.write(key: 'password', value: password);
-              print('Credentials stored successfully');
-            } catch (e) {
-              print('Failed to store credentials in secure storage: $e');
-              // Backup ke variabel memori jika gagal
-              _tempAccessToken = accessToken;
-              _tempRefreshToken = refreshToken;
-              _tempemployee_number = employeeNumber;
-              _tempPassword = password;
-              print('Credentials stored in temporary variables');
-            }
-            print('Login completed successfully');
-            return;
-          } else {
-            // API mengembalikan status: false
-            final message = jsonResponse['message'] ?? 'Login gagal';
-            throw ApiException(
-                message: message,
-                code: 'LOGIN_FAILED',
-                statusCode: response.statusCode);
+        // Coba ambil pesan error dari berbagai kemungkinan lokasi
+        if (jsonResponse.containsKey('errors')) {
+          var errors = jsonResponse['errors'];
+          if (errors is String) {
+            errorMessage = errors;
+          } else if (errors is List && errors.isNotEmpty) {
+            errorMessage = errors.first.toString();
+          } else if (errors is Map && errors.isNotEmpty) {
+            errorMessage = errors.values.first.toString();
           }
-        } catch (e) {
-          if (e is ApiException) rethrow;
+        } else if (jsonResponse.containsKey('message')) {
+          errorMessage = jsonResponse['message'].toString();
+        }
 
-          throw ApiException(
-              message: 'Format respons tidak valid',
-              code: 'PARSE_ERROR',
-              statusCode: response.statusCode);
-        }
-      } else if (response.statusCode == 400) {
-        try {
-          final jsonResponse = jsonDecode(response.body);
-          throw ApiException(
-              message:
-                  jsonResponse['message'] ?? 'Data yang dimasukkan tidak valid',
-              code: 'VALIDATION_ERROR',
-              statusCode: 400);
-        } catch (e) {
-          if (e is ApiException) rethrow;
-          throw ApiException(
-              message: 'Data yang dimasukkan tidak valid',
-              code: 'VALIDATION_ERROR',
-              statusCode: 400);
-        }
-      } else if (response.statusCode == 401) {
+        print('Extracted error message: $errorMessage');
+
         throw ApiException(
-            message: 'Tidak diizinkan mengakses sistem',
-            code: 'UNAUTHORIZED',
-            statusCode: 401);
-      } else if (response.statusCode == 403) {
-        try {
-          final jsonResponse = jsonDecode(response.body);
-          throw ApiException(
-              message: jsonResponse['message'] ??
-                  'employee_number atau password salah',
-              code: 'FORBIDDEN',
-              statusCode: 403);
-        } catch (e) {
-          if (e is ApiException) rethrow;
-          throw ApiException(
-              message: 'employee_number atau password salah',
-              code: 'FORBIDDEN',
-              statusCode: 403);
-        }
-      } else {
-        throw ApiException(
-            message: 'Terjadi kesalahan saat login',
-            code: 'UNKNOWN_ERROR',
-            statusCode: response.statusCode);
+          message: errorMessage,
+          code: jsonResponse['code'] ?? 'LOGIN_FAILED',
+          statusCode: response.statusCode,
+        );
       }
+
+      // Jika sukses, proses data login
+      if (jsonResponse['data'] == null) {
+        throw ApiException(
+          message: 'Data tidak ditemukan dalam respon',
+          code: 'INVALID_RESPONSE',
+          statusCode: response.statusCode,
+        );
+      }
+
+      final accessToken = jsonResponse['data']['accessToken'];
+      final refreshToken = jsonResponse['data']['refreshToken'];
+
+      if (accessToken == null || refreshToken == null) {
+        throw ApiException(
+          message: 'Token tidak ditemukan dalam respon',
+          code: 'MISSING_TOKEN',
+          statusCode: response.statusCode,
+        );
+      }
+
+      print('Tokens found, storing credentials...');
+      try {
+        await _secureStorage.write(key: 'accessToken', value: accessToken);
+        await _secureStorage.write(key: 'refreshToken', value: refreshToken);
+        await _secureStorage.write(
+            key: 'employee_number', value: employeeNumber);
+        await _secureStorage.write(key: 'password', value: password);
+        print('Credentials stored successfully');
+      } catch (e) {
+        print('Failed to store credentials in secure storage: $e');
+        // Backup ke variabel memori jika gagal
+        _tempAccessToken = accessToken;
+        _tempRefreshToken = refreshToken;
+        _tempemployee_number = employeeNumber;
+        _tempPassword = password;
+        print('Credentials stored in temporary variables');
+      }
+      print('Login completed successfully');
+      return;
     } catch (e) {
       if (e is ApiException) rethrow;
-
       throw _processError(e, endpoint: '/auth/login');
     }
   }

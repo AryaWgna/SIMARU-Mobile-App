@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:skeletonizer/skeletonizer.dart';
 import '../controllers/recent_activity_controller.dart';
 import '../models/history_model.dart';
 import '../views/pages/history_screen.dart';
@@ -20,6 +21,25 @@ class _TodayActivitiesWidgetState extends State<TodayActivitiesWidget> {
     // Load activities when widget initializes
     WidgetsBinding.instance.addPostFrameCallback((_) {
       context.read<RecentActivityController>().loadRecentActivities();
+    });
+  }
+
+  void _navigateToHistoryScreen(BuildContext context) {
+    // Reset controller state sebelum navigasi
+    final controller = context.read<RecentActivityController>();
+    controller.resetState();
+
+    // Navigasi ke history screen
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => const HistoryScreen(),
+      ),
+    ).then((_) {
+      // Load ulang data saat kembali ke home screen
+      if (mounted) {
+        controller.loadRecentActivities();
+      }
     });
   }
 
@@ -55,14 +75,7 @@ class _TodayActivitiesWidgetState extends State<TodayActivitiesWidget> {
                   ),
                   const Spacer(),
                   TextButton(
-                    onPressed: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) => const HistoryScreen(),
-                        ),
-                      );
-                    },
+                    onPressed: () => _navigateToHistoryScreen(context),
                     child: Text(
                       'Lihat Semua',
                       style: GoogleFonts.inter(
@@ -77,17 +90,95 @@ class _TodayActivitiesWidgetState extends State<TodayActivitiesWidget> {
               const SizedBox(height: 12),
 
               // Konten aktivitas
-              if (controller.isLoading && todayActivities.isEmpty)
-                Container(
-                  height: 200,
-                  width: double.infinity,
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: Colors.grey.shade200),
+              if (controller.isLoading)
+                Skeletonizer(
+                  enabled: true,
+                  effect: ShimmerEffect(
+                    baseColor: Colors.grey.shade300,
+                    highlightColor: const Color(0xFFE5EFFF),
                   ),
-                  child: const Center(
-                    child: CircularProgressIndicator(),
+                  child: Column(
+                    children: List.generate(
+                      3,
+                      (index) => Container(
+                        margin: const EdgeInsets.only(bottom: 8),
+                        padding: const EdgeInsets.all(16),
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(color: Colors.grey.shade200),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withOpacity(0.05),
+                              blurRadius: 4,
+                              offset: const Offset(0, 2),
+                            ),
+                          ],
+                        ),
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Container(
+                              width: 36,
+                              height: 36,
+                              decoration: BoxDecoration(
+                                color: Colors.grey.shade200,
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Container(
+                                    width: double.infinity,
+                                    height: 18,
+                                    decoration: BoxDecoration(
+                                      color: Colors.grey.shade200,
+                                      borderRadius: BorderRadius.circular(4),
+                                    ),
+                                  ),
+                                  const SizedBox(height: 8),
+                                  Row(
+                                    children: [
+                                      Container(
+                                        width: 80,
+                                        height: 14,
+                                        decoration: BoxDecoration(
+                                          color: Colors.grey.shade200,
+                                          borderRadius:
+                                              BorderRadius.circular(4),
+                                        ),
+                                      ),
+                                      const SizedBox(width: 12),
+                                      Container(
+                                        width: 60,
+                                        height: 14,
+                                        decoration: BoxDecoration(
+                                          color: Colors.grey.shade200,
+                                          borderRadius:
+                                              BorderRadius.circular(4),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                  const SizedBox(height: 8),
+                                  Container(
+                                    width: 140,
+                                    height: 14,
+                                    decoration: BoxDecoration(
+                                      color: Colors.grey.shade200,
+                                      borderRadius: BorderRadius.circular(4),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
                   ),
                 )
               else if (todayActivities.isEmpty)

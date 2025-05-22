@@ -2,7 +2,12 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:pull_to_refresh_flutter3/pull_to_refresh_flutter3.dart';
+import 'package:skeletonizer/skeletonizer.dart';
 import '../../controllers/recent_activity_controller.dart';
+import '../../controllers/total_asset_controller.dart';
+import '../../controllers/asset_under_repair_controller.dart';
+import '../../controllers/net_asset_value_controller.dart';
 import '../../models/history_model.dart';
 
 class HistoryScreen extends StatefulWidget {
@@ -14,14 +19,17 @@ class HistoryScreen extends StatefulWidget {
 
 class _HistoryScreenState extends State<HistoryScreen> {
   final ScrollController _scrollController = ScrollController();
+  final RefreshController _refreshController =
+      RefreshController(initialRefresh: false);
   bool _isLoadingMore = false;
+  final GlobalKey _contentKey = GlobalKey();
 
   @override
   void initState() {
     super.initState();
     // Load activities when screen initializes
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      context.read<RecentActivityController>().loadRecentActivities();
+      _loadData();
     });
 
     // Setup scroll listener for pagination
@@ -32,10 +40,46 @@ class _HistoryScreenState extends State<HistoryScreen> {
   void dispose() {
     _scrollController.removeListener(_onScroll);
     _scrollController.dispose();
+    _refreshController.dispose();
     super.dispose();
   }
 
+  Future<void> _loadData() async {
+    try {
+      final controller = context.read<RecentActivityController>();
+
+      // Set flag loading dan clear dahulu agar terlihat efek visual refresh
+      controller.setLoading(true);
+
+      // Reset state dan muat ulang data
+      controller.resetState();
+      await controller.loadRecentActivities();
+
+      if (_refreshController.isRefresh) {
+        _refreshController.refreshCompleted();
+
+        // Berikan jeda kecil sebelum set loading false agar UX pull-to-refresh terasa
+        Future.delayed(const Duration(milliseconds: 200), () {
+          if (mounted) {
+            controller.setLoading(false);
+          }
+        });
+      } else {
+        controller.setLoading(false);
+      }
+    } catch (e) {
+      print("Error loading data: $e");
+      final controller = context.read<RecentActivityController>();
+      controller.setLoading(false);
+      if (_refreshController.isRefresh) {
+        _refreshController.refreshFailed();
+      }
+    }
+  }
+
   void _onScroll() {
+    if (!_scrollController.hasClients) return;
+
     if (_scrollController.position.pixels >=
         _scrollController.position.maxScrollExtent * 0.8) {
       _loadMoreData();
@@ -43,24 +87,10 @@ class _HistoryScreenState extends State<HistoryScreen> {
   }
 
   Future<void> _loadMoreData() async {
-    final controller = context.read<RecentActivityController>();
-
-    // Cek apakah sedang loading atau tidak ada data lagi
-    if (_isLoadingMore || !controller.hasMoreData || controller.isLoading) {
-      return;
-    }
-
-    setState(() {
-      _isLoadingMore = true;
-    });
-
-    await controller.loadMoreActivities();
-
-    if (mounted) {
-      setState(() {
-        _isLoadingMore = false;
-      });
-    }
+    if (_isLoadingMore) return;
+    setState(() => _isLoadingMore = true);
+    await context.read<RecentActivityController>().loadMoreActivities();
+    if (mounted) setState(() => _isLoadingMore = false);
   }
 
   Widget _buildHistoryItem(HistoryModel activity) {
@@ -348,6 +378,179 @@ class _HistoryScreenState extends State<HistoryScreen> {
     );
   }
 
+  Widget _buildSkeletonHistoryItem() {
+    return Container(
+      width: double.infinity,
+      margin: const EdgeInsets.only(bottom: 13),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(8),
+        boxShadow: const [
+          BoxShadow(
+            color: Color.fromRGBO(0, 0, 0, 0.1),
+            offset: Offset(0, 2),
+            blurRadius: 4,
+          ),
+        ],
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Garis biru di kiri
+          Container(
+            width: 8,
+            height: 90,
+            decoration: const BoxDecoration(
+              color: Color(0xFF25B1FF),
+              borderRadius: BorderRadius.only(
+                topLeft: Radius.circular(8),
+                bottomLeft: Radius.circular(8),
+              ),
+            ),
+          ),
+          // Tanggal dan waktu
+          Padding(
+            padding: const EdgeInsets.only(left: 11, top: 16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  width: 80,
+                  height: 16,
+                  decoration: BoxDecoration(
+                    color: Colors.grey.shade200,
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Container(
+                  width: 60,
+                  height: 14,
+                  decoration: BoxDecoration(
+                    color: Colors.grey.shade200,
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          // Divider vertikal
+          Container(
+            margin: const EdgeInsets.symmetric(horizontal: 16),
+            width: 1,
+            height: 90,
+            color: const Color(0xFFCAC4D0),
+          ),
+          // Informasi aktivitas
+          Expanded(
+            child: Padding(
+              padding: const EdgeInsets.only(top: 12, right: 16, bottom: 12),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Container(
+                    width: 100,
+                    height: 12,
+                    decoration: BoxDecoration(
+                      color: Colors.grey.shade200,
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Container(
+                    width: 200,
+                    height: 16,
+                    decoration: BoxDecoration(
+                      color: Colors.grey.shade200,
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Container(
+                    width: 180,
+                    height: 14,
+                    decoration: BoxDecoration(
+                      color: Colors.grey.shade200,
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSkeletonMonthSection() {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 20),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            width: 120,
+            height: 24,
+            margin: const EdgeInsets.only(bottom: 10, top: 16),
+            decoration: BoxDecoration(
+              color: Colors.grey.shade200,
+              borderRadius: BorderRadius.circular(4),
+            ),
+          ),
+          ...List.generate(3, (index) => _buildSkeletonHistoryItem()),
+        ],
+      ),
+    );
+  }
+
+  void _navigateBack(BuildContext context) {
+    try {
+      // Setel loading di home screen sebelum kembali
+      final assetController =
+          Provider.of<TotalAssetController>(context, listen: false);
+      final repairController =
+          Provider.of<AssetUnderRepairController>(context, listen: false);
+      final navController =
+          Provider.of<NetAssetValueController>(context, listen: false);
+      final activityController =
+          Provider.of<RecentActivityController>(context, listen: false);
+
+      // Trigger loading state di home screen
+      assetController.setLoading(true);
+      repairController.setLoading(true);
+      navController.setLoading(true);
+
+      // Reset activity controller juga
+      activityController.resetState();
+      activityController.setLoading(true);
+
+      // Kembalikan ke home screen
+      Navigator.pop(context);
+
+      // Delay sedikit agar animasi navigasi selesai dulu
+      Future.delayed(const Duration(milliseconds: 300), () {
+        // Trigger loading ulang data
+        assetController.loadTotalAsset();
+        repairController.setTotalAssetController(assetController);
+        navController.loadNetAssetValue();
+        activityController.loadRecentActivities();
+
+        // Beri delay lagi sebelum hide skeleton
+        Future.delayed(const Duration(milliseconds: 1200), () {
+          assetController.setLoading(false);
+          repairController.setLoading(false);
+          navController.setLoading(false);
+          activityController.setLoading(false);
+        });
+      });
+    } catch (e) {
+      print("Error saat navigasi kembali: $e");
+      Navigator.pop(context);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -355,152 +558,194 @@ class _HistoryScreenState extends State<HistoryScreen> {
       appBar: AppBar(
         backgroundColor: const Color(0xFF213268),
         elevation: 0,
-        title: Text('Riwayat Aktivitas',
-            style: GoogleFonts.inter(color: Colors.white)),
+        title: Text(
+          'Riwayat Aktivitas',
+          style: GoogleFonts.inter(color: Colors.white),
+        ),
         leading: IconButton(
           icon: const Icon(Icons.arrow_back, color: Colors.white),
-          onPressed: () => Navigator.pop(context),
+          onPressed: () => _navigateBack(context),
         ),
       ),
-      body: Column(
-        children: [
-          // Title and subtitle
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.fromLTRB(24, 16, 24, 0),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Menampilkan semua aktivitas Anda',
-                  style: GoogleFonts.inter(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w400,
-                    color: Color(0xFF757575),
-                  ),
+      body: SmartRefresher(
+        enablePullDown: true,
+        enablePullUp: false,
+        controller: _refreshController,
+        onRefresh: _loadData,
+        scrollController: _scrollController,
+        physics: const BouncingScrollPhysics(
+            parent: AlwaysScrollableScrollPhysics()),
+        footer: ClassicFooter(
+          loadStyle: LoadStyle.ShowWhenLoading,
+          completeDuration: const Duration(milliseconds: 500),
+        ),
+        header: const WaterDropMaterialHeader(
+          backgroundColor: Color(0xFF213268),
+          color: Colors.white,
+          distance: 40.0,
+        ),
+        child: Column(
+          children: [
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.fromLTRB(24, 16, 24, 8),
+              child: Text(
+                'Menampilkan semua aktivitas Anda',
+                style: GoogleFonts.inter(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w400,
+                  color: const Color(0xFF757575),
                 ),
-              ],
+              ),
             ),
-          ),
-          // History items
-          Expanded(
-            child: Consumer<RecentActivityController>(
+            Consumer<RecentActivityController>(
               builder: (context, controller, child) {
-                // Menampilkan indikator loading saat pertama kali memuat data
+                // Tampilkan skeleton saat loading pertama kali
                 if (controller.isLoading && controller.activities.isEmpty) {
-                  return const Center(
-                    child: CircularProgressIndicator(
-                      color: Color(0xFF213268),
+                  return Expanded(
+                    child: Skeletonizer(
+                      enabled: true,
+                      effect: ShimmerEffect(
+                        baseColor: Colors.grey.shade300,
+                        highlightColor: const Color(0xFFE5EFFF),
+                      ),
+                      child: Padding(
+                        padding: const EdgeInsets.fromLTRB(24, 9, 24, 0),
+                        child: ListView(
+                          physics: const NeverScrollableScrollPhysics(),
+                          children: [
+                            ...List.generate(
+                                3, (index) => _buildSkeletonMonthSection()),
+                          ],
+                        ),
+                      ),
                     ),
                   );
                 }
 
-                // Menampilkan pesan error jika gagal memuat data
+                // Tampilkan pesan error jika ada
                 if (controller.error != null && controller.activities.isEmpty) {
-                  return Center(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Text(
-                          controller.error!,
-                          style: GoogleFonts.inter(
-                            color: Colors.red,
-                            fontSize: 14,
-                          ),
-                          textAlign: TextAlign.center,
-                        ),
-                        const SizedBox(height: 16),
-                        ElevatedButton(
-                          onPressed: () {
-                            controller.clearError();
-                            controller.loadRecentActivities();
-                          },
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: const Color(0xFF213268),
-                            foregroundColor: Colors.white,
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(8),
+                  return Expanded(
+                    child: Center(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Text(
+                            controller.error!,
+                            style: GoogleFonts.inter(
+                              color: Colors.red,
+                              fontSize: 14,
                             ),
+                            textAlign: TextAlign.center,
                           ),
-                          child: const Text('Coba Lagi'),
-                        ),
-                      ],
-                    ),
-                  );
-                }
-
-                // Menampilkan pesan jika tidak ada aktivitas
-                if (controller.activities.isEmpty) {
-                  return RefreshIndicator(
-                    onRefresh: () => controller.loadRecentActivities(),
-                    child: ListView(
-                      physics: const AlwaysScrollableScrollPhysics(),
-                      children: [
-                        SizedBox(
-                          height: MediaQuery.of(context).size.height * 0.6,
-                          child: Center(
-                            child: Text(
-                              'Tidak ada aktivitas ditemukan',
-                              style: GoogleFonts.inter(
-                                fontSize: 16,
-                                color: Color(0xFF757575),
+                          const SizedBox(height: 16),
+                          ElevatedButton(
+                            onPressed: () {
+                              controller.clearError();
+                              _loadData();
+                            },
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: const Color(0xFF213268),
+                              foregroundColor: Colors.white,
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(8),
                               ),
                             ),
+                            child: const Text('Coba Lagi'),
                           ),
-                        ),
-                      ],
+                        ],
+                      ),
                     ),
                   );
                 }
 
-                // Kelompokkan aktivitas berdasarkan bulan
-                final byMonth = controller.activitiesByMonth;
-                final months = byMonth.keys.toList()
-                  ..sort((a, b) {
-                    // Sort from newest to oldest
-                    final partsA = a.split(' ');
-                    final partsB = b.split(' ');
-                    final yearA = int.parse(partsA[1]);
-                    final yearB = int.parse(partsB[1]);
-                    if (yearA != yearB) return yearB.compareTo(yearA);
+                // Tampilkan daftar aktivitas
+                if (controller.activities.isEmpty) {
+                  return Expanded(
+                    child: Center(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          const Icon(
+                            Icons.history_outlined,
+                            size: 64,
+                            color: Color(0xFFCACFD8),
+                          ),
+                          const SizedBox(height: 16),
+                          Text(
+                            'Tidak ada aktivitas ditemukan',
+                            style: GoogleFonts.inter(
+                              fontSize: 16,
+                              color: const Color(0xFF757575),
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          Text(
+                            'Tarik ke bawah untuk refresh data',
+                            style: GoogleFonts.inter(
+                              fontSize: 14,
+                              color: const Color(0xFFA4A4A4),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  );
+                }
 
-                    final indonesianMonths = [
-                      'Januari',
-                      'Februari',
-                      'Maret',
-                      'April',
-                      'Mei',
-                      'Juni',
-                      'Juli',
-                      'Agustus',
-                      'September',
-                      'Oktober',
-                      'November',
-                      'Desember'
-                    ];
-                    final monthA = indonesianMonths.indexOf(partsA[0]);
-                    final monthB = indonesianMonths.indexOf(partsB[0]);
-                    return monthB.compareTo(monthA);
-                  });
-
-                return Padding(
-                  padding: const EdgeInsets.fromLTRB(24, 9, 24, 0),
-                  child: RefreshIndicator(
-                    onRefresh: () => controller.loadRecentActivities(),
+                return Expanded(
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(24, 9, 24, 0),
                     child: Stack(
                       children: [
                         ListView.builder(
-                          controller: _scrollController,
+                          // Jangan gunakan controller yang sama dengan SmartRefresher
+                          // agar tidak konflik
                           physics: const AlwaysScrollableScrollPhysics(),
-                          itemCount:
-                              months.length + 1, // +1 for loading indicator
+                          itemCount: controller.activitiesByMonth.length + 1,
                           itemBuilder: (context, index) {
-                            if (index < months.length) {
-                              final month = months[index];
-                              return _buildMonthSection(month, byMonth[month]!);
+                            if (index < controller.activitiesByMonth.length) {
+                              final List<String> sortedMonths =
+                                  controller.activitiesByMonth.keys.toList()
+                                    ..sort((a, b) {
+                                      // Sort bulan secara descending (terbaru dulu)
+                                      final List<String> monthsId = [
+                                        'Januari',
+                                        'Februari',
+                                        'Maret',
+                                        'April',
+                                        'Mei',
+                                        'Juni',
+                                        'Juli',
+                                        'Agustus',
+                                        'September',
+                                        'Oktober',
+                                        'November',
+                                        'Desember'
+                                      ];
+
+                                      final aParts = a.split(' ');
+                                      final bParts = b.split(' ');
+
+                                      // Bandingkan tahun terlebih dahulu
+                                      final int aYear = int.parse(aParts[1]);
+                                      final int bYear = int.parse(bParts[1]);
+                                      if (aYear != bYear)
+                                        return bYear.compareTo(aYear);
+
+                                      // Jika tahun sama, bandingkan bulan
+                                      final int aMonthIndex =
+                                          monthsId.indexOf(aParts[0]);
+                                      final int bMonthIndex =
+                                          monthsId.indexOf(bParts[0]);
+                                      return bMonthIndex.compareTo(aMonthIndex);
+                                    });
+
+                              final month = sortedMonths[index];
+                              return _buildMonthSection(
+                                  month, controller.activitiesByMonth[month]!);
                             } else {
-                              // Loading indicator at the bottom
                               if (controller.hasMoreData) {
                                 return Padding(
                                   padding: const EdgeInsets.symmetric(
@@ -514,14 +759,10 @@ class _HistoryScreenState extends State<HistoryScreen> {
                                   ),
                                 );
                               }
-                              return const SizedBox(
-                                  height:
-                                      20); // Bottom padding when no more data
+                              return const SizedBox(height: 20);
                             }
                           },
                         ),
-
-                        // Overlay loading indicator saat memuat lebih banyak data
                         if (_isLoadingMore && !controller.isLoading)
                           Positioned(
                             bottom: 0,
@@ -543,30 +784,29 @@ class _HistoryScreenState extends State<HistoryScreen> {
                 );
               },
             ),
-          ),
-          // Tampilkan pagination info jika ada
-          Consumer<RecentActivityController>(
-            builder: (context, controller, _) {
-              final pagination = controller.pagination;
-              if (pagination != null) {
-                return Container(
-                  padding:
-                      const EdgeInsets.symmetric(vertical: 8, horizontal: 24),
-                  color: Colors.grey[100],
-                  child: Text(
-                    'Halaman ${pagination.currentPage} dari ${pagination.totalPages} (${pagination.totalItems} item)',
-                    style: GoogleFonts.inter(
-                      fontSize: 12,
-                      color: Colors.grey,
+            Consumer<RecentActivityController>(
+              builder: (context, controller, _) {
+                final pagination = controller.pagination;
+                if (pagination != null) {
+                  return Container(
+                    padding:
+                        const EdgeInsets.symmetric(vertical: 8, horizontal: 24),
+                    color: Colors.grey[100],
+                    child: Text(
+                      'Halaman ${pagination.currentPage} dari ${pagination.totalPages} (${pagination.totalItems} item)',
+                      style: GoogleFonts.inter(
+                        fontSize: 12,
+                        color: Colors.grey,
+                      ),
+                      textAlign: TextAlign.center,
                     ),
-                    textAlign: TextAlign.center,
-                  ),
-                );
-              }
-              return const SizedBox.shrink();
-            },
-          ),
-        ],
+                  );
+                }
+                return const SizedBox.shrink();
+              },
+            ),
+          ],
+        ),
       ),
     );
   }

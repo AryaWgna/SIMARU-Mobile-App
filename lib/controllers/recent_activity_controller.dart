@@ -22,6 +22,15 @@ class RecentActivityController extends ChangeNotifier {
   bool get hasMoreData => _hasMoreData;
   bool get isSuccess => _isSuccess;
 
+  // Method untuk mengatur status loading secara manual
+  void setLoading(bool loading) {
+    if (_isLoading != loading) {
+      _isLoading = loading;
+      notifyListeners();
+      print('RecentActivityController loading state set to: $_isLoading');
+    }
+  }
+
   Future<void> loadRecentActivities({bool refresh = true}) async {
     if (refresh) {
       _currentPage = 1;
@@ -231,5 +240,17 @@ class RecentActivityController extends ChangeNotifier {
       );
       return activityDate.isAtSameMomentAs(today);
     }).toList();
+  }
+
+  void resetState() {
+    _activities = [];
+    _activitiesByMonth = {};
+    _pagination = null;
+    _isLoading = false;
+    _error = null;
+    _currentPage = 1;
+    _hasMoreData = true;
+    _isSuccess = false;
+    notifyListeners();
   }
 }

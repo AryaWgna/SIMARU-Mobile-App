@@ -30,6 +30,9 @@ class _AssetMutationState extends State<AssetMutation> {
   final RefreshController _refreshController =
       RefreshController(initialRefresh: false);
 
+  // Tambahkan counter refresh untuk mengatasi efek zoom kumulatif
+  int _refreshCount = 0;
+
   @override
   void initState() {
     super.initState();
@@ -37,11 +40,45 @@ class _AssetMutationState extends State<AssetMutation> {
   }
 
   void _onRefresh() async {
-    // Monitor network fetching
+    // Segera aktifkan skeletonizer
+    if (mounted) {
+      setState(() {
+        isLoading = true;
+      });
+    }
+
+    // Fetch data dengan flag showLoading=false karena kita sudah mengaktifkan loading state
     await _fetchAssetStatusHistories(showLoading: false);
 
-    // If failed, you can use refreshFailed()
+    // Reset refresh controller
     _refreshController.refreshCompleted();
+
+    // Jika refresh counter mencapai 3, reset tampilan untuk mencegah zoom
+    _refreshCount++;
+    if (_refreshCount >= 3) {
+      _refreshCount = 0;
+
+      if (mounted) {
+        // Trigger rebuild dengan sedikit delay
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) {
+            Navigator.of(context).push(
+              PageRouteBuilder(
+                pageBuilder: (context, animation, secondaryAnimation) =>
+                    AssetMutation(
+                  assetData: widget.assetData,
+                  qrData: widget.qrData,
+                  previousScreen: widget.previousScreen,
+                ),
+                transitionDuration: Duration.zero,
+                reverseTransitionDuration: Duration.zero,
+              ),
+            );
+            Navigator.of(context).removeRoute(ModalRoute.of(context)!);
+          }
+        });
+      }
+    }
   }
 
   Future<void> _fetchAssetStatusHistories({bool showLoading = true}) async {
@@ -264,6 +301,10 @@ class _AssetMutationState extends State<AssetMutation> {
       body: isLoading
           ? Skeletonizer(
               enabled: true,
+              effect: ShimmerEffect(
+                baseColor: Colors.grey.shade300,
+                highlightColor: const Color(0xFFE5EFFF),
+              ),
               child: SingleChildScrollView(
                 padding:
                     const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
@@ -351,52 +392,64 @@ class _AssetMutationState extends State<AssetMutation> {
                     )
                   : SmartRefresher(
                       enablePullDown: true,
+                      enablePullUp: false,
+                      physics: const ClampingScrollPhysics(),
                       controller: _refreshController,
                       onRefresh: _onRefresh,
-                      header: const WaterDropHeader(
-                        complete: Text(
-                          'Berhasil diperbarui',
-                          style: TextStyle(color: Color(0xFF213268)),
-                        ),
-                        failed: Text(
-                          'Gagal memperbarui',
-                          style: TextStyle(color: Colors.red),
-                        ),
+                      footer: null,
+                      header: const WaterDropMaterialHeader(
+                        backgroundColor: Color(0xFF213268),
+                        color: Colors.white,
+                        distance: 60.0,
                       ),
-                      child: SingleChildScrollView(
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 16),
-                          width: screenSize.width,
-                          decoration: const BoxDecoration(
-                            color: Colors.white,
-                          ),
-                          child: Column(
-                            children: [
-                              // Jarak dari AppBar
-                              const SizedBox(height: 24),
+                      child: ScrollConfiguration(
+                        behavior: ScrollConfiguration.of(context).copyWith(
+                          overscroll: false,
+                        ),
+                        child: NotificationListener<
+                            OverscrollIndicatorNotification>(
+                          onNotification: (overscroll) {
+                            overscroll.disallowIndicator();
+                            return true;
+                          },
+                          child: SingleChildScrollView(
+                            physics: const ClampingScrollPhysics(),
+                            child: Container(
+                              padding:
+                                  const EdgeInsets.symmetric(horizontal: 16),
+                              width: screenSize.width,
+                              decoration: const BoxDecoration(
+                                color: Colors.white,
+                              ),
+                              child: Column(
+                                children: [
+                                  // Jarak dari AppBar
+                                  const SizedBox(height: 24),
 
-                              // Daftar riwayat status
-                              ...statusHistories.map<Widget>((history) {
-                                // Peminjaman (checked out)
-                                if (history['status']
-                                        ?.toString()
-                                        .toLowerCase() ==
-                                    'checked out') {
-                                  return _buildCheckoutCard(history);
-                                }
-                                // Pengembalian (return)
-                                else if (history['status']
-                                        ?.toString()
-                                        .toLowerCase() ==
-                                    'return') {
-                                  return _buildReturnCard(history);
-                                }
-                                return const SizedBox.shrink();
-                              }),
+                                  // Daftar riwayat status
+                                  ...statusHistories.map<Widget>((history) {
+                                    // Peminjaman (checked out)
+                                    if (history['status']
+                                            ?.toString()
+                                            .toLowerCase() ==
+                                        'checked out') {
+                                      return _buildCheckoutCard(history);
+                                    }
+                                    // Pengembalian (return)
+                                    else if (history['status']
+                                            ?.toString()
+                                            .toLowerCase() ==
+                                        'return') {
+                                      return _buildReturnCard(history);
+                                    }
+                                    return const SizedBox.shrink();
+                                  }),
 
-                              // Tambahkan padding di bagian bawah
-                              const SizedBox(height: 24),
-                            ],
+                                  // Tambahkan padding di bagian bawah
+                                  const SizedBox(height: 24),
+                                ],
+                              ),
+                            ),
                           ),
                         ),
                       ),
@@ -411,13 +464,14 @@ class _AssetMutationState extends State<AssetMutation> {
       width: double.infinity,
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(5),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: Colors.grey.shade200),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.25),
+            color: const Color(0xFF213268).withOpacity(0.08),
             blurRadius: 4,
-            spreadRadius: 2,
-            offset: const Offset(0, 4),
+            spreadRadius: 0,
+            offset: const Offset(0, 2),
           ),
         ],
       ),
@@ -435,7 +489,7 @@ class _AssetMutationState extends State<AssetMutation> {
                   height: 24,
                   margin: const EdgeInsets.only(right: 11),
                   decoration: const BoxDecoration(
-                    color: Color(0xFF203268),
+                    color: Color(0xFF213268),
                     shape: BoxShape.circle,
                   ),
                 ),
@@ -444,7 +498,7 @@ class _AssetMutationState extends State<AssetMutation> {
                   width: 120,
                   height: 20,
                   decoration: BoxDecoration(
-                    color: Colors.grey[300],
+                    color: Colors.grey.shade300,
                     borderRadius: BorderRadius.circular(4),
                   ),
                 ),
@@ -456,7 +510,7 @@ class _AssetMutationState extends State<AssetMutation> {
           Container(
             width: double.infinity,
             height: 1,
-            color: const Color(0xFFAAAAAA),
+            color: Colors.grey.shade200,
           ),
 
           // Info section
@@ -489,7 +543,7 @@ class _AssetMutationState extends State<AssetMutation> {
           width: 120,
           height: 16,
           decoration: BoxDecoration(
-            color: Colors.grey[300],
+            color: Colors.grey.shade300,
             borderRadius: BorderRadius.circular(4),
           ),
         ),
@@ -499,7 +553,7 @@ class _AssetMutationState extends State<AssetMutation> {
           child: Container(
             height: 16,
             decoration: BoxDecoration(
-              color: Colors.grey[300],
+              color: Colors.grey.shade300,
               borderRadius: BorderRadius.circular(4),
             ),
           ),
@@ -750,13 +804,6 @@ class _AssetMutationState extends State<AssetMutation> {
                 color: Color(0xFF213268),
                 borderRadius:
                     BorderRadius.vertical(bottom: Radius.circular(20)),
-                boxShadow: [
-                  BoxShadow(
-                    color: Color(0xFF56C5F1),
-                    blurRadius: 3,
-                    offset: Offset(0, 3),
-                  ),
-                ],
               ),
             ),
           ),

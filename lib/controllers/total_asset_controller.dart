@@ -105,6 +105,15 @@ class TotalAssetController extends ChangeNotifier {
     return _dashboardSummary!.totalUpcomingCalibrations.toString();
   }
 
+  // Method untuk mengatur status loading secara manual
+  void setLoading(bool loading) {
+    if (_isLoading != loading) {
+      _isLoading = loading;
+      notifyListeners();
+      print('TotalAssetController loading state set to: $_isLoading');
+    }
+  }
+
   // Load dashboard summary which includes total assets
   Future<void> loadTotalAsset() async {
     try {

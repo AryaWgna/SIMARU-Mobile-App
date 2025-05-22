@@ -44,10 +44,17 @@ class _AssetHistoryState extends State<AssetHistory> {
   }
 
   void _onRefresh() async {
-    // Monitor network fetching
+    // Aktivasi loading state
+    if (mounted) {
+      setState(() {
+        isLoading = true;
+      });
+    }
+
+    // Fetch data dengan flag showLoading=false karena kita sudah mengaktifkan loading state
     await _fetchAssetHistory(showLoading: false);
 
-    // If failed, you can use refreshFailed()
+    // Reset refresh controller
     _refreshController.refreshCompleted();
   }
 
@@ -132,8 +139,27 @@ class _AssetHistoryState extends State<AssetHistory> {
               // Jika data memiliki property items
               allHistories = data['data']['items'];
             } else {
-              // Jika data adalah object tunggal
-              allHistories = [data['data']];
+              // Jika data adalah object tunggal, coba tangani secara khusus
+              print('Data berformat tidak standar: ${data['data']}');
+              if (data['data'] is Map) {
+                final mapData = data['data'] as Map;
+                // Coba cari list dalam property apa pun
+                for (var key in mapData.keys) {
+                  if (mapData[key] is List) {
+                    print('Menemukan array di property: $key');
+                    allHistories = mapData[key];
+                    break;
+                  }
+                }
+
+                // Jika masih kosong, tambahkan data sebagai satu item
+                if (allHistories.isEmpty) {
+                  allHistories = [data['data']];
+                }
+              } else {
+                // Fallback: tambahkan sebagai satu item
+                allHistories = [data['data']];
+              }
             }
           }
 
@@ -183,7 +209,11 @@ class _AssetHistoryState extends State<AssetHistory> {
         setState(() {
           isLoading = false;
           histories = [];
+          errorMessage = 'Riwayat aset tidak ditemukan';
         });
+
+        // Coba endpoint alternatif jika 404
+        _tryAlternativeEndpoint(assetId);
       } else if (response.statusCode == 500) {
         // Handle error 500 dengan pesan yang lebih jelas
         String serverError;
@@ -199,7 +229,7 @@ class _AssetHistoryState extends State<AssetHistory> {
         setState(() {
           isLoading = false;
           errorMessage =
-              'Kesalahan server: $serverError. Silakan coba dengan ID aset yang benar.';
+              'Kesalahan server: $serverError. Silakan coba lagi nanti.';
         });
 
         // Coba endpoint alternatif jika error 500
@@ -209,6 +239,9 @@ class _AssetHistoryState extends State<AssetHistory> {
           isLoading = false;
           errorMessage = 'Gagal memuat riwayat: Error ${response.statusCode}';
         });
+
+        // Coba endpoint alternatif untuk kesalahan lain
+        _tryAlternativeEndpoint(assetId);
       }
     } catch (e) {
       print('Error saat mengambil riwayat aset: $e');
@@ -219,85 +252,135 @@ class _AssetHistoryState extends State<AssetHistory> {
     }
   }
 
-  // Metode baru untuk mencoba endpoint alternatif
+  // Metode untuk mencoba endpoint alternatif
   Future<void> _tryAlternativeEndpoint(String assetId) async {
     print('Mencoba endpoint alternatif untuk riwayat...');
 
     try {
-      // Coba endpoint alternatif untuk riwayat
-      var alternativeEndpoint = '/histories/asset/$assetId';
-      print('Endpoint alternatif: $alternativeEndpoint');
+      // Daftar endpoint alternatif untuk dicoba
+      List<String> alternativeEndpoints = [
+        '/histories/asset/$assetId',
+        '/assets/$assetId/histories',
+        '/assets/histories/$assetId',
+      ];
 
-      final response = await ApiService.get(
-        alternativeEndpoint,
-        context: context,
-      );
+      // Jika assetId adalah kode QR, tambahkan endpoint khusus QR
+      if (assetId.contains('-')) {
+        alternativeEndpoints
+            .add('/asset-histories/code/${Uri.encodeComponent(assetId)}');
+        alternativeEndpoints
+            .add('/assets/qr/${Uri.encodeComponent(assetId)}/histories');
+      }
 
-      print('Response alternatif status: ${response.statusCode}');
-      print('Response alternatif body: ${response.body}');
+      // Coba semua endpoint alternatif satu per satu
+      for (var endpoint in alternativeEndpoints) {
+        print('Mencoba endpoint alternatif: $endpoint');
 
-      if (response.statusCode == 200) {
-        final data = json.decode(response.body);
+        try {
+          final response = await ApiService.get(
+            endpoint,
+            context: context,
+          );
 
-        if (data['success'] == true) {
-          List<dynamic> allHistories = [];
+          print('Response alternatif status: ${response.statusCode}');
+          if (response.statusCode == 200) {
+            print('Response alternatif body: ${response.body}');
+            final data = json.decode(response.body);
 
-          if (data['data'] != null) {
-            if (data['data'] is List) {
-              allHistories = data['data'];
-            } else if (data['data']['histories'] != null &&
-                data['data']['histories'] is List) {
-              allHistories = data['data']['histories'];
-            } else if (data['data']['items'] != null &&
-                data['data']['items'] is List) {
-              allHistories = data['data']['items'];
-            } else {
-              allHistories = [data['data']];
+            if (data['success'] == true) {
+              List<dynamic> allHistories = [];
+
+              if (data['data'] != null) {
+                if (data['data'] is List) {
+                  allHistories = data['data'];
+                } else if (data['data']['histories'] != null &&
+                    data['data']['histories'] is List) {
+                  allHistories = data['data']['histories'];
+                } else if (data['data']['items'] != null &&
+                    data['data']['items'] is List) {
+                  allHistories = data['data']['items'];
+                } else if (data['data'] is Map) {
+                  // Mencari array dalam data
+                  for (var key in (data['data'] as Map).keys) {
+                    if (data['data'][key] is List) {
+                      allHistories = data['data'][key];
+                      break;
+                    }
+                  }
+
+                  // Jika masih kosong, gunakan data sebagai satu item
+                  if (allHistories.isEmpty) {
+                    allHistories = [data['data']];
+                  }
+                } else {
+                  allHistories = [data['data']];
+                }
+              }
+
+              print(
+                  'Jumlah riwayat dari endpoint alternatif: ${allHistories.length}');
+
+              final filteredHistories =
+                  _filterHistoriesByDate(allHistories, selectedDate);
+              print(
+                  'Jumlah riwayat alternatif setelah filter: ${filteredHistories.length}');
+
+              // Hanya perbarui state jika berhasil mendapatkan data
+              if (filteredHistories.isNotEmpty) {
+                setState(() {
+                  histories = filteredHistories;
+                  isLoading = false;
+                  errorMessage = null; // Hapus pesan error sebelumnya
+                });
+
+                // Keluar dari loop jika berhasil
+                break;
+              }
             }
           }
-
-          print(
-              'Jumlah riwayat sebelum filter (endpoint alternatif): ${allHistories.length}');
-
-          final filteredHistories =
-              _filterHistoriesByDate(allHistories, selectedDate);
-          print(
-              'Jumlah riwayat setelah filter (endpoint alternatif): ${filteredHistories.length}');
-
-          setState(() {
-            histories = filteredHistories;
-            isLoading = false;
-            errorMessage = null; // Hapus pesan error sebelumnya
-          });
+        } catch (e) {
+          print('Error pada endpoint alternatif $endpoint: $e');
+          // Lanjutkan ke endpoint berikutnya
         }
       }
     } catch (e) {
-      print('Error pada endpoint alternatif: $e');
-      // Tidak mengubah state karena ini hanya upaya backup
+      print('Error umum saat mencoba endpoint alternatif: $e');
     }
   }
 
-  // Fungsi untuk memfilter riwayat berdasarkan tanggal
+  // Fungsi untuk memfilter riwayat berdasarkan tanggal dengan penanganan yang lebih baik
   List<dynamic> _filterHistoriesByDate(List<dynamic> histories, DateTime date) {
     final targetDate = DateTime(date.year, date.month, date.day);
     print('Filtering untuk tanggal: $targetDate');
 
     return histories.where((history) {
+      // Cek beberapa kemungkinan field tanggal
+      String? dateField;
+
       if (history['action_date'] != null) {
+        dateField = history['action_date'];
+      } else if (history['timestamp'] != null) {
+        dateField = history['timestamp'];
+      } else if (history['created_at'] != null) {
+        dateField = history['created_at'];
+      } else if (history['date'] != null) {
+        dateField = history['date'];
+      }
+
+      if (dateField != null) {
         try {
-          final DateTime historyDate = DateTime.parse(history['action_date']);
+          final DateTime historyDate = DateTime.parse(dateField);
           final bool match = historyDate.year == targetDate.year &&
               historyDate.month == targetDate.month &&
               historyDate.day == targetDate.day;
 
-          // Debug output
           if (match) {
-            print('Tanggal cocok: ${history['action_date']}');
+            print('Tanggal cocok: $dateField');
           }
 
           return match;
         } catch (e) {
-          print('Error parsing date: ${history['action_date']} - $e');
+          print('Error parsing date: $dateField - $e');
           return false;
         }
       }
@@ -513,7 +596,7 @@ class _AssetHistoryState extends State<AssetHistory> {
             bottom: 0,
             child: Column(
               children: [
-                // Blue Header Section
+                // Blue Header Section untuk tanggal
                 Container(
                   width: double.infinity,
                   height: 167,
@@ -642,18 +725,38 @@ class _AssetHistoryState extends State<AssetHistory> {
                   child: Container(
                     width: double.infinity,
                     color: Colors.white,
-                    child: isLoading
+                    child: isLoading && errorMessage == null
                         ? Skeletonizer(
                             enabled: true,
+                            effect: ShimmerEffect(
+                              baseColor: Colors.grey.shade300,
+                              highlightColor: const Color(0xFFE5EFFF),
+                            ),
                             child: SingleChildScrollView(
                               padding: const EdgeInsets.symmetric(vertical: 30),
-                              child: Column(
+                              child: Stack(
                                 children: [
-                                  _buildSkeletonTimelineItem(),
-                                  const SizedBox(height: 20),
-                                  _buildSkeletonTimelineItem(),
-                                  const SizedBox(height: 20),
-                                  _buildSkeletonTimelineItem(),
+                                  // Vertical Timeline Line
+                                  Positioned(
+                                    left: 35,
+                                    top: 0,
+                                    height: 3 * (80 + 20) - 20,
+                                    width: 3,
+                                    child: Container(
+                                      color: const Color(0xFFAAAAAA),
+                                    ),
+                                  ),
+
+                                  // Timeline Items
+                                  Column(
+                                    children: [
+                                      _buildSkeletonTimelineItem(),
+                                      const SizedBox(height: 20),
+                                      _buildSkeletonTimelineItem(),
+                                      const SizedBox(height: 20),
+                                      _buildSkeletonTimelineItem(),
+                                    ],
+                                  ),
                                 ],
                               ),
                             ),
@@ -680,8 +783,10 @@ class _AssetHistoryState extends State<AssetHistory> {
                                         textAlign: TextAlign.center,
                                       ),
                                       const SizedBox(height: 24),
-                                      ElevatedButton(
+                                      ElevatedButton.icon(
                                         onPressed: _fetchAssetHistory,
+                                        icon: const Icon(Icons.refresh),
+                                        label: const Text('Coba Lagi'),
                                         style: ElevatedButton.styleFrom(
                                           backgroundColor:
                                               const Color(0xFF213268),
@@ -691,7 +796,6 @@ class _AssetHistoryState extends State<AssetHistory> {
                                                 BorderRadius.circular(8),
                                           ),
                                         ),
-                                        child: const Text('Coba Lagi'),
                                       ),
                                     ],
                                   ),
@@ -728,6 +832,21 @@ class _AssetHistoryState extends State<AssetHistory> {
                                             ),
                                             textAlign: TextAlign.center,
                                           ),
+                                          const SizedBox(height: 24),
+                                          ElevatedButton.icon(
+                                            onPressed: _fetchAssetHistory,
+                                            icon: const Icon(Icons.refresh),
+                                            label: const Text('Muat Ulang'),
+                                            style: ElevatedButton.styleFrom(
+                                              backgroundColor:
+                                                  const Color(0xFF25B1FF),
+                                              foregroundColor: Colors.white,
+                                              shape: RoundedRectangleBorder(
+                                                borderRadius:
+                                                    BorderRadius.circular(8),
+                                              ),
+                                            ),
+                                          ),
                                         ],
                                       ),
                                     ),
@@ -736,16 +855,10 @@ class _AssetHistoryState extends State<AssetHistory> {
                                     enablePullDown: true,
                                     controller: _refreshController,
                                     onRefresh: _onRefresh,
-                                    header: const WaterDropHeader(
-                                      complete: Text(
-                                        'Berhasil diperbarui',
-                                        style:
-                                            TextStyle(color: Color(0xFF213268)),
-                                      ),
-                                      failed: Text(
-                                        'Gagal memperbarui',
-                                        style: TextStyle(color: Colors.red),
-                                      ),
+                                    header: const WaterDropMaterialHeader(
+                                      backgroundColor: Color(0xFF25B1FF),
+                                      color: Colors.white,
+                                      distance: 60.0,
                                     ),
                                     child: SingleChildScrollView(
                                       child: Container(

@@ -62,6 +62,15 @@ class NetAssetValueController extends ChangeNotifier {
   bool get isLoading => _isLoading;
   String? get error => _error;
 
+  // Method untuk mengatur status loading secara manual
+  void setLoading(bool loading) {
+    if (_isLoading != loading) {
+      _isLoading = loading;
+      notifyListeners();
+      print('NetAssetValueController loading state set to: $_isLoading');
+    }
+  }
+
   Future<void> loadNetAssetValue() async {
     try {
       _isLoading = true;
