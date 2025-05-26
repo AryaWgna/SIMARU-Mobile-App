@@ -251,9 +251,6 @@ class ApiService {
 
       final jsonResponse = jsonDecode(response.body);
 
-      // Log response structure for debugging
-      print('Response keys: ${jsonResponse.keys.toList()}');
-
       // Jika response tidak sukses, langsung throw error dengan pesan dari server
       if (!jsonResponse['success']) {
         String errorMessage = 'Login gagal';
@@ -309,16 +306,23 @@ class ApiService {
             key: 'employee_number', value: employeeNumber);
         await _secureStorage.write(key: 'password', value: password);
         print('Credentials stored successfully');
+
+        // Setelah login berhasil, ambil data profil
+        print('Fetching user profile...');
+        // Hapus pemanggilan getProfile di sini karena tidak ada context yang valid
+        // Profil akan diambil nanti setelah navigasi ke dashboard
+        print('Profile fetch will be done after navigation');
       } catch (e) {
-        print('Failed to store credentials in secure storage: $e');
+        print('Failed to store credentials or fetch profile: $e');
         // Backup ke variabel memori jika gagal
         _tempAccessToken = accessToken;
         _tempRefreshToken = refreshToken;
         _tempemployee_number = employeeNumber;
         _tempPassword = password;
         print('Credentials stored in temporary variables');
+        rethrow;
       }
-      print('Login completed successfully');
+      print('Login and profile fetch completed successfully');
       return;
     } catch (e) {
       if (e is ApiException) rethrow;
@@ -593,20 +597,47 @@ class ApiService {
   static Future<Map<String, dynamic>> getProfile(BuildContext context) async {
     try {
       final response = await get('/users/profile', context: context);
+      print('Profile response status: ${response.statusCode}');
+      print('Profile response body: ${response.body}');
 
       if (response.statusCode == 200) {
         final responseData = json.decode(response.body);
         if (responseData['success'] == true) {
+          // Simpan data profil ke secure storage
+          try {
+            await _secureStorage.write(
+              key: 'user_id',
+              value: responseData['data']['user_id'].toString(),
+            );
+            await _secureStorage.write(
+              key: 'employee_number',
+              value: responseData['data']['employee_number'],
+            );
+            await _secureStorage.write(
+              key: 'roles',
+              value: json.encode(responseData['data']['roles']),
+            );
+            print('Profile data saved to secure storage');
+          } catch (e) {
+            print('Error saving profile data: $e');
+          }
           return responseData['data'];
         } else {
-          throw Exception(responseData['message'] ?? 'Failed to load profile');
+          throw ApiException(
+            message: responseData['message'] ?? 'Gagal mengambil profil',
+            code: 'PROFILE_ERROR',
+          );
         }
       } else {
-        throw Exception('Gagal mengambil profil: ${response.statusCode}');
+        throw ApiException(
+          message: 'Gagal mengambil profil: ${response.statusCode}',
+          code: 'HTTP_ERROR',
+          statusCode: response.statusCode,
+        );
       }
     } catch (e) {
       print('Error getting profile: $e');
-      throw Exception('Gagal melakukan koneksi ke server');
+      rethrow;
     }
   }
 

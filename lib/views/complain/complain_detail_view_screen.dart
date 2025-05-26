@@ -74,7 +74,8 @@ class _ComplainDetailViewScreenState extends State<ComplainDetailViewScreen> {
       appBar: AppBar(
         backgroundColor: const Color(0xFF213268),
         elevation: 0,
-        title: const Text('Detail Keluhan', style: TextStyle(color: Colors.white)),
+        title:
+            const Text('Detail Keluhan', style: TextStyle(color: Colors.white)),
         leading: IconButton(
           icon: const Icon(Icons.arrow_back, color: Colors.white),
           onPressed: () => Navigator.pop(context),

@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import '../../controllers/auth_controller.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import 'dart:convert';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -13,7 +15,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   Map<String, dynamic>? _profile;
   bool _isLoading = true;
   bool _mounted = true;
-  final String _userId = "1"; // Default user ID
+  final _storage = const FlutterSecureStorage();
 
   @override
   void initState() {
@@ -35,16 +37,48 @@ class _ProfileScreenState extends State<ProfileScreen> {
     });
 
     try {
-      print("Fetching user data for ID: $_userId...");
-      final userData = await ApiService.getUserById(_userId, context);
-      print("User data received: $userData");
+      print("Fetching user profile data...");
 
-      if (_mounted) {
-        setState(() {
-          _profile = userData;
-          _isLoading = false;
-        });
+      // Coba ambil dari API dulu
+      try {
+        final userData = await ApiService.getProfile(context);
+        if (_mounted) {
+          setState(() {
+            _profile = userData;
+            _isLoading = false;
+          });
+          return;
+        }
+      } catch (e) {
+        print("Error fetching from API: $e");
+        // Jika gagal, coba ambil dari secure storage
+        try {
+          final userId = await _storage.read(key: 'user_id');
+          final employeeNumber = await _storage.read(key: 'employee_number');
+          final rolesString = await _storage.read(key: 'roles');
+
+          if (employeeNumber != null) {
+            final Map<String, dynamic> userData = {
+              'user_id': userId,
+              'employee_number': employeeNumber,
+              'roles': rolesString != null ? json.decode(rolesString) : [],
+            };
+
+            if (_mounted) {
+              setState(() {
+                _profile = userData;
+                _isLoading = false;
+              });
+              return;
+            }
+          }
+        } catch (storageError) {
+          print("Error reading from secure storage: $storageError");
+        }
       }
+
+      // Jika semua cara gagal
+      throw Exception('Tidak dapat memuat data profil');
     } catch (e) {
       print("Error loading user data: $e");
       if (_mounted) {

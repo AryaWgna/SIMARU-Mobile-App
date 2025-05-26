@@ -190,29 +190,89 @@ class _CheckInScreenState extends State<CheckInScreen> {
               // Asset Info
               if (widget.assetData != null)
                 Container(
-                  padding: const EdgeInsets.all(12),
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(16),
                   decoration: BoxDecoration(
-                    color: Colors.grey[100],
-                    borderRadius: BorderRadius.circular(8),
+                    color: const Color(0xFFF5F8FF),
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: const Color(0xFFD1DEFF)),
                   ),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(
-                        'Asset: ${widget.assetData!['asset_name'] ?? 'Tidak diketahui'}',
-                        style: const TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w500,
-                          color: Color(0xFF213268),
-                        ),
+                      const Row(
+                        children: [
+                          Icon(
+                            Icons.info_outline,
+                            color: Color(0xFF213268),
+                            size: 18,
+                          ),
+                          SizedBox(width: 8),
+                          Text(
+                            'Informasi Aset',
+                            style: TextStyle(
+                              fontFamily: 'Inter',
+                              fontSize: 16,
+                              fontWeight: FontWeight.w600,
+                              color: Color(0xFF213268),
+                            ),
+                          ),
+                        ],
                       ),
-                      const SizedBox(height: 4),
-                      Text(
-                        'Kode: ${widget.assetData!['asset_code'] ?? '-'}',
-                        style: const TextStyle(
-                          fontSize: 14,
-                          color: Color(0xFF666666),
-                        ),
+                      const SizedBox(height: 12),
+                      Row(
+                        children: [
+                          const SizedBox(
+                            width: 100,
+                            child: Text(
+                              'Kode Aset:',
+                              style: TextStyle(
+                                fontFamily: 'Inter',
+                                fontSize: 14,
+                                color: Color(0xFF666666),
+                              ),
+                            ),
+                          ),
+                          Expanded(
+                            child: Text(
+                              widget.assetData?['asset_code'] ?? '-',
+                              style: const TextStyle(
+                                fontFamily: 'Inter',
+                                fontSize: 14,
+                                fontWeight: FontWeight.w500,
+                                color: Color(0xFF213268),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 8),
+                      Row(
+                        children: [
+                          const SizedBox(
+                            width: 100,
+                            child: Text(
+                              'Nama Aset:',
+                              style: TextStyle(
+                                fontFamily: 'Inter',
+                                fontSize: 14,
+                                color: Color(0xFF666666),
+                              ),
+                            ),
+                          ),
+                          Expanded(
+                            child: Text(
+                              widget.assetData?['asset_name'] ??
+                                  'Tidak diketahui',
+                              style: const TextStyle(
+                                fontFamily: 'Inter',
+                                fontSize: 14,
+                                fontWeight: FontWeight.w500,
+                                color: Color(0xFF213268),
+                              ),
+                            ),
+                          ),
+                        ],
                       ),
                     ],
                   ),

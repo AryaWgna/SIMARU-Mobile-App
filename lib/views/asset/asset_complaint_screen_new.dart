@@ -24,7 +24,6 @@ class AssetComplaintScreen extends StatefulWidget {
 class _AssetComplaintScreenState extends State<AssetComplaintScreen> {
   final _formKey = GlobalKey<FormState>();
   final TextEditingController _descriptionController = TextEditingController();
-  final TextEditingController _assetIdController = TextEditingController();
 
   File? _selectedImage;
   bool _isLoading = false;
@@ -34,23 +33,8 @@ class _AssetComplaintScreenState extends State<AssetComplaintScreen> {
   @override
   void initState() {
     super.initState();
-
-    // Log untuk debugging
     print('[COMPLAINT DEBUG] Asset Data: ${widget.assetData}');
     print('[COMPLAINT DEBUG] Asset Code: ${widget.assetCode}');
-
-    // Pre-populate the asset ID field
-    if (widget.assetData != null) {
-      // Use asset_id if available, otherwise use the scanned QR code
-      final assetId =
-          widget.assetData!['asset_id']?.toString() ?? widget.assetCode;
-      print('[COMPLAINT DEBUG] Using Asset ID: $assetId');
-      _assetIdController.text = assetId;
-    } else {
-      _assetIdController.text = widget.assetCode;
-      print(
-          '[COMPLAINT DEBUG] No Asset Data, using Asset Code: ${widget.assetCode}');
-    }
   }
 
   Future<void> _showImageSourceDialog() async {
@@ -205,23 +189,50 @@ class _AssetComplaintScreenState extends State<AssetComplaintScreen> {
       return;
     }
 
+    // Validasi deskripsi minimal 5 karakter
+    if (_descriptionController.text.length < 5) {
+      setState(() {
+        _errorMessage = 'Deskripsi minimal 5 karakter';
+      });
+      return;
+    }
+
     setState(() {
       _isLoading = true;
       _errorMessage = null;
     });
 
     try {
-      // Menggunakan endpoint dari ApiConfig
       var complaintUrl = ApiConfig.complaintsUrl;
       print('[COMPLAINT DEBUG] Using complaint URL: $complaintUrl');
+
+      // Cek dan ambil asset_id dari assetData
+      int? assetId;
+      if (widget.assetData != null) {
+        if (widget.assetData!['id'] != null) {
+          assetId = int.tryParse(widget.assetData!['id'].toString());
+        } else if (widget.assetData!['asset_id'] != null) {
+          assetId = int.tryParse(widget.assetData!['asset_id'].toString());
+        }
+      }
+
+      if (assetId == null) {
+        setState(() {
+          _errorMessage = 'ID Aset tidak valid';
+          _isLoading = false;
+        });
+        return;
+      }
+
+      print('[COMPLAINT DEBUG] Using Asset ID: $assetId');
 
       var request = http.MultipartRequest(
         'POST',
         Uri.parse(complaintUrl),
       );
 
-      // Menambahkan field yang diperlukan sesuai dokumentasi
-      request.fields['asset_id'] = _assetIdController.text;
+      // Menggunakan asset_id sebagai number
+      request.fields['asset_id'] = assetId.toString();
       request.fields['description'] = _descriptionController.text;
 
       // Menambahkan image jika ada
@@ -322,7 +333,17 @@ class _AssetComplaintScreenState extends State<AssetComplaintScreen> {
       } else if (response.statusCode == 400) {
         // Menampilkan pesan error untuk bad request
         setState(() {
-          _errorMessage = jsonResponse['errors'] ?? 'Data tidak valid';
+          if (jsonResponse['errors'] is List) {
+            // Jika errors adalah array, gabungkan semua pesan
+            _errorMessage = (jsonResponse['errors'] as List).join(', ');
+          } else if (jsonResponse['errors'] is Map) {
+            // Jika errors adalah object, gabungkan semua value
+            _errorMessage = (jsonResponse['errors'] as Map).values.join(', ');
+          } else {
+            // Jika single string atau tipe lain
+            _errorMessage =
+                jsonResponse['errors']?.toString() ?? 'Data tidak valid';
+          }
         });
       } else if (response.statusCode == 401) {
         // Menampilkan pesan error untuk unauthorized
@@ -332,7 +353,12 @@ class _AssetComplaintScreenState extends State<AssetComplaintScreen> {
       } else if (response.statusCode == 404) {
         // Menampilkan pesan error untuk asset not found
         setState(() {
-          _errorMessage = jsonResponse['errors'] ?? 'Aset tidak ditemukan';
+          if (jsonResponse['errors'] is List) {
+            _errorMessage = (jsonResponse['errors'] as List).join(', ');
+          } else {
+            _errorMessage =
+                jsonResponse['errors']?.toString() ?? 'Aset tidak ditemukan';
+          }
         });
       } else if (response.statusCode == 500) {
         // Memeriksa apakah error terkait format file
@@ -340,19 +366,31 @@ class _AssetComplaintScreenState extends State<AssetComplaintScreen> {
             .toLowerCase()
             .contains('format file tidak didukung')) {
           setState(() {
-            _errorMessage = jsonResponse['errors'] ??
-                'Format file tidak didukung. Gunakan: image/jpeg, image/jpg, atau image/png';
+            if (jsonResponse['errors'] is List) {
+              _errorMessage = (jsonResponse['errors'] as List).join(', ');
+            } else {
+              _errorMessage = jsonResponse['errors']?.toString() ??
+                  'Format file tidak didukung. Gunakan: image/jpeg, image/jpg, atau image/png';
+            }
           });
         } else {
           setState(() {
-            _errorMessage =
-                jsonResponse['errors'] ?? 'Terjadi kesalahan pada server';
+            if (jsonResponse['errors'] is List) {
+              _errorMessage = (jsonResponse['errors'] as List).join(', ');
+            } else {
+              _errorMessage = jsonResponse['errors']?.toString() ??
+                  'Terjadi kesalahan pada server';
+            }
           });
         }
       } else {
         // Menampilkan pesan error umum
         setState(() {
-          _errorMessage = 'Gagal mengirim komplain: ${response.statusCode}';
+          if (jsonResponse['errors'] is List) {
+            _errorMessage = (jsonResponse['errors'] as List).join(', ');
+          } else {
+            _errorMessage = 'Gagal mengirim komplain: ${response.statusCode}';
+          }
         });
       }
     } catch (e) {
@@ -550,19 +588,6 @@ class _AssetComplaintScreenState extends State<AssetComplaintScreen> {
                     ),
                     const SizedBox(height: 24),
 
-                    // Hidden Asset ID Field
-                    TextFormField(
-                      controller: _assetIdController,
-                      decoration: const InputDecoration(
-                        labelText: 'ID Aset',
-                        border: InputBorder.none,
-                      ),
-                      style:
-                          const TextStyle(height: 0, color: Colors.transparent),
-                      obscureText: true,
-                      enabled: false,
-                    ),
-
                     // Description Field
                     Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
@@ -581,7 +606,7 @@ class _AssetComplaintScreenState extends State<AssetComplaintScreen> {
                           controller: _descriptionController,
                           decoration: InputDecoration(
                             hintText:
-                                'Jelaskan masalah yang Anda alami dengan aset ini',
+                                'Jelaskan masalah yang Anda alami dengan aset ini (minimal 5 karakter)',
                             hintStyle: const TextStyle(
                               color: Color(0xFFAAAAAA),
                               fontSize: 14,
@@ -609,6 +634,9 @@ class _AssetComplaintScreenState extends State<AssetComplaintScreen> {
                           validator: (value) {
                             if (value == null || value.isEmpty) {
                               return 'Deskripsi masalah wajib diisi';
+                            }
+                            if (value.length < 5) {
+                              return 'Deskripsi minimal 5 karakter';
                             }
                             return null;
                           },
@@ -833,7 +861,6 @@ class _AssetComplaintScreenState extends State<AssetComplaintScreen> {
   @override
   void dispose() {
     _descriptionController.dispose();
-    _assetIdController.dispose();
     super.dispose();
   }
 }

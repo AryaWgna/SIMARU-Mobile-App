@@ -4,6 +4,8 @@ import '../pages/qr_scanner_screen.dart';
 import 'dart:convert';
 import '../../controllers/auth_controller.dart';
 import 'stockopname_scanner.dart';
+import 'package:pull_to_refresh_flutter3/pull_to_refresh_flutter3.dart';
+import 'package:skeletonizer/skeletonizer.dart';
 
 class Building {
   final int id;
@@ -87,18 +89,35 @@ class _StockopnameScreenState extends State<StockopnameScreen> {
   final TextEditingController roomSearchController = TextEditingController();
   final GlobalKey<ScaffoldMessengerState> _scaffoldMessengerKey =
       GlobalKey<ScaffoldMessengerState>();
+  final RefreshController _refreshController =
+      RefreshController(initialRefresh: false);
 
   @override
   void initState() {
     super.initState();
-    _fetchBuildings();
-    _fetchPendingOpnames();
+    _loadData();
+  }
+
+  Future<void> _loadData() async {
+    try {
+      await _fetchBuildings();
+      await _fetchPendingOpnames();
+      if (_refreshController.isRefresh) {
+        _refreshController.refreshCompleted();
+      }
+    } catch (e) {
+      print('Error loading data: $e');
+      if (_refreshController.isRefresh) {
+        _refreshController.refreshFailed();
+      }
+    }
   }
 
   @override
   void dispose() {
     buildingSearchController.dispose();
     roomSearchController.dispose();
+    _refreshController.dispose();
     super.dispose();
   }
 
@@ -369,439 +388,569 @@ class _StockopnameScreenState extends State<StockopnameScreen> {
     final bottomPadding = MediaQuery.of(context).padding.bottom;
     final bottomNavBarHeight = bottomPadding > 0 ? 90.0 : 70.0;
 
-    return Scaffold(
-      key: _scaffoldMessengerKey,
-      backgroundColor: Colors.white,
-      body: RefreshIndicator(
+    return Container(
+      color: Colors.white,
+      child: SmartRefresher(
+        enablePullDown: true,
+        enablePullUp: false,
+        controller: _refreshController,
         onRefresh: _loadData,
-        child: SafeArea(
-          child: SingleChildScrollView(
-            physics: const AlwaysScrollableScrollPhysics(),
-            padding: EdgeInsets.only(bottom: bottomNavBarHeight + 16, top: 16),
-            child: Container(
-              color: Colors.white,
-              child: Column(
-                children: [
-                  Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.all(16),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'Pilih gedung dan ruangan untuk memulai stock opname',
-                          style: GoogleFonts.inter(
-                            fontSize: 16,
-                            color: Colors.black54,
-                          ),
+        physics: const BouncingScrollPhysics(
+          parent: AlwaysScrollableScrollPhysics(),
+        ),
+        footer: ClassicFooter(
+          loadStyle: LoadStyle.ShowWhenLoading,
+          completeDuration: const Duration(milliseconds: 500),
+        ),
+        header: const WaterDropMaterialHeader(
+          backgroundColor: Colors.white,
+          color: Color(0xFF213268),
+          distance: 40.0,
+        ),
+        child: CustomScrollView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          slivers: [
+            SliverToBoxAdapter(
+              child: Container(
+                color: Colors.white,
+                constraints: BoxConstraints(
+                  minHeight: MediaQuery.of(context).size.height -
+                      kBottomNavigationBarHeight -
+                      MediaQuery.of(context).padding.top -
+                      82,
+                ),
+                child: isLoadingBuildings || isLoadingRooms
+                    ? Skeletonizer(
+                        enabled: true,
+                        effect: ShimmerEffect(
+                          baseColor: Colors.grey.shade300,
+                          highlightColor: const Color(0xFFE5EFFF),
                         ),
-                        const SizedBox(height: 16),
+                        child: _buildSkeletonContent(),
+                      )
+                    : _buildMainContent(),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 
-                        // Building selection
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 16, vertical: 12),
-                          decoration: BoxDecoration(
-                            color: const Color(0xFF213268).withOpacity(0.05),
-                            borderRadius: BorderRadius.circular(8),
-                            border: Border.all(
-                                color:
-                                    const Color(0xFF213268).withOpacity(0.1)),
+  Widget _buildSkeletonContent() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                width: double.infinity,
+                height: 20,
+                decoration: BoxDecoration(
+                  color: Colors.grey.shade200,
+                  borderRadius: BorderRadius.circular(4),
+                ),
+              ),
+              const SizedBox(height: 16),
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF213268).withOpacity(0.05),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Container(
+                      width: 100,
+                      height: 20,
+                      decoration: BoxDecoration(
+                        color: Colors.grey.shade200,
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    Container(
+                      width: double.infinity,
+                      height: 40,
+                      decoration: BoxDecoration(
+                        color: Colors.grey.shade200,
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    Container(
+                      width: double.infinity,
+                      height: 100,
+                      decoration: BoxDecoration(
+                        color: Colors.grey.shade200,
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+        const Divider(height: 1, thickness: 1, color: Color(0xFFEEEEEE)),
+        Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                width: 200,
+                height: 24,
+                decoration: BoxDecoration(
+                  color: Colors.grey.shade200,
+                  borderRadius: BorderRadius.circular(4),
+                ),
+              ),
+              const SizedBox(height: 16),
+              ...List.generate(
+                3,
+                (index) => Container(
+                  margin: const EdgeInsets.only(bottom: 12),
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: Colors.grey.shade200),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Container(
+                        width: double.infinity,
+                        height: 20,
+                        decoration: BoxDecoration(
+                          color: Colors.grey.shade200,
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Container(
+                        width: 150,
+                        height: 16,
+                        decoration: BoxDecoration(
+                          color: Colors.grey.shade200,
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildMainContent() {
+    return SingleChildScrollView(
+      physics: const NeverScrollableScrollPhysics(),
+      child: Column(
+        children: [
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Pilih gedung dan ruangan untuk memulai stock opname',
+                  style: GoogleFonts.inter(
+                    fontSize: 16,
+                    color: Colors.black54,
+                  ),
+                ),
+                const SizedBox(height: 16),
+
+                // Building selection
+                Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF213268).withOpacity(0.05),
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(
+                        color: const Color(0xFF213268).withOpacity(0.1)),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Gedung',
+                        style: GoogleFonts.inter(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w500,
+                          color: const Color(0xFF213268),
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      if (isLoadingBuildings)
+                        const Center(
+                          child: Padding(
+                            padding: EdgeInsets.symmetric(vertical: 16.0),
+                            child: CircularProgressIndicator(),
                           ),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                'Gedung',
+                        )
+                      else
+                        Column(
+                          children: [
+                            // Pencarian gedung
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 12, vertical: 4),
+                              decoration: BoxDecoration(
+                                color: Colors.white,
+                                borderRadius: BorderRadius.circular(8),
+                                border: Border.all(color: Colors.grey.shade300),
+                              ),
+                              child: TextField(
+                                controller: buildingSearchController,
+                                decoration: InputDecoration(
+                                  hintText: 'Cari gedung...',
+                                  border: InputBorder.none,
+                                  prefixIcon: const Icon(
+                                    Icons.search,
+                                    color: Color(0xFF213268),
+                                    size: 20,
+                                  ),
+                                  suffixIcon: buildingSearchController
+                                          .text.isNotEmpty
+                                      ? IconButton(
+                                          icon: const Icon(
+                                            Icons.clear,
+                                            size: 18,
+                                            color: Colors.grey,
+                                          ),
+                                          onPressed: () {
+                                            buildingSearchController.clear();
+                                            setState(() {});
+                                          },
+                                        )
+                                      : null,
+                                  hintStyle: GoogleFonts.inter(
+                                    fontSize: 14,
+                                    color: Colors.grey[600],
+                                  ),
+                                  contentPadding:
+                                      const EdgeInsets.symmetric(vertical: 10),
+                                ),
+                                onChanged: (value) {
+                                  setState(() {});
+                                },
                                 style: GoogleFonts.inter(
                                   fontSize: 14,
-                                  fontWeight: FontWeight.w500,
-                                  color: const Color(0xFF213268),
+                                  color: Colors.black87,
                                 ),
                               ),
-                              const SizedBox(height: 8),
-                              if (isLoadingBuildings)
-                                const Center(
-                                  child: Padding(
-                                    padding:
-                                        EdgeInsets.symmetric(vertical: 16.0),
-                                    child: CircularProgressIndicator(),
-                                  ),
-                                )
-                              else
-                                Column(
-                                  children: [
-                                    // Pencarian gedung
-                                    Container(
-                                      padding: const EdgeInsets.symmetric(
-                                          horizontal: 12, vertical: 4),
-                                      decoration: BoxDecoration(
-                                        color: Colors.white,
-                                        borderRadius: BorderRadius.circular(8),
-                                        border: Border.all(
-                                            color: Colors.grey.shade300),
+                            ),
+
+                            const SizedBox(height: 8),
+
+                            // Gedung list
+                            _buildBuildingList(),
+                          ],
+                        ),
+                      if (selectedBuilding != null && isLoadingRooms)
+                        const Padding(
+                          padding: EdgeInsets.only(top: 16.0),
+                          child: Center(child: CircularProgressIndicator()),
+                        )
+                      else if (selectedBuilding != null &&
+                          rooms.isNotEmpty) ...[
+                        const SizedBox(height: 16),
+                        Text(
+                          'Ruangan',
+                          style: GoogleFonts.inter(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w500,
+                            color: const Color(0xFF213268),
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+
+                        // Pencarian ruangan
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 12, vertical: 4),
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(color: Colors.grey.shade300),
+                          ),
+                          child: TextField(
+                            controller: roomSearchController,
+                            decoration: InputDecoration(
+                              hintText: 'Cari ruangan...',
+                              border: InputBorder.none,
+                              prefixIcon: const Icon(
+                                Icons.search,
+                                color: Color(0xFF213268),
+                                size: 20,
+                              ),
+                              suffixIcon: roomSearchController.text.isNotEmpty
+                                  ? IconButton(
+                                      icon: const Icon(
+                                        Icons.clear,
+                                        size: 18,
+                                        color: Colors.grey,
                                       ),
-                                      child: TextField(
-                                        controller: buildingSearchController,
-                                        decoration: InputDecoration(
-                                          hintText: 'Cari gedung...',
-                                          border: InputBorder.none,
-                                          prefixIcon: const Icon(
-                                            Icons.search,
-                                            color: Color(0xFF213268),
-                                            size: 20,
-                                          ),
-                                          suffixIcon: buildingSearchController
-                                                  .text.isNotEmpty
-                                              ? IconButton(
-                                                  icon: const Icon(
-                                                    Icons.clear,
-                                                    size: 18,
-                                                    color: Colors.grey,
-                                                  ),
-                                                  onPressed: () {
-                                                    buildingSearchController
-                                                        .clear();
-                                                    setState(() {});
-                                                  },
-                                                )
-                                              : null,
-                                          hintStyle: GoogleFonts.inter(
-                                            fontSize: 14,
-                                            color: Colors.grey[600],
-                                          ),
-                                          contentPadding:
-                                              const EdgeInsets.symmetric(
-                                                  vertical: 10),
-                                        ),
-                                        onChanged: (value) {
-                                          setState(() {});
-                                        },
-                                        style: GoogleFonts.inter(
-                                          fontSize: 14,
-                                          color: Colors.black87,
-                                        ),
-                                      ),
+                                      onPressed: () {
+                                        roomSearchController.clear();
+                                        _filterRooms('');
+                                      },
+                                    )
+                                  : null,
+                              hintStyle: GoogleFonts.inter(
+                                fontSize: 14,
+                                color: Colors.grey[600],
+                              ),
+                              contentPadding:
+                                  const EdgeInsets.symmetric(vertical: 10),
+                            ),
+                            onChanged: _filterRooms,
+                            style: GoogleFonts.inter(
+                              fontSize: 14,
+                              color: Colors.black87,
+                            ),
+                          ),
+                        ),
+
+                        const SizedBox(height: 8),
+
+                        // Room list
+                        if (filteredRooms.isEmpty &&
+                            roomSearchController.text.isNotEmpty)
+                          Container(
+                            padding: const EdgeInsets.all(12),
+                            alignment: Alignment.center,
+                            child: Text(
+                              'Tidak ada ruangan yang ditemukan',
+                              style: GoogleFonts.inter(
+                                fontSize: 14,
+                                color: Colors.grey[600],
+                              ),
+                            ),
+                          )
+                        else
+                          Container(
+                            decoration: BoxDecoration(
+                              color: Colors.white,
+                              borderRadius: BorderRadius.circular(8),
+                              border: Border.all(color: Colors.grey.shade200),
+                            ),
+                            constraints: const BoxConstraints(
+                              maxHeight: 180,
+                            ),
+                            child: ListView.separated(
+                              padding: EdgeInsets.zero,
+                              shrinkWrap: true,
+                              itemCount: filteredRooms.length,
+                              separatorBuilder: (context, index) => Divider(
+                                height: 1,
+                                color: Colors.grey.shade200,
+                              ),
+                              itemBuilder: (context, index) {
+                                final room = filteredRooms[index];
+                                return ListTile(
+                                  dense: true,
+                                  contentPadding: const EdgeInsets.symmetric(
+                                      horizontal: 12, vertical: 0),
+                                  title: Text(
+                                    room.name,
+                                    style: GoogleFonts.inter(
+                                      fontSize: 14,
+                                      color: Colors.black87,
+                                      fontWeight: selectedRoom?.id == room.id
+                                          ? FontWeight.bold
+                                          : FontWeight.normal,
                                     ),
-
-                                    const SizedBox(height: 8),
-
-                                    // Gedung list
-                                    _buildBuildingList(),
-                                  ],
-                                ),
-                              if (selectedBuilding != null && isLoadingRooms)
-                                const Padding(
-                                  padding: EdgeInsets.only(top: 16.0),
-                                  child: Center(
-                                      child: CircularProgressIndicator()),
-                                )
-                              else if (selectedBuilding != null &&
-                                  rooms.isNotEmpty) ...[
-                                const SizedBox(height: 16),
-                                Text(
-                                  'Ruangan',
+                                  ),
+                                  trailing: selectedRoom?.id == room.id
+                                      ? const Icon(Icons.check_circle,
+                                          color: Color(0xFF213268), size: 20)
+                                      : null,
+                                  onTap: () {
+                                    setState(() {
+                                      selectedRoom = room;
+                                      roomSearchController.clear();
+                                      _filterRooms('');
+                                    });
+                                  },
+                                );
+                              },
+                            ),
+                          ),
+                      ],
+                      if (selectedRoom != null) ...[
+                        const SizedBox(height: 16),
+                        Container(
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF213268).withOpacity(0.1),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Row(
+                            children: [
+                              const Icon(
+                                Icons.check_circle,
+                                color: Color(0xFF213268),
+                                size: 20,
+                              ),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: Text(
+                                  'Lokasi: ${selectedBuilding!.name} - ${selectedRoom!.name}',
                                   style: GoogleFonts.inter(
                                     fontSize: 14,
                                     fontWeight: FontWeight.w500,
                                     color: const Color(0xFF213268),
                                   ),
                                 ),
-                                const SizedBox(height: 8),
-
-                                // Pencarian ruangan
-                                Container(
-                                  padding: const EdgeInsets.symmetric(
-                                      horizontal: 12, vertical: 4),
-                                  decoration: BoxDecoration(
-                                    color: Colors.white,
-                                    borderRadius: BorderRadius.circular(8),
-                                    border:
-                                        Border.all(color: Colors.grey.shade300),
-                                  ),
-                                  child: TextField(
-                                    controller: roomSearchController,
-                                    decoration: InputDecoration(
-                                      hintText: 'Cari ruangan...',
-                                      border: InputBorder.none,
-                                      prefixIcon: const Icon(
-                                        Icons.search,
-                                        color: Color(0xFF213268),
-                                        size: 20,
-                                      ),
-                                      suffixIcon: roomSearchController
-                                              .text.isNotEmpty
-                                          ? IconButton(
-                                              icon: const Icon(
-                                                Icons.clear,
-                                                size: 18,
-                                                color: Colors.grey,
-                                              ),
-                                              onPressed: () {
-                                                roomSearchController.clear();
-                                                _filterRooms('');
-                                              },
-                                            )
-                                          : null,
-                                      hintStyle: GoogleFonts.inter(
-                                        fontSize: 14,
-                                        color: Colors.grey[600],
-                                      ),
-                                      contentPadding:
-                                          const EdgeInsets.symmetric(
-                                              vertical: 10),
-                                    ),
-                                    onChanged: _filterRooms,
-                                    style: GoogleFonts.inter(
-                                      fontSize: 14,
-                                      color: Colors.black87,
-                                    ),
-                                  ),
-                                ),
-
-                                const SizedBox(height: 8),
-
-                                // Room list
-                                if (filteredRooms.isEmpty &&
-                                    roomSearchController.text.isNotEmpty)
-                                  Container(
-                                    padding: const EdgeInsets.all(12),
-                                    alignment: Alignment.center,
-                                    child: Text(
-                                      'Tidak ada ruangan yang ditemukan',
-                                      style: GoogleFonts.inter(
-                                        fontSize: 14,
-                                        color: Colors.grey[600],
-                                      ),
-                                    ),
-                                  )
-                                else
-                                  Container(
-                                    decoration: BoxDecoration(
-                                      color: Colors.white,
-                                      borderRadius: BorderRadius.circular(8),
-                                      border: Border.all(
-                                          color: Colors.grey.shade200),
-                                    ),
-                                    constraints: const BoxConstraints(
-                                      maxHeight: 180,
-                                    ),
-                                    child: ListView.separated(
-                                      padding: EdgeInsets.zero,
-                                      shrinkWrap: true,
-                                      itemCount: filteredRooms.length,
-                                      separatorBuilder: (context, index) =>
-                                          Divider(
-                                        height: 1,
-                                        color: Colors.grey.shade200,
-                                      ),
-                                      itemBuilder: (context, index) {
-                                        final room = filteredRooms[index];
-                                        return ListTile(
-                                          dense: true,
-                                          contentPadding:
-                                              const EdgeInsets.symmetric(
-                                                  horizontal: 12, vertical: 0),
-                                          title: Text(
-                                            room.name,
-                                            style: GoogleFonts.inter(
-                                              fontSize: 14,
-                                              color: Colors.black87,
-                                              fontWeight:
-                                                  selectedRoom?.id == room.id
-                                                      ? FontWeight.bold
-                                                      : FontWeight.normal,
-                                            ),
-                                          ),
-                                          trailing: selectedRoom?.id == room.id
-                                              ? const Icon(Icons.check_circle,
-                                                  color: Color(0xFF213268),
-                                                  size: 20)
-                                              : null,
-                                          onTap: () {
-                                            setState(() {
-                                              selectedRoom = room;
-                                              roomSearchController.clear();
-                                              _filterRooms('');
-                                            });
-                                          },
-                                        );
-                                      },
-                                    ),
-                                  ),
-                              ],
-                              if (selectedRoom != null) ...[
-                                const SizedBox(height: 16),
-                                Container(
-                                  padding: const EdgeInsets.all(12),
-                                  decoration: BoxDecoration(
-                                    color: const Color(0xFF213268)
-                                        .withOpacity(0.1),
-                                    borderRadius: BorderRadius.circular(8),
-                                  ),
-                                  child: Row(
-                                    children: [
-                                      const Icon(
-                                        Icons.check_circle,
-                                        color: Color(0xFF213268),
-                                        size: 20,
-                                      ),
-                                      const SizedBox(width: 8),
-                                      Expanded(
-                                        child: Text(
-                                          'Lokasi: ${selectedBuilding!.name} - ${selectedRoom!.name}',
-                                          style: GoogleFonts.inter(
-                                            fontSize: 14,
-                                            fontWeight: FontWeight.w500,
-                                            color: const Color(0xFF213268),
-                                          ),
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                                const SizedBox(height: 16),
-                                ElevatedButton.icon(
-                                  onPressed: (isCreatingOpname ||
-                                          selectedRoom == null)
-                                      ? null
-                                      : () async {
-                                          final stockOpname =
-                                              await _createStockOpname(
-                                                  selectedRoom!.id);
-
-                                          if (stockOpname != null) {
-                                            Navigator.push(
-                                              context,
-                                              MaterialPageRoute(
-                                                builder: (context) =>
-                                                    StockopnameScanner(
-                                                  roomId: selectedRoom!.id,
-                                                  roomName: selectedRoom!.name,
-                                                  totalAssets:
-                                                      stockOpname.totalAssets,
-                                                  opnameId:
-                                                      stockOpname.opnameId,
-                                                  opnameCode:
-                                                      stockOpname.opnameCode,
-                                                  previousScreen: 'stockopname',
-                                                ),
-                                              ),
-                                            ).then((result) {
-                                              if (result == true) {
-                                                // Refresh data setelah selesai scan
-                                                _fetchPendingOpnames();
-                                              }
-                                            });
-                                          }
-                                        },
-                                  style: ElevatedButton.styleFrom(
-                                    backgroundColor: const Color(0xFF213268),
-                                    foregroundColor: Colors.white,
-                                    disabledBackgroundColor: Colors.grey,
-                                    minimumSize:
-                                        const Size(double.infinity, 50),
-                                    shape: RoundedRectangleBorder(
-                                      borderRadius: BorderRadius.circular(8),
-                                    ),
-                                    elevation: 2,
-                                  ),
-                                  icon: isCreatingOpname
-                                      ? const SizedBox(
-                                          width: 24,
-                                          height: 24,
-                                          child: CircularProgressIndicator(
-                                            color: Colors.white,
-                                            strokeWidth: 2,
-                                          ),
-                                        )
-                                      : const Icon(Icons.qr_code_scanner,
-                                          size: 24),
-                                  label: Text(
-                                    isCreatingOpname
-                                        ? 'Memproses...'
-                                        : 'Mulai Scan Stock Opname',
-                                    style: GoogleFonts.inter(
-                                      fontSize: 16,
-                                      fontWeight: FontWeight.w600,
-                                    ),
-                                  ),
-                                ),
-                              ],
+                              ),
                             ],
                           ),
                         ),
+                        const SizedBox(height: 16),
+                        ElevatedButton.icon(
+                          onPressed: (isCreatingOpname || selectedRoom == null)
+                              ? null
+                              : () async {
+                                  final stockOpname = await _createStockOpname(
+                                      selectedRoom!.id);
 
-                        const SizedBox(height: 24),
-                        const Divider(
-                            height: 1, thickness: 1, color: Color(0xFFEEEEEE)),
-                        const SizedBox(height: 24),
-
-                        // Pending opnames section
-                        Row(
-                          children: [
-                            const Icon(
-                              Icons.access_time,
-                              color: Color(0xFF213268),
-                              size: 20,
-                            ),
-                            const SizedBox(width: 8),
-                            Text(
-                              'Stock Opname Berlangsung',
-                              style: GoogleFonts.inter(
-                                fontSize: 18,
-                                fontWeight: FontWeight.bold,
-                                color: const Color(0xFF213268),
-                              ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 12),
-
-                        // Pending opnames list
-                        pendingOpnames.isEmpty
-                            ? Center(
-                                child: Padding(
-                                  padding: const EdgeInsets.all(16.0),
-                                  child: Column(
-                                    children: [
-                                      const Icon(
-                                        Icons.info_outline,
-                                        size: 48,
-                                        color: Colors.grey,
-                                      ),
-                                      const SizedBox(height: 16),
-                                      Text(
-                                        'Tidak ada stock opname yang sedang berlangsung',
-                                        textAlign: TextAlign.center,
-                                        style: GoogleFonts.inter(
-                                          fontSize: 14,
-                                          color: Colors.grey[700],
+                                  if (stockOpname != null) {
+                                    Navigator.push(
+                                      context,
+                                      MaterialPageRoute(
+                                        builder: (context) =>
+                                            StockopnameScanner(
+                                          roomId: selectedRoom!.id,
+                                          roomName: selectedRoom!.name,
+                                          totalAssets: stockOpname.totalAssets,
+                                          opnameId: stockOpname.opnameId,
+                                          opnameCode: stockOpname.opnameCode,
+                                          previousScreen: 'stockopname',
                                         ),
                                       ),
-                                    ],
-                                  ),
-                                ),
-                              )
-                            : ListView.separated(
-                                shrinkWrap: true,
-                                physics: const NeverScrollableScrollPhysics(),
-                                itemCount: pendingOpnames.length,
-                                separatorBuilder: (context, index) =>
-                                    const SizedBox(height: 8),
-                                itemBuilder: (context, index) {
-                                  final opname = pendingOpnames[index];
-                                  return _buildOpnameCard(opname);
+                                    ).then((result) {
+                                      if (result == true) {
+                                        // Refresh data setelah selesai scan
+                                        _fetchPendingOpnames();
+                                      }
+                                    });
+                                  }
                                 },
-                              ),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: const Color(0xFF213268),
+                            foregroundColor: Colors.white,
+                            disabledBackgroundColor: Colors.grey,
+                            minimumSize: const Size(double.infinity, 50),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            elevation: 2,
+                          ),
+                          icon: isCreatingOpname
+                              ? const SizedBox(
+                                  width: 24,
+                                  height: 24,
+                                  child: CircularProgressIndicator(
+                                    color: Colors.white,
+                                    strokeWidth: 2,
+                                  ),
+                                )
+                              : const Icon(Icons.qr_code_scanner, size: 24),
+                          label: Text(
+                            isCreatingOpname
+                                ? 'Memproses...'
+                                : 'Mulai Scan Stock Opname',
+                            style: GoogleFonts.inter(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
                       ],
-                    ),
+                    ],
                   ),
-                ],
-              ),
+                ),
+
+                const SizedBox(height: 24),
+                const Divider(
+                    height: 1, thickness: 1, color: Color(0xFFEEEEEE)),
+                const SizedBox(height: 24),
+
+                // Pending opnames section
+                Row(
+                  children: [
+                    const Icon(
+                      Icons.access_time,
+                      color: Color(0xFF213268),
+                      size: 20,
+                    ),
+                    const SizedBox(width: 8),
+                    Text(
+                      'Stock Opname Berlangsung',
+                      style: GoogleFonts.inter(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                        color: const Color(0xFF213268),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+
+                // Pending opnames list
+                pendingOpnames.isEmpty
+                    ? Center(
+                        child: Padding(
+                          padding: const EdgeInsets.all(16.0),
+                          child: Column(
+                            children: [
+                              const Icon(
+                                Icons.info_outline,
+                                size: 48,
+                                color: Colors.grey,
+                              ),
+                              const SizedBox(height: 16),
+                              Text(
+                                'Tidak ada stock opname yang sedang berlangsung',
+                                textAlign: TextAlign.center,
+                                style: GoogleFonts.inter(
+                                  fontSize: 14,
+                                  color: Colors.grey[700],
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      )
+                    : ListView.separated(
+                        shrinkWrap: true,
+                        physics: const NeverScrollableScrollPhysics(),
+                        itemCount: pendingOpnames.length,
+                        separatorBuilder: (context, index) =>
+                            const SizedBox(height: 8),
+                        itemBuilder: (context, index) {
+                          final opname = pendingOpnames[index];
+                          return _buildOpnameCard(opname);
+                        },
+                      ),
+              ],
             ),
           ),
-        ),
+        ],
       ),
     );
   }
@@ -1079,10 +1228,5 @@ class _StockopnameScreenState extends State<StockopnameScreen> {
         },
       ),
     );
-  }
-
-  Future<void> _loadData() async {
-    await _fetchBuildings();
-    await _fetchPendingOpnames();
   }
 }

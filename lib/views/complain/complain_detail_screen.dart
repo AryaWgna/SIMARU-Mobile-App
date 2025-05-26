@@ -74,19 +74,17 @@ class _ComplainDetailScreenState extends State<ComplainDetailScreen> {
         throw Exception('No access token available');
       }
 
-      final complaintId = widget.complaint['id'].toString();
+      final repairId = _complaintDetail?['repair']['id'].toString();
+      if (repairId == null) {
+        throw Exception('Repair ID tidak ditemukan');
+      }
 
-      final response = await http.put(
-        Uri.parse('${ApiConfig.baseUrl}/complaints/$complaintId'),
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': 'Bearer $accessToken',
-        },
-        body: jsonEncode({
-          'status': 'approved',
-          'approval_by': 1,
-        }),
-      );
+      final response = await http.post(
+          Uri.parse('${ApiConfig.baseUrl}/repairs/$repairId/approve'),
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': 'Bearer $accessToken',
+          });
 
       if (response.statusCode == 200) {
         final responseData = jsonDecode(response.body);
@@ -131,8 +129,8 @@ class _ComplainDetailScreenState extends State<ComplainDetailScreen> {
     if (_complaintDetail != null &&
         _complaintDetail?['repair'] != null &&
         _complaintDetail?['repair']['approval_by'] != null &&
-        _complaintDetail?['repair']['approval_by'].toString() != "" &&
-        _complaintDetail?['repair']['approval_by'] != 0) {
+        _complaintDetail?['repair']['approval_by'].toString() != "null" &&
+        _complaintDetail?['repair']['approval_by'].toString() != "") {
       backgroundColor = Colors.green;
       statusText = 'APPROVED';
     } else {
@@ -218,7 +216,8 @@ class _ComplainDetailScreenState extends State<ComplainDetailScreen> {
       appBar: AppBar(
         backgroundColor: const Color(0xFF213268),
         elevation: 0,
-        title: const Text('Detail Keluhan', style: TextStyle(color: Colors.white)),
+        title:
+            const Text('Detail Keluhan', style: TextStyle(color: Colors.white)),
         leading: IconButton(
           icon: const Icon(Icons.arrow_back, color: Colors.white),
           onPressed: () => Navigator.pop(context),
@@ -297,7 +296,7 @@ class _ComplainDetailScreenState extends State<ComplainDetailScreen> {
                         _buildDetailItem('Tanggal Keluhan',
                             _formatDate(_complaintDetail?['complaint_date'])),
                         _buildDetailItem('Asset Code',
-                            _complaintDetail?['asset_id'].toString() ?? '-'),
+                            _complaintDetail?['asset_code'].toString() ?? '-'),
                         _buildDetailItem('Asset Name',
                             _complaintDetail?['asset_name'] ?? '-'),
                         _buildDetailItem('Deskripsi',
@@ -371,7 +370,6 @@ class _ComplainDetailScreenState extends State<ComplainDetailScreen> {
                         ],
 
                         // Add Approve button if status is 'finished' and approval_by is null/empty
-                        // and status is not already 'approved'
                         if (_complaintDetail?['status']?.toLowerCase() == 'finished' &&
                             _complaintDetail?['status']?.toLowerCase() !=
                                 'approved' &&
@@ -380,9 +378,10 @@ class _ComplainDetailScreenState extends State<ComplainDetailScreen> {
                                     null ||
                                 _complaintDetail?['repair']['approval_by']
                                         .toString() ==
-                                    "" ||
-                                _complaintDetail?['repair']['approval_by'] ==
-                                    0))
+                                    "null" ||
+                                _complaintDetail?['repair']['approval_by']
+                                        .toString() ==
+                                    ""))
                           Padding(
                             padding: const EdgeInsets.symmetric(vertical: 16.0),
                             child: SizedBox(

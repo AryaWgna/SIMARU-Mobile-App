@@ -194,6 +194,16 @@ class _LoginScreenState extends State<LoginScreen> {
           );
         };
 
+        // Ambil profil pengguna setelah login berhasil
+        try {
+          print("Fetching user profile after successful login");
+          await ApiService.getProfile(context);
+          print("Profile fetched successfully");
+        } catch (e) {
+          print("Error fetching profile: $e");
+          // Lanjutkan proses meskipun gagal mengambil profil
+        }
+
         // Send FCM token to server after successful login
         try {
           print("Preparing to send FCM token to server...");
