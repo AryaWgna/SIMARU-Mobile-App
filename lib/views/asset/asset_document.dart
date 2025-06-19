@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'dart:convert';
 import 'dart:io';
+import 'package:provider/provider.dart';
+import '../../controllers/asset_document_controller.dart';
 import 'asset_history.dart';
 import 'asset_mutation.dart';
 import 'asset_details.dart';
@@ -16,6 +18,7 @@ import 'dart:async';
 import 'dart:math';
 import 'package:pull_to_refresh_flutter3/pull_to_refresh_flutter3.dart';
 import 'package:skeletonizer/skeletonizer.dart';
+import 'package:provider/provider.dart';
 
 // Platform channel untuk deteksi screenshot di iOS
 const MethodChannel _channel =
@@ -95,20 +98,19 @@ class AssetDocument extends StatefulWidget {
 
 class _AssetDocumentState extends State<AssetDocument>
     with WidgetsBindingObserver {
-  bool isLoading = true;
-  String? errorMessage;
-  List<dynamic> documents = [];
-  bool _showAntiScreenshotMessage = false;
+  late AssetDocumentController _documentController;
   Timer? _securityTimer;
-  String _randomSecurityId = '';
   StreamSubscription? _iosScreenshotSubscription;
   final RefreshController _refreshController =
       RefreshController(initialRefresh: false);
   final ScreenshotProtectionManager _protectionManager =
       ScreenshotProtectionManager();
+  int? _assetId;
 
-  // Tambahkan counter refresh untuk mengatasi efek zoom kumulatif
-  int _refreshCount = 0;
+  // Getters untuk memudahkan akses ke data controller
+  bool get isLoading => _documentController.isLoading;
+  String? get errorMessage => _documentController.error;
+  List get documents => _documentController.documents;
 
   @override
   void initState() {
@@ -116,8 +118,12 @@ class _AssetDocumentState extends State<AssetDocument>
     // Deteksi screensaver dan app lifecycle
     WidgetsBinding.instance.addObserver(this);
 
+    // Inisialisasi controller
+    _documentController =
+        Provider.of<AssetDocumentController>(context, listen: false);
+
     // Generate security ID
-    _randomSecurityId = _generateRandomId();
+    _documentController.generateRandomId();
 
     // Nonaktifkan anti-screenshot di halaman utama
     // Hanya aktifkan pada preview dokumen saja
@@ -125,8 +131,46 @@ class _AssetDocumentState extends State<AssetDocument>
         .disableProtection(); // Pastikan fitur off di halaman utama
 
     WidgetsBinding.instance.addPostFrameCallback((_) async {
-      _fetchAssetDocuments();
+      _initializeAssetId();
     });
+  }
+
+  // Ambil asset_id dari widget.assetData
+  void _initializeAssetId() {
+    if (widget.assetData == null) {
+      _showError('Data aset tidak tersedia');
+      return;
+    }
+
+    print('Asset data: ${widget.assetData}');
+
+    // Coba ambil asset_id dari berbagai properti yang mungkin
+    var assetId = widget.assetData!['asset_id'];
+    if (assetId == null) {
+      assetId = widget.assetData!['id'];
+    }
+
+    if (assetId == null) {
+      _showError('ID aset tidak ditemukan dalam data: ${widget.assetData}');
+      return;
+    }
+
+    // Convert ke int jika diperlukan
+    _assetId = assetId is int ? assetId : int.tryParse(assetId.toString());
+    if (_assetId == null) {
+      _showError('ID aset tidak valid: $assetId');
+      return;
+    }
+
+    print('Menggunakan asset_id: $_assetId untuk mengambil dokumen');
+    // Fetch documents
+    _fetchAssetDocuments();
+  }
+
+  // Tampilkan pesan error
+  void _showError(String message) {
+    _documentController.clearError();
+    _documentController.setError(message);
   }
 
   // Setup deteksi screenshot untuk iOS
@@ -196,25 +240,13 @@ class _AssetDocumentState extends State<AssetDocument>
 
   // Untuk menampilkan notifikasi anti-screenshot
   void _showAntiScreenshotNotification() {
-    setState(() {
-      _showAntiScreenshotMessage = true;
-    });
-
-    // Sembunyikan pesan setelah 3 detik
-    Future.delayed(const Duration(seconds: 3), () {
-      if (mounted) {
-        setState(() {
-          _showAntiScreenshotMessage = false;
-        });
-      }
-    });
+    _documentController.showAntiScreenshotNotification();
   }
 
-  // Generate random ID for security tracking
-  String _generateRandomId() {
-    final random = Random();
-    return DateTime.now().microsecondsSinceEpoch.toString() +
-        random.nextInt(10000).toString();
+  // Metode untuk mengambil dokumen aset
+  Future<void> _fetchAssetDocuments() async {
+    if (_assetId == null) return;
+    await _documentController.fetchAssetDocuments(_assetId!, context);
   }
 
   // Start timer untuk cek keamanan secara berkala
@@ -223,263 +255,23 @@ class _AssetDocumentState extends State<AssetDocument>
     _securityTimer = Timer.periodic(const Duration(seconds: 2), (timer) {
       // Regenerate security ID secara berkala
       if (mounted) {
-        setState(() {
-          _randomSecurityId = _generateRandomId();
-        });
+        _documentController.generateRandomId();
       }
 
       // Re-enable anti-screenshot secara berkala
       _protectionManager.enableProtection();
 
       // Debug log
-      print("Security check: $_randomSecurityId");
+      print("Security check: ${_documentController.randomSecurityId}");
     });
   }
 
+  // Fungsi refresh untuk pull-to-refresh
   void _onRefresh() async {
-    // Segera aktifkan skeletonizer
-    if (mounted) {
-      setState(() {
-        isLoading = true;
-      });
-    }
-
-    // Fetch data dengan flag showLoading=false karena kita sudah mengaktifkan loading state
-    await _fetchAssetDocuments(showLoading: false);
-
-    // Reset refresh controller
+    await _fetchAssetDocuments();
     _refreshController.refreshCompleted();
-
-    // Jika refresh counter mencapai 3, reset tampilan untuk mencegah zoom
-    _refreshCount++;
-    if (_refreshCount >= 3) {
-      _refreshCount = 0;
-
-      if (mounted) {
-        // Trigger rebuild dengan sedikit delay
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          if (mounted) {
-            Navigator.of(context).push(
-              PageRouteBuilder(
-                pageBuilder: (context, animation, secondaryAnimation) =>
-                    AssetDocument(
-                  assetData: widget.assetData,
-                  qrData: widget.qrData,
-                  previousScreen: widget.previousScreen,
-                ),
-                transitionDuration: Duration.zero,
-                reverseTransitionDuration: Duration.zero,
-              ),
-            );
-            Navigator.of(context).removeRoute(ModalRoute.of(context)!);
-          }
-        });
-      }
-    }
-  }
-
-  Future<void> _fetchAssetDocuments({bool showLoading = true}) async {
-    if (widget.assetData == null) {
-      setState(() {
-        isLoading = false;
-        errorMessage = 'Data aset tidak tersedia';
-      });
-      return;
-    }
-
-    if (showLoading) {
-      setState(() {
-        isLoading = true;
-        errorMessage = null;
-      });
-    }
-
-    try {
-      // Debug: tampilkan semua key yang tersedia di assetData
-      print('Asset data keys available: ${widget.assetData!.keys.toList()}');
-      print('Asset data: ${widget.assetData}');
-
-      // Hanya gunakan asset_id untuk mengambil dokumen
-      var assetId = widget.assetData!['asset_id']?.toString();
-
-      // Jika asset_id tidak tersedia, coba ambil dari property lain
-      if (assetId == null || assetId.isEmpty) {
-        // Coba dari id
-        assetId = widget.assetData!['id']?.toString();
-
-        // Jika masih null, coba asset_master_id
-        if (assetId == null || assetId.isEmpty) {
-          assetId = widget.assetData!['asset_master_id']?.toString();
-        }
-      }
-
-      if (assetId == null || assetId.isEmpty) {
-        setState(() {
-          isLoading = false;
-          errorMessage = 'ID aset tidak ditemukan (asset_id)';
-        });
-        return;
-      }
-
-      print('Mengambil dokumen untuk aset dengan ID: $assetId');
-
-      // Gunakan endpoint yang benar sesuai dengan dokumentasi API
-      var endpoint = '/asset-documents/asset/$assetId/all-documents';
-      print('Endpoint yang digunakan: $endpoint');
-
-      final response = await ApiService.get(
-        endpoint,
-        context: context,
-      );
-
-      print('Response status: ${response.statusCode}');
-      print('Response body: ${response.body}');
-
-      if (response.statusCode == 200) {
-        final data = json.decode(response.body);
-        if (data['success'] == true) {
-          // Handle berbagai kemungkinan struktur respons
-          List<dynamic> docs = [];
-
-          if (data['data'] != null) {
-            if (data['data'] is List) {
-              // Jika data adalah array langsung
-              docs = data['data'];
-            } else if (data['data']['documents'] != null &&
-                data['data']['documents'] is List) {
-              // Jika data memiliki property documents
-              docs = data['data']['documents'];
-            } else if (data['data']['items'] != null &&
-                data['data']['items'] is List) {
-              // Jika data memiliki property items
-              docs = data['data']['items'];
-            } else {
-              // Jika data adalah object tunggal
-              docs = [data['data']];
-            }
-          }
-
-          print('Jumlah dokumen ditemukan: ${docs.length}');
-
-          setState(() {
-            documents = docs;
-            isLoading = false;
-          });
-        } else {
-          setState(() {
-            isLoading = false;
-            errorMessage = data['message'] ?? 'Gagal memuat dokumen';
-          });
-        }
-      } else if (response.statusCode == 404) {
-        setState(() {
-          isLoading = false;
-          documents = [];
-        });
-      } else if (response.statusCode == 500) {
-        // Handle error 500 dengan pesan yang lebih jelas
-        String serverError;
-        try {
-          final data = json.decode(response.body);
-          serverError =
-              data['message'] ?? 'Terjadi kesalahan pada server (500)';
-        } catch (e) {
-          serverError = 'Terjadi kesalahan pada server (500)';
-        }
-
-        print('Error 500: $serverError');
-        setState(() {
-          isLoading = false;
-          errorMessage =
-              'Kesalahan server: $serverError. Silakan coba dengan ID aset yang benar.';
-        });
-
-        // Coba endpoint alternatif jika error 500
-        _tryAlternativeEndpoint(assetId);
-      } else {
-        setState(() {
-          isLoading = false;
-          errorMessage = 'Gagal memuat dokumen: Error ${response.statusCode}';
-        });
-      }
-    } catch (e) {
-      print('Error saat mengambil dokumen aset: $e');
-      setState(() {
-        isLoading = false;
-        errorMessage = 'Terjadi kesalahan: ${e.toString()}';
-      });
-    }
-  }
-
-  // Metode baru untuk mencoba endpoint alternatif jika endpoint utama gagal
-  Future<void> _tryAlternativeEndpoint(String assetId) async {
-    print('Mencoba endpoint alternatif untuk dokumen...');
-
-    try {
-      // Coba beberapa endpoint alternatif untuk dokumen
-      List<String> alternativeEndpoints = [
-        '/documents/asset/$assetId',
-        '/asset-documents/asset/$assetId/all-documents', // Dari dokumentasi API
-        '/asset-documents/documents?asset_id=$assetId' // Endpoint tambahan yang mungkin tersedia
-      ];
-
-      for (var endpoint in alternativeEndpoints) {
-        print('Mencoba endpoint alternatif: $endpoint');
-
-        final response = await ApiService.get(
-          endpoint,
-          context: context,
-        );
-
-        print('Response alternatif status: ${response.statusCode}');
-        print('Response alternatif body: ${response.body}');
-
-        if (response.statusCode == 200) {
-          final data = json.decode(response.body);
-
-          if (data['success'] == true) {
-            // Handle berbagai kemungkinan struktur respons
-            List<dynamic> docs = [];
-
-            if (data['data'] != null) {
-              if (data['data'] is List) {
-                docs = data['data'];
-              } else if (data['data']['documents'] != null &&
-                  data['data']['documents'] is List) {
-                docs = data['data']['documents'];
-              } else if (data['data']['items'] != null &&
-                  data['data']['items'] is List) {
-                docs = data['data']['items'];
-                // Cek jika ada "documents" di level teratas sesuai dokumentasi
-              } else if (endpoint.contains('all-documents') &&
-                  data['data'] is Map &&
-                  data['data'].containsKey('documents')) {
-                docs = data['data']['documents'];
-              } else {
-                docs = [data['data']];
-              }
-            }
-
-            print(
-                'Jumlah dokumen ditemukan dengan endpoint alternatif: ${docs.length}');
-
-            if (docs.isNotEmpty) {
-              setState(() {
-                documents = docs;
-                isLoading = false;
-                errorMessage = null; // Hapus pesan error sebelumnya
-              });
-
-              // Jika berhasil dengan endpoint ini, hentikan perulangan
-              break;
-            }
-          }
-        }
-      }
-    } catch (e) {
-      print('Error pada endpoint alternatif: $e');
-      // Tidak mengubah state karena ini hanya upaya backup
-    }
+    // Increment refresh counter
+    _documentController.incrementRefreshCount();
   }
 
   // Metode untuk menampilkan PDF viewer langsung dari URL
@@ -584,370 +376,61 @@ class _AssetDocumentState extends State<AssetDocument>
 
   @override
   Widget build(BuildContext context) {
-    return AnnotatedRegion<SystemUiOverlayStyle>(
-      value: const SystemUiOverlayStyle(
-        statusBarColor: Colors.transparent,
-        statusBarIconBrightness: Brightness.light,
-      ),
-      child: Scaffold(
-        backgroundColor: Colors.white,
-        appBar: _buildAppBar(context),
-        body: SecureWidget(
-          child: Container(
-            color: Colors.white,
-            child: Stack(
-              children: [
-                isLoading
-                    ? Skeletonizer(
-                        enabled: true,
-                        effect: ShimmerEffect(
-                          baseColor: Colors.grey.shade300,
-                          highlightColor: const Color(0xFFE5EFFF),
-                        ),
-                        child: ListView.separated(
-                          padding: const EdgeInsets.all(16),
-                          itemCount: 3, // Tampilkan 3 skeleton item
-                          separatorBuilder: (context, index) =>
-                              const SizedBox(height: 12),
-                          itemBuilder: (context, index) {
-                            return _buildSkeletonDocumentCard();
-                          },
-                        ),
-                      )
-                    : errorMessage != null
-                        ? Center(
-                            child: Padding(
-                              padding: const EdgeInsets.all(16.0),
-                              child: Column(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                children: [
-                                  Icon(
-                                    Icons.error_outline,
-                                    color: Colors.red[700],
-                                    size: 48,
-                                  ),
-                                  const SizedBox(height: 16),
-                                  Text(
-                                    errorMessage!,
-                                    style: TextStyle(
-                                      color: Colors.red[700],
-                                      fontSize: 16,
-                                    ),
-                                    textAlign: TextAlign.center,
-                                  ),
-                                  const SizedBox(height: 24),
-                                  ElevatedButton(
-                                    onPressed: _fetchAssetDocuments,
-                                    style: ElevatedButton.styleFrom(
-                                      backgroundColor: const Color(0xFF213268),
-                                      foregroundColor: Colors.white,
-                                      shape: RoundedRectangleBorder(
-                                        borderRadius: BorderRadius.circular(8),
-                                      ),
-                                    ),
-                                    child: const Text('Coba Lagi'),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          )
-                        : documents.isEmpty
-                            ? Center(
-                                child: Padding(
-                                  padding: const EdgeInsets.all(16.0),
-                                  child: Column(
-                                    mainAxisAlignment: MainAxisAlignment.center,
-                                    children: [
-                                      Icon(
-                                        Icons.folder_open,
-                                        color: Colors.grey[400],
-                                        size: 64,
-                                      ),
-                                      const SizedBox(height: 16),
-                                      const Text(
-                                        'Tidak ada dokumen',
-                                        style: TextStyle(
-                                          fontSize: 18,
-                                          fontWeight: FontWeight.w500,
-                                          color: Color(0xFF666666),
-                                        ),
-                                      ),
-                                      const SizedBox(height: 8),
-                                      const Text(
-                                        'Aset ini belum memiliki dokumen terkait',
-                                        style: TextStyle(
-                                          fontSize: 14,
-                                          color: Color(0xFF999999),
-                                        ),
-                                        textAlign: TextAlign.center,
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              )
-                            : SmartRefresher(
-                                enablePullDown: true,
-                                enablePullUp: false,
-                                physics: const ClampingScrollPhysics(),
-                                controller: _refreshController,
-                                onRefresh: _onRefresh,
-                                footer: null,
-                                header: const WaterDropMaterialHeader(
-                                  backgroundColor: Color(0xFF213268),
-                                  color: Colors.white,
-                                  distance: 60.0,
-                                ),
-                                child: ScrollConfiguration(
-                                  behavior:
-                                      ScrollConfiguration.of(context).copyWith(
-                                    overscroll: false,
-                                  ),
-                                  child: NotificationListener<
-                                      OverscrollIndicatorNotification>(
-                                    onNotification: (overscroll) {
-                                      overscroll.disallowIndicator();
-                                      return true;
-                                    },
-                                    child: ListView.separated(
-                                      shrinkWrap: true,
-                                      physics: const ClampingScrollPhysics(),
-                                      padding: const EdgeInsets.all(16),
-                                      itemCount: documents.length,
-                                      separatorBuilder: (context, index) =>
-                                          const SizedBox(height: 12),
-                                      itemBuilder: (context, index) {
-                                        final document = documents[index];
-                                        return _buildDocumentCard(document);
-                                      },
-                                    ),
-                                  ),
-                                ),
-                              ),
+    return Scaffold(
+      body: Stack(
+        children: [
+          // Header Section
+          _buildHeaderSection(context),
 
-                // Pesan anti-screenshot WhatsApp style
-                if (_showAntiScreenshotMessage)
-                  Positioned.fill(
-                    child: Container(
-                      color: Colors.black.withOpacity(0.85),
-                      child: const Center(
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(
-                              Icons.no_photography,
-                              color: Colors.white,
-                              size: 64,
-                            ),
-                            SizedBox(height: 16),
-                            Text(
-                              ANTI_SCREENSHOT_MESSAGE,
-                              style: TextStyle(
-                                color: Colors.white,
-                                fontSize: 16,
-                                fontWeight: FontWeight.bold,
-                              ),
-                              textAlign: TextAlign.center,
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
+          // Content Section
+          Positioned(
+            top: 82 + MediaQuery.of(context).padding.top,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            child: Column(
+              children: [
+                // Sub-tabs
+                _buildTabSection(),
+
+                // Document List Section
+                Expanded(
+                  child: Container(
+                    width: double.infinity,
+                    color: const Color(0xFFF5F5F5),
+                    child: Consumer<AssetDocumentController>(
+                        builder: (context, controller, child) {
+                      if (controller.isLoading) {
+                        return _buildLoadingView();
+                      } else if (controller.error != null) {
+                        return _buildErrorView(controller.error!);
+                      } else if (controller.documents.isEmpty) {
+                        return _buildEmptyView();
+                      } else {
+                        return _buildDocumentListView(controller.documents);
+                      }
+                    }),
                   ),
+                ),
               ],
             ),
           ),
-        ),
-        bottomNavigationBar: _buildBottomNavigationBar(context, 'document'),
-      ),
-    );
-  }
 
-  Widget _buildDocumentCard(Map<String, dynamic> document) {
-    final documentTitle = document['document_title'] ?? 'Dokumen';
-    final fileName = _extractFilename(document['file_path'] ?? '');
-    final fileType = _getFileType(fileName);
-    final uploadDate = document['upload_date'] ?? '-';
-    final formattedDate = _formatDate(uploadDate);
-    final notes = document['notes'] ?? '-';
-
-    return InkWell(
-      onTap: () {
-        // Cek jenis file dan buka viewer yang sesuai langsung
-        if (fileType.toLowerCase().contains('pdf')) {
-          _openPdfViewerDirectly(document);
-        } else if (fileType.toLowerCase().contains('image') ||
-            fileType.toLowerCase().contains('jpg') ||
-            fileType.toLowerCase().contains('jpeg') ||
-            fileType.toLowerCase().contains('png')) {
-          _openImageViewerDirectly(document);
-        } else {
-          // Jika bukan PDF atau gambar, tampilkan notifikasi
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text(
-                  'Hanya file PDF dan gambar yang dapat dilihat secara langsung'),
-              backgroundColor: Colors.orange,
-            ),
-          );
-        }
-      },
-      child: Container(
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(8),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(0.1),
-              blurRadius: 4,
-              offset: const Offset(0, 2),
-            ),
-          ],
-        ),
-        child: Column(
-          children: [
-            Padding(
-              padding: const EdgeInsets.all(12),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Expanded(
-                    child: Text(
-                      documentTitle,
-                      style: const TextStyle(
-                        fontFamily: 'Inter',
-                        fontSize: 16,
-                        fontWeight: FontWeight.w500,
-                        color: Color(0xFF213268),
-                      ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Icon(
-                    _getFileIcon(fileType),
-                    color: const Color(0xFF25B1FF),
-                    size: 24,
-                  ),
-                ],
-              ),
-            ),
-            const Divider(height: 1, thickness: 1, color: Color(0xFFEEEEEE)),
-            Padding(
-              padding: const EdgeInsets.all(12),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  _buildDocumentDetail('Nama File', fileName),
-                  const SizedBox(height: 8),
-                  _buildDocumentDetail('Tipe', fileType),
-                  const SizedBox(height: 8),
-                  _buildDocumentDetail('Tanggal Unggah', formattedDate),
-                  const SizedBox(height: 8),
-                  _buildDocumentDetail('Catatan', notes),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  IconData _getFileIcon(String fileType) {
-    if (fileType.toLowerCase().contains('pdf')) {
-      return Icons.picture_as_pdf;
-    } else if (fileType.toLowerCase().contains('word') ||
-        fileType.toLowerCase().contains('doc')) {
-      return Icons.description;
-    } else if (fileType.toLowerCase().contains('excel') ||
-        fileType.toLowerCase().contains('xls') ||
-        fileType.toLowerCase().contains('csv')) {
-      return Icons.table_chart;
-    } else if (fileType.toLowerCase().contains('image') ||
-        fileType.toLowerCase().contains('jpg') ||
-        fileType.toLowerCase().contains('png')) {
-      return Icons.image;
-    }
-    return Icons.insert_drive_file;
-  }
-
-  Widget _buildDocumentDetail(String label, String value) {
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        SizedBox(
-          width: 120,
-          child: Text(
-            label,
-            style: const TextStyle(
-              fontFamily: 'Inter',
-              fontSize: 14,
-              color: Color(0xFF666666),
-            ),
+          // Anti-screenshot overlay if active
+          Consumer<AssetDocumentController>(
+            builder: (context, controller, child) {
+              return controller.showAntiScreenshotMessage
+                  ? _buildAntiScreenshotOverlay()
+                  : const SizedBox.shrink();
+            },
           ),
-        ),
-        Expanded(
-          child: Text(
-            value,
-            style: const TextStyle(
-              fontFamily: 'Inter',
-              fontSize: 14,
-              fontWeight: FontWeight.w500,
-              color: Color(0xFF333333),
-            ),
-          ),
-        ),
-      ],
+        ],
+      ),
+      bottomNavigationBar: _buildBottomNavigationBar(),
     );
   }
 
-  String _extractFilename(String path) {
-    if (path.isEmpty) return '-';
-    if (!path.contains('/')) return path;
-    return path.split('/').last;
-  }
-
-  String _getFileType(String fileName) {
-    if (fileName == '-') return '-';
-    if (!fileName.contains('.')) return 'Tidak diketahui';
-
-    final extension = fileName.split('.').last.toLowerCase();
-    switch (extension) {
-      case 'pdf':
-        return 'PDF Document';
-      case 'doc':
-      case 'docx':
-        return 'Word Document';
-      case 'xls':
-      case 'xlsx':
-        return 'Excel Spreadsheet';
-      case 'csv':
-        return 'CSV File';
-      case 'jpg':
-      case 'jpeg':
-        return 'JPEG Image';
-      case 'png':
-        return 'PNG Image';
-      default:
-        return extension.toUpperCase();
-    }
-  }
-
-  String _formatDate(String dateString) {
-    if (dateString == '-') return '-';
-    try {
-      final date = DateTime.parse(dateString);
-      final day = date.day.toString().padLeft(2, '0');
-      final month = date.month.toString().padLeft(2, '0');
-      final year = date.year;
-      return '$day/$month/$year';
-    } catch (e) {
-      return dateString;
-    }
-  }
-
-  PreferredSizeWidget _buildAppBar(BuildContext context) {
+  Widget _buildHeaderSection(BuildContext context) {
     final double statusBarHeight = MediaQuery.of(context).padding.top;
 
     return PreferredSize(
@@ -1015,7 +498,423 @@ class _AssetDocumentState extends State<AssetDocument>
     );
   }
 
-  Widget _buildBottomNavigationBar(BuildContext context, String activePage) {
+  Widget _buildTabSection() {
+    // Implementasi tab section
+    return Container(); // Placeholder, actual implementation needed
+  }
+
+  Widget _buildLoadingView() {
+    return Skeletonizer(
+      enabled: true,
+      effect: ShimmerEffect(
+        baseColor: Colors.grey.shade300,
+        highlightColor: const Color(0xFFE5EFFF),
+      ),
+      child: _buildSkeletonLayout(),
+    );
+  }
+
+  // Fungsi untuk membuat skeleton layout
+  Widget _buildSkeletonLayout() {
+    return ListView.separated(
+      padding: const EdgeInsets.all(16),
+      itemCount: 3, // Tampilkan 3 skeleton item
+      separatorBuilder: (context, index) => const SizedBox(height: 12),
+      itemBuilder: (context, index) {
+        return _buildSkeletonDocumentCard();
+      },
+    );
+  }
+
+  // Fungsi untuk membuat skeleton document card
+  Widget _buildSkeletonDocumentCard() {
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(8),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.1),
+            blurRadius: 4,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Column(
+        children: [
+          Padding(
+            padding: const EdgeInsets.all(12),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Container(
+                  width: 200,
+                  height: 16,
+                  decoration: BoxDecoration(
+                    color: Colors.grey[300],
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Container(
+                  width: 24,
+                  height: 24,
+                  decoration: BoxDecoration(
+                    color: Colors.grey[300],
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const Divider(height: 1, thickness: 1, color: Color(0xFFEEEEEE)),
+          Padding(
+            padding: const EdgeInsets.all(12),
+            child: Column(
+              children: [
+                _buildSkeletonDetailRow(),
+                const SizedBox(height: 8),
+                _buildSkeletonDetailRow(),
+                const SizedBox(height: 8),
+                _buildSkeletonDetailRow(),
+                const SizedBox(height: 8),
+                _buildSkeletonDetailRow(),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // Fungsi untuk membuat skeleton detail row
+  Widget _buildSkeletonDetailRow() {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Container(
+          width: 120,
+          height: 14,
+          decoration: BoxDecoration(
+            color: Colors.grey[300],
+            borderRadius: BorderRadius.circular(4),
+          ),
+        ),
+        const SizedBox(width: 8),
+        Expanded(
+          child: Container(
+            height: 14,
+            decoration: BoxDecoration(
+              color: Colors.grey[300],
+              borderRadius: BorderRadius.circular(4),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildErrorView(String errorMessage) {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(Icons.error, color: Colors.red, size: 48),
+          SizedBox(height: 16),
+          Text(
+            errorMessage,
+            style: TextStyle(color: Colors.red, fontSize: 16),
+            textAlign: TextAlign.center,
+          ),
+          SizedBox(height: 24),
+          ElevatedButton(
+            onPressed: _fetchAssetDocuments,
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.blue,
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(8),
+              ),
+            ),
+            child: Text('Coba Lagi'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildEmptyView() {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(Icons.folder_open, color: Colors.grey, size: 64),
+          SizedBox(height: 16),
+          Text(
+            'Tidak ada dokumen',
+            style: TextStyle(fontSize: 18, fontWeight: FontWeight.w500),
+          ),
+          SizedBox(height: 8),
+          Text(
+            'Aset ini belum memiliki dokumen terkait',
+            style: TextStyle(fontSize: 14, color: Colors.grey),
+            textAlign: TextAlign.center,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildDocumentListView(List<dynamic> documents) {
+    return SmartRefresher(
+      enablePullDown: true,
+      enablePullUp: false,
+      controller: _refreshController,
+      onRefresh: _onRefresh,
+      header: const WaterDropMaterialHeader(
+        backgroundColor: Color(0xFF25B1FF),
+        color: Colors.white,
+        distance: 60.0,
+      ),
+      child: ScrollConfiguration(
+        behavior: ScrollConfiguration.of(context).copyWith(
+          overscroll: false,
+        ),
+        child: NotificationListener<OverscrollIndicatorNotification>(
+          onNotification: (overscroll) {
+            overscroll.disallowIndicator();
+            return true;
+          },
+          child: ListView.separated(
+            padding: const EdgeInsets.all(16),
+            itemCount: documents.length,
+            separatorBuilder: (context, index) => const SizedBox(height: 12),
+            itemBuilder: (context, index) {
+              final document = documents[index];
+              print('Rendering document at index $index: $document');
+              return _buildDocumentCard(document);
+            },
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildDocumentCard(dynamic document) {
+    // Ekstrak data dokumen
+    final int documentId = document.documentId;
+    final String documentTitle = document.title;
+    final String fileName = document.fileName;
+    final String fileType = document.fileType;
+    final String uploadDate = _formatDate(document.uploadDate.toString());
+    final String uploadedBy = document.uploaderName;
+
+    return GestureDetector(
+      onTap: () {
+        // Tentukan tipe file dan buka preview yang sesuai
+        if (fileType == 'pdf') {
+          _openPdfViewerDirectly({
+            'document_id': documentId,
+            'document_title': documentTitle,
+            'file_path': document.filePath
+          });
+        } else if (['jpg', 'jpeg', 'png', 'gif', 'bmp'].contains(fileType)) {
+          _openImageViewerDirectly({
+            'document_id': documentId,
+            'document_title': documentTitle,
+            'file_path': document.filePath
+          });
+        } else {
+          // Tampilkan dialog untuk file yang tidak didukung
+          showDialog(
+            context: context,
+            builder: (context) => AlertDialog(
+              title: const Text('File Tidak Didukung'),
+              content: Text(
+                  'Tipe file $fileType tidak dapat ditampilkan secara langsung.'),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.of(context).pop(),
+                  child: const Text('OK'),
+                ),
+              ],
+            ),
+          );
+        }
+      },
+      child: Container(
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(8),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.1),
+              blurRadius: 4,
+              offset: const Offset(0, 2),
+            ),
+          ],
+        ),
+        child: Column(
+          children: [
+            Padding(
+              padding: const EdgeInsets.all(12),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Expanded(
+                    child: Text(
+                      documentTitle,
+                      style: const TextStyle(
+                        fontFamily: 'Inter',
+                        fontSize: 16,
+                        fontWeight: FontWeight.w500,
+                        color: Color(0xFF213268),
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Icon(
+                    _getFileIcon(fileType),
+                    color: const Color(0xFF25B1FF),
+                    size: 24,
+                  ),
+                ],
+              ),
+            ),
+            const Divider(height: 1, thickness: 1, color: Color(0xFFEEEEEE)),
+            Padding(
+              padding: const EdgeInsets.all(12),
+              child: Column(
+                children: [
+                  _buildDocumentDetail('Nama File', fileName),
+                  const SizedBox(height: 8),
+                  _buildDocumentDetail('Tipe File', fileType.toUpperCase()),
+                  const SizedBox(height: 8),
+                  _buildDocumentDetail('Tanggal Upload', uploadDate),
+                  const SizedBox(height: 8),
+                  _buildDocumentDetail('Diupload oleh', uploadedBy),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildDocumentDetail(String label, String value) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        SizedBox(
+          width: 120,
+          child: Text(
+            label,
+            style: const TextStyle(
+              fontFamily: 'Inter',
+              fontSize: 14,
+              color: Color(0xFF666666),
+            ),
+          ),
+        ),
+        Expanded(
+          child: Text(
+            value,
+            style: const TextStyle(
+              fontFamily: 'Inter',
+              fontSize: 14,
+              fontWeight: FontWeight.w500,
+              color: Color(0xFF333333),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  String _formatDate(String dateString) {
+    if (dateString == '-') return '-';
+    try {
+      final date = DateTime.parse(dateString);
+      final day = date.day.toString().padLeft(2, '0');
+      final month = date.month.toString().padLeft(2, '0');
+      final year = date.year;
+      return '$day/$month/$year';
+    } catch (e) {
+      return dateString;
+    }
+  }
+
+  IconData _getFileIcon(String fileType) {
+    switch (fileType.toLowerCase()) {
+      case 'pdf':
+        return Icons.picture_as_pdf;
+      case 'doc':
+      case 'docx':
+        return Icons.description;
+      case 'xls':
+      case 'xlsx':
+      case 'csv':
+        return Icons.table_chart;
+      case 'jpg':
+      case 'jpeg':
+      case 'png':
+      case 'gif':
+      case 'bmp':
+        return Icons.image;
+      case 'mp4':
+      case 'avi':
+      case 'mov':
+      case 'wmv':
+        return Icons.video_library;
+      case 'mp3':
+      case 'wav':
+      case 'ogg':
+        return Icons.audio_file;
+      case 'zip':
+      case 'rar':
+      case '7z':
+      case 'tar':
+      case 'gz':
+        return Icons.archive;
+      default:
+        return Icons.insert_drive_file;
+    }
+  }
+
+  Widget _buildAntiScreenshotOverlay() {
+    return Positioned.fill(
+      child: Container(
+        color: Colors.black.withOpacity(0.85),
+        child: const Center(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                Icons.no_photography,
+                color: Colors.white,
+                size: 64,
+              ),
+              SizedBox(height: 16),
+              Text(
+                ANTI_SCREENSHOT_MESSAGE,
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                ),
+                textAlign: TextAlign.center,
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildBottomNavigationBar() {
     return Container(
       height: 75,
       decoration: BoxDecoration(
@@ -1035,7 +934,7 @@ class _AssetDocumentState extends State<AssetDocument>
           _buildNavItem(
             Icons.folder,
             'Dokumen',
-            activePage == 'document',
+            true,
             () {},
           ),
           _buildNavItem(
@@ -1099,101 +998,6 @@ class _AssetDocumentState extends State<AssetDocument>
           ],
         ),
       ),
-    );
-  }
-
-  // Komponen skeleton untuk document card
-  Widget _buildSkeletonDocumentCard() {
-    return Container(
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: Colors.grey.shade200),
-        boxShadow: [
-          BoxShadow(
-            color: const Color(0xFF213268).withOpacity(0.08),
-            blurRadius: 4,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
-      child: Column(
-        children: [
-          Padding(
-            padding: const EdgeInsets.all(12),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Expanded(
-                  child: Container(
-                    height: 20,
-                    width: double.infinity,
-                    decoration: BoxDecoration(
-                      color: Colors.grey[300],
-                      borderRadius: BorderRadius.circular(4),
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Container(
-                  width: 24,
-                  height: 24,
-                  decoration: const BoxDecoration(
-                    color: Color(0xFF25B1FF),
-                    shape: BoxShape.circle,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          Container(
-            height: 1,
-            width: double.infinity,
-            color: Colors.grey.shade200,
-          ),
-          Padding(
-            padding: const EdgeInsets.all(12),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                _buildSkeletonDocumentDetail(),
-                const SizedBox(height: 8),
-                _buildSkeletonDocumentDetail(),
-                const SizedBox(height: 8),
-                _buildSkeletonDocumentDetail(),
-                const SizedBox(height: 8),
-                _buildSkeletonDocumentDetail(),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildSkeletonDocumentDetail() {
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Container(
-          width: 120,
-          height: 16,
-          decoration: BoxDecoration(
-            color: Colors.grey[300],
-            borderRadius: BorderRadius.circular(4),
-          ),
-        ),
-        const SizedBox(width: 8),
-        Expanded(
-          child: Container(
-            height: 16,
-            decoration: BoxDecoration(
-              color: Colors.grey[300],
-              borderRadius: BorderRadius.circular(4),
-            ),
-          ),
-        ),
-      ],
     );
   }
 }
@@ -1332,16 +1136,14 @@ class _SecurePdfViewerPageState extends State<SecurePdfViewerPage>
     _securityTimer = Timer.periodic(const Duration(seconds: 2), (timer) {
       // Regenerate security ID secara berkala
       if (mounted) {
-        setState(() {
-          _randomSecurityId = _generateRandomId();
-        });
+        _randomSecurityId = _generateRandomId();
       }
 
       // Re-enable anti-screenshot secara berkala
       _protectionManager.enableProtection();
 
       // Debug log
-      print("PDF Security check: $_randomSecurityId");
+      print("Security check: $_randomSecurityId");
     });
   }
 
@@ -1650,16 +1452,14 @@ class _SecureImageViewerPageState extends State<SecureImageViewerPage>
     _securityTimer = Timer.periodic(const Duration(seconds: 2), (timer) {
       // Regenerate security ID secara berkala
       if (mounted) {
-        setState(() {
-          _randomSecurityId = _generateRandomId();
-        });
+        _randomSecurityId = _generateRandomId();
       }
 
       // Re-enable anti-screenshot secara berkala
       _protectionManager.enableProtection();
 
       // Debug log
-      print("Image Security check: $_randomSecurityId");
+      print("Security check: $_randomSecurityId");
     });
   }
 

@@ -1,11 +1,9 @@
 import 'package:flutter/material.dart';
 import 'dart:io';
 import 'package:image_picker/image_picker.dart';
-import 'package:http/http.dart' as http;
-import 'package:http_parser/http_parser.dart';
-import 'dart:convert';
+import 'package:provider/provider.dart';
 import '../../core/config/api_config.dart';
-import '../../services/socket_service.dart';
+import '../../controllers/asset_complaint_controller.dart';
 
 class AssetComplaintScreen extends StatefulWidget {
   final Map<String, dynamic>? assetData;
@@ -24,17 +22,20 @@ class AssetComplaintScreen extends StatefulWidget {
 class _AssetComplaintScreenState extends State<AssetComplaintScreen> {
   final _formKey = GlobalKey<FormState>();
   final TextEditingController _descriptionController = TextEditingController();
-
-  File? _selectedImage;
-  bool _isLoading = false;
-  String? _errorMessage;
   final ImagePicker _picker = ImagePicker();
+
+  late AssetComplaintController _complaintController;
 
   @override
   void initState() {
     super.initState();
     print('[COMPLAINT DEBUG] Asset Data: ${widget.assetData}');
     print('[COMPLAINT DEBUG] Asset Code: ${widget.assetCode}');
+
+    // Mengambil controller
+    _complaintController =
+        Provider.of<AssetComplaintController>(context, listen: false);
+    _complaintController.clearError();
   }
 
   Future<void> _showImageSourceDialog() async {
@@ -144,43 +145,21 @@ class _AssetComplaintScreenState extends State<AssetComplaintScreen> {
       );
 
       if (image != null) {
-        // Validasi format file
-        final String extension = image.path.split('.').last.toLowerCase();
-        print('[COMPLAINT DEBUG] Image extension: $extension');
+        final File imageFile = File(image.path);
 
-        if (!['jpg', 'jpeg', 'png'].contains(extension)) {
-          setState(() {
-            _errorMessage =
-                'Format file tidak didukung. Gunakan: JPG, JPEG, atau PNG.';
-          });
-          return;
+        // Validasi gambar menggunakan controller
+        if (await _complaintController.validateImageFile(imageFile)) {
+          _complaintController.setImage(imageFile);
         }
-
-        // Validasi ukuran file
-        final File file = File(image.path);
-        final int fileSize = await file.length();
-        final double fileSizeInMB = fileSize / (1024 * 1024);
-        print(
-            '[COMPLAINT DEBUG] Image size: ${fileSizeInMB.toStringAsFixed(2)} MB');
-
-        if (fileSizeInMB > 5) {
-          setState(() {
-            _errorMessage = 'Ukuran file terlalu besar. Maksimal 5 MB.';
-          });
-          return;
-        }
-
-        // Jika format valid, atur gambar
-        setState(() {
-          _selectedImage = File(image.path);
-          _errorMessage = null;
-        });
       }
     } catch (e) {
-      setState(() {
-        _errorMessage = 'Error mengambil gambar: $e';
-      });
       print('[COMPLAINT DEBUG] Error in _getImage: $e');
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Error mengambil gambar: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
     }
   }
 
@@ -189,221 +168,41 @@ class _AssetComplaintScreenState extends State<AssetComplaintScreen> {
       return;
     }
 
-    // Validasi deskripsi minimal 5 karakter
-    if (_descriptionController.text.length < 5) {
-      setState(() {
-        _errorMessage = 'Deskripsi minimal 5 karakter';
-      });
+    // Cek dan ambil asset_id dari assetData
+    int? assetId;
+    if (widget.assetData != null) {
+      if (widget.assetData!['id'] != null) {
+        assetId = int.tryParse(widget.assetData!['id'].toString());
+      } else if (widget.assetData!['asset_id'] != null) {
+        assetId = int.tryParse(widget.assetData!['asset_id'].toString());
+      }
+    }
+
+    if (assetId == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('ID Aset tidak valid'),
+          backgroundColor: Colors.red,
+        ),
+      );
       return;
     }
 
-    setState(() {
-      _isLoading = true;
-      _errorMessage = null;
-    });
+    // Submit dengan controller
+    final success = await _complaintController.submitComplaint(
+      assetId: assetId,
+      description: _descriptionController.text,
+    );
 
-    try {
-      var complaintUrl = ApiConfig.complaintsUrl;
-      print('[COMPLAINT DEBUG] Using complaint URL: $complaintUrl');
-
-      // Cek dan ambil asset_id dari assetData
-      int? assetId;
-      if (widget.assetData != null) {
-        if (widget.assetData!['id'] != null) {
-          assetId = int.tryParse(widget.assetData!['id'].toString());
-        } else if (widget.assetData!['asset_id'] != null) {
-          assetId = int.tryParse(widget.assetData!['asset_id'].toString());
-        }
-      }
-
-      if (assetId == null) {
-        setState(() {
-          _errorMessage = 'ID Aset tidak valid';
-          _isLoading = false;
-        });
-        return;
-      }
-
-      print('[COMPLAINT DEBUG] Using Asset ID: $assetId');
-
-      var request = http.MultipartRequest(
-        'POST',
-        Uri.parse(complaintUrl),
+    if (success && mounted) {
+      // Menampilkan pesan sukses dan kembali ke halaman sebelumnya
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Komplain berhasil dikirim'),
+          backgroundColor: Color(0xFF213268),
+        ),
       );
-
-      // Menggunakan asset_id sebagai number
-      request.fields['asset_id'] = assetId.toString();
-      request.fields['description'] = _descriptionController.text;
-
-      // Menambahkan image jika ada
-      if (_selectedImage != null) {
-        try {
-          // Mendapatkan MIME type
-          final String extension =
-              _selectedImage!.path.split('.').last.toLowerCase();
-          String mimeType;
-
-          if (extension == 'jpg' || extension == 'jpeg') {
-            mimeType = 'image/jpeg';
-          } else if (extension == 'png') {
-            mimeType = 'image/png';
-          } else {
-            mimeType = 'application/octet-stream';
-          }
-
-          print(
-              '[COMPLAINT DEBUG] File MIME type: $mimeType, extension: $extension');
-
-          // Membaca file sebagai bytes
-          final bytes = await _selectedImage!.readAsBytes();
-          final filename = _selectedImage!.path.split('/').last;
-
-          // Membuat multipart file dengan MIME type yang spesifik
-          final multipartFile = http.MultipartFile.fromBytes(
-            'image_file',
-            bytes,
-            filename: filename,
-            contentType: MediaType.parse(mimeType),
-          );
-
-          request.files.add(multipartFile);
-          print(
-              '[COMPLAINT DEBUG] Added file $filename with MIME type $mimeType');
-        } catch (e) {
-          print('[COMPLAINT DEBUG] Error adding file: $e');
-          setState(() {
-            _isLoading = false;
-            _errorMessage = 'Error saat mengunggah gambar: $e';
-          });
-          return;
-        }
-      }
-
-      // Menambahkan token otorisasi
-      final accessToken = await ApiService.getAccessToken();
-      if (accessToken != null) {
-        request.headers['Authorization'] = 'Bearer $accessToken';
-      }
-
-      // Log request headers
-      print('[COMPLAINT DEBUG] Request headers: ${request.headers}');
-
-      // Log request fields
-      print('[COMPLAINT DEBUG] Request fields: ${request.fields}');
-
-      // Log request files
-      if (request.files.isNotEmpty) {
-        print(
-            '[COMPLAINT DEBUG] Request files: ${request.files.length} file(s)');
-        for (var file in request.files) {
-          print(
-              '[COMPLAINT DEBUG] File: ${file.filename}, field: ${file.field}, contentType: ${file.contentType}');
-        }
-      }
-
-      // Mengirim request
-      var streamedResponse = await request.send();
-      var response = await http.Response.fromStream(streamedResponse);
-      print('Submit complaint response: ${response.statusCode}');
-      print('Response body: ${response.body}');
-
-      // Parse response
-      var jsonResponse = json.decode(response.body);
-
-      // Cek response code dan status
-      if (response.statusCode == 201 || response.statusCode == 200) {
-        if (jsonResponse['success'] == true) {
-          if (mounted) {
-            // Menampilkan pesan sukses dan kembali ke halaman sebelumnya
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                content: Text('Komplain berhasil dikirim'),
-                backgroundColor: Color(0xFF213268),
-              ),
-            );
-            Navigator.pop(context);
-          }
-        } else {
-          // Menampilkan pesan error dari API
-          setState(() {
-            _errorMessage =
-                jsonResponse['message'] ?? 'Gagal mengirim komplain';
-          });
-        }
-      } else if (response.statusCode == 400) {
-        // Menampilkan pesan error untuk bad request
-        setState(() {
-          if (jsonResponse['errors'] is List) {
-            // Jika errors adalah array, gabungkan semua pesan
-            _errorMessage = (jsonResponse['errors'] as List).join(', ');
-          } else if (jsonResponse['errors'] is Map) {
-            // Jika errors adalah object, gabungkan semua value
-            _errorMessage = (jsonResponse['errors'] as Map).values.join(', ');
-          } else {
-            // Jika single string atau tipe lain
-            _errorMessage =
-                jsonResponse['errors']?.toString() ?? 'Data tidak valid';
-          }
-        });
-      } else if (response.statusCode == 401) {
-        // Menampilkan pesan error untuk unauthorized
-        setState(() {
-          _errorMessage = 'Sesi anda telah berakhir. Silakan login kembali.';
-        });
-      } else if (response.statusCode == 404) {
-        // Menampilkan pesan error untuk asset not found
-        setState(() {
-          if (jsonResponse['errors'] is List) {
-            _errorMessage = (jsonResponse['errors'] as List).join(', ');
-          } else {
-            _errorMessage =
-                jsonResponse['errors']?.toString() ?? 'Aset tidak ditemukan';
-          }
-        });
-      } else if (response.statusCode == 500) {
-        // Memeriksa apakah error terkait format file
-        if (response.body
-            .toLowerCase()
-            .contains('format file tidak didukung')) {
-          setState(() {
-            if (jsonResponse['errors'] is List) {
-              _errorMessage = (jsonResponse['errors'] as List).join(', ');
-            } else {
-              _errorMessage = jsonResponse['errors']?.toString() ??
-                  'Format file tidak didukung. Gunakan: image/jpeg, image/jpg, atau image/png';
-            }
-          });
-        } else {
-          setState(() {
-            if (jsonResponse['errors'] is List) {
-              _errorMessage = (jsonResponse['errors'] as List).join(', ');
-            } else {
-              _errorMessage = jsonResponse['errors']?.toString() ??
-                  'Terjadi kesalahan pada server';
-            }
-          });
-        }
-      } else {
-        // Menampilkan pesan error umum
-        setState(() {
-          if (jsonResponse['errors'] is List) {
-            _errorMessage = (jsonResponse['errors'] as List).join(', ');
-          } else {
-            _errorMessage = 'Gagal mengirim komplain: ${response.statusCode}';
-          }
-        });
-      }
-    } catch (e) {
-      // Menampilkan pesan error untuk exception
-      setState(() {
-        _errorMessage = 'Error: $e';
-      });
-      print('Exception during complaint submission: $e');
-    } finally {
-      // Mengakhiri loading state
-      setState(() {
-        _isLoading = false;
-      });
+      Navigator.pop(context);
     }
   }
 
@@ -411,451 +210,453 @@ class _AssetComplaintScreenState extends State<AssetComplaintScreen> {
   Widget build(BuildContext context) {
     final double statusBarHeight = MediaQuery.of(context).padding.top;
 
-    return Scaffold(
-      backgroundColor: Colors.white,
-      body: Stack(
-        children: [
-          // AppBar
-          Positioned(
-            top: 0,
-            left: 0,
-            right: 0,
-            height: 82 + statusBarHeight,
-            child: Container(
-              decoration: const BoxDecoration(
-                color: Color(0xFF213268),
-                borderRadius:
-                    BorderRadius.vertical(bottom: Radius.circular(20)),
-                boxShadow: [
-                  BoxShadow(
-                    color: Color(0xFF56C5F1),
-                    blurRadius: 3,
-                    offset: Offset(0, 3),
+    return Consumer<AssetComplaintController>(
+        builder: (context, controller, _) {
+      return Scaffold(
+        backgroundColor: Colors.white,
+        body: Stack(
+          children: [
+            // AppBar
+            Positioned(
+              top: 0,
+              left: 0,
+              right: 0,
+              height: 82 + statusBarHeight,
+              child: Container(
+                decoration: const BoxDecoration(
+                  color: Color(0xFF213268),
+                  borderRadius:
+                      BorderRadius.vertical(bottom: Radius.circular(20)),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Color(0xFF56C5F1),
+                      blurRadius: 3,
+                      offset: Offset(0, 3),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+
+            // AppBar Content
+            Positioned(
+              top: statusBarHeight,
+              left: 0,
+              right: 0,
+              height: 82,
+              child: Row(
+                children: [
+                  IconButton(
+                    icon: const Icon(Icons.arrow_back,
+                        color: Colors.white, size: 32),
+                    onPressed: () => Navigator.pop(context),
+                  ),
+                  Expanded(
+                    child: Center(
+                      child: Padding(
+                        padding: const EdgeInsets.only(right: 40),
+                        child: Image.asset(
+                          'images/Logo_RS_UMMI_white.png',
+                          width: 208.14,
+                          height: 55,
+                          fit: BoxFit.contain,
+                        ),
+                      ),
+                    ),
                   ),
                 ],
               ),
             ),
-          ),
 
-          // AppBar Content
-          Positioned(
-            top: statusBarHeight,
-            left: 0,
-            right: 0,
-            height: 82,
-            child: Row(
-              children: [
-                IconButton(
-                  icon: const Icon(Icons.arrow_back,
-                      color: Colors.white, size: 32),
-                  onPressed: () => Navigator.pop(context),
-                ),
-                Expanded(
-                  child: Center(
-                    child: Padding(
-                      padding: const EdgeInsets.only(right: 40),
-                      child: Image.asset(
-                        'images/Logo_RS_UMMI_white.png',
-                        width: 208.14,
-                        height: 55,
-                        fit: BoxFit.contain,
+            // Form Content
+            Positioned(
+              top: 82 + statusBarHeight,
+              left: 0,
+              right: 0,
+              bottom: 0,
+              child: Form(
+                key: _formKey,
+                child: SingleChildScrollView(
+                  padding: const EdgeInsets.all(16),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // Header
+                      const Text(
+                        'Formulir Komplain Aset',
+                        style: TextStyle(
+                          fontFamily: 'Inter',
+                          fontSize: 24,
+                          fontWeight: FontWeight.w600,
+                          color: Color(0xFF213268),
+                        ),
                       ),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
+                      const SizedBox(height: 24),
 
-          // Form Content
-          Positioned(
-            top: 82 + statusBarHeight,
-            left: 0,
-            right: 0,
-            bottom: 0,
-            child: Form(
-              key: _formKey,
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.all(16),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // Header
-                    const Text(
-                      'Formulir Komplain Aset',
-                      style: TextStyle(
-                        fontFamily: 'Inter',
-                        fontSize: 24,
-                        fontWeight: FontWeight.w600,
-                        color: Color(0xFF213268),
-                      ),
-                    ),
-                    const SizedBox(height: 24),
+                      // Asset Information Card
+                      Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.all(16),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFF5F8FF),
+                          borderRadius: BorderRadius.circular(10),
+                          border: Border.all(color: const Color(0xFFD1DEFF)),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Row(
+                              children: [
+                                Icon(
+                                  Icons.info_outline,
+                                  color: Color(0xFF213268),
+                                  size: 18,
+                                ),
+                                SizedBox(width: 8),
+                                Text(
+                                  'Informasi Aset',
+                                  style: TextStyle(
+                                    fontFamily: 'Inter',
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.w600,
+                                    color: Color(0xFF213268),
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 12),
 
-                    // Asset Information Card
-                    Container(
-                      width: double.infinity,
-                      padding: const EdgeInsets.all(16),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFFF5F8FF),
-                        borderRadius: BorderRadius.circular(10),
-                        border: Border.all(color: const Color(0xFFD1DEFF)),
+                            // Asset ID Display
+                            Row(
+                              children: [
+                                const SizedBox(
+                                  width: 100,
+                                  child: Text(
+                                    'Kode Aset:',
+                                    style: TextStyle(
+                                      fontFamily: 'Inter',
+                                      fontSize: 14,
+                                      color: Color(0xFF666666),
+                                    ),
+                                  ),
+                                ),
+                                Expanded(
+                                  child: Text(
+                                    widget.assetData?['asset_code'] ??
+                                        widget.assetCode,
+                                    style: const TextStyle(
+                                      fontFamily: 'Inter',
+                                      fontSize: 14,
+                                      fontWeight: FontWeight.w500,
+                                      color: Color(0xFF213268),
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 8),
+
+                            // Asset Name Display
+                            Row(
+                              children: [
+                                const SizedBox(
+                                  width: 100,
+                                  child: Text(
+                                    'Nama Aset:',
+                                    style: TextStyle(
+                                      fontFamily: 'Inter',
+                                      fontSize: 14,
+                                      color: Color(0xFF666666),
+                                    ),
+                                  ),
+                                ),
+                                Expanded(
+                                  child: Text(
+                                    widget.assetData?['asset_name'] ??
+                                        'Tidak diketahui',
+                                    style: const TextStyle(
+                                      fontFamily: 'Inter',
+                                      fontSize: 14,
+                                      fontWeight: FontWeight.w500,
+                                      color: Color(0xFF213268),
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ],
+                        ),
                       ),
-                      child: Column(
+                      const SizedBox(height: 24),
+
+                      // Description Field
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            'Deskripsi Masalah',
+                            style: TextStyle(
+                              fontFamily: 'Inter',
+                              fontSize: 16,
+                              fontWeight: FontWeight.w600,
+                              color: Color(0xFF666666),
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          TextFormField(
+                            controller: _descriptionController,
+                            decoration: InputDecoration(
+                              hintText:
+                                  'Jelaskan masalah yang Anda alami dengan aset ini (minimal 5 karakter)',
+                              hintStyle: const TextStyle(
+                                color: Color(0xFFAAAAAA),
+                                fontSize: 14,
+                              ),
+                              fillColor: Colors.white,
+                              filled: true,
+                              border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(8),
+                                borderSide:
+                                    const BorderSide(color: Color(0xFFCCCCCC)),
+                              ),
+                              enabledBorder: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(8),
+                                borderSide:
+                                    const BorderSide(color: Color(0xFFCCCCCC)),
+                              ),
+                              focusedBorder: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(8),
+                                borderSide:
+                                    const BorderSide(color: Color(0xFF213268)),
+                              ),
+                              contentPadding: const EdgeInsets.all(12),
+                            ),
+                            maxLines: 5,
+                            validator: (value) {
+                              if (value == null || value.isEmpty) {
+                                return 'Deskripsi masalah wajib diisi';
+                              }
+                              if (value.length < 5) {
+                                return 'Deskripsi minimal 5 karakter';
+                              }
+                              return null;
+                            },
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 24),
+
+                      // Image Upload Section
+                      Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           const Row(
                             children: [
-                              Icon(
-                                Icons.info_outline,
-                                color: Color(0xFF213268),
-                                size: 18,
-                              ),
-                              SizedBox(width: 8),
                               Text(
-                                'Informasi Aset',
+                                'Lampirkan Foto',
                                 style: TextStyle(
                                   fontFamily: 'Inter',
                                   fontSize: 16,
                                   fontWeight: FontWeight.w600,
-                                  color: Color(0xFF213268),
+                                  color: Color(0xFF666666),
                                 ),
                               ),
-                            ],
-                          ),
-                          const SizedBox(height: 12),
-
-                          // Asset ID Display
-                          Row(
-                            children: [
-                              const SizedBox(
-                                width: 100,
-                                child: Text(
-                                  'Kode Aset:',
-                                  style: TextStyle(
-                                    fontFamily: 'Inter',
-                                    fontSize: 14,
-                                    color: Color(0xFF666666),
-                                  ),
-                                ),
-                              ),
-                              Expanded(
-                                child: Text(
-                                  widget.assetData?['asset_code'] ??
-                                      widget.assetCode,
-                                  style: const TextStyle(
-                                    fontFamily: 'Inter',
-                                    fontSize: 14,
-                                    fontWeight: FontWeight.w500,
-                                    color: Color(0xFF213268),
-                                  ),
+                              SizedBox(width: 8),
+                              Text(
+                                '(Opsional)',
+                                style: TextStyle(
+                                  fontFamily: 'Inter',
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w400,
+                                  color: Color(0xFF999999),
                                 ),
                               ),
                             ],
                           ),
                           const SizedBox(height: 8),
-
-                          // Asset Name Display
-                          Row(
-                            children: [
-                              const SizedBox(
-                                width: 100,
-                                child: Text(
-                                  'Nama Aset:',
-                                  style: TextStyle(
-                                    fontFamily: 'Inter',
-                                    fontSize: 14,
-                                    color: Color(0xFF666666),
+                          if (controller.selectedImage == null)
+                            GestureDetector(
+                              onTap: _showImageSourceDialog,
+                              child: Container(
+                                width: double.infinity,
+                                height: 120,
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFFF5F8FF),
+                                  borderRadius: BorderRadius.circular(8),
+                                  border: Border.all(
+                                    color: const Color(0xFF213268),
+                                    width: 1,
                                   ),
                                 ),
-                              ),
-                              Expanded(
-                                child: Text(
-                                  widget.assetData?['asset_name'] ??
-                                      'Tidak diketahui',
-                                  style: const TextStyle(
-                                    fontFamily: 'Inter',
-                                    fontSize: 14,
-                                    fontWeight: FontWeight.w500,
-                                    color: Color(0xFF213268),
-                                  ),
+                                child: const Column(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    Icon(
+                                      Icons.add_photo_alternate,
+                                      color: Color(0xFF213268),
+                                      size: 32,
+                                    ),
+                                    SizedBox(height: 8),
+                                    Text(
+                                      'Tambahkan Foto',
+                                      style: TextStyle(
+                                        fontFamily: 'Inter',
+                                        fontSize: 14,
+                                        color: Color(0xFF213268),
+                                      ),
+                                    ),
+                                  ],
                                 ),
                               ),
-                            ],
-                          ),
+                            )
+                          else
+                            Stack(
+                              children: [
+                                Container(
+                                  width: double.infinity,
+                                  height: 200,
+                                  decoration: BoxDecoration(
+                                    border: Border.all(
+                                        color: const Color(0xFFCCCCCC)),
+                                    borderRadius: BorderRadius.circular(8),
+                                  ),
+                                  child: ClipRRect(
+                                    borderRadius: BorderRadius.circular(8),
+                                    child: Image.file(
+                                      controller.selectedImage!,
+                                      fit: BoxFit.cover,
+                                    ),
+                                  ),
+                                ),
+                                Positioned(
+                                  top: 8,
+                                  right: 8,
+                                  child: GestureDetector(
+                                    onTap: () {
+                                      controller.clearImage();
+                                    },
+                                    child: Container(
+                                      width: 32,
+                                      height: 32,
+                                      decoration: BoxDecoration(
+                                        color: Colors.white.withOpacity(0.8),
+                                        shape: BoxShape.circle,
+                                      ),
+                                      child: const Icon(
+                                        Icons.close,
+                                        color: Colors.red,
+                                        size: 18,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                                Positioned(
+                                  bottom: 8,
+                                  right: 8,
+                                  child: GestureDetector(
+                                    onTap: _showImageSourceDialog,
+                                    child: Container(
+                                      width: 32,
+                                      height: 32,
+                                      decoration: BoxDecoration(
+                                        color: const Color(0xFF213268)
+                                            .withOpacity(0.8),
+                                        shape: BoxShape.circle,
+                                      ),
+                                      child: const Icon(
+                                        Icons.edit,
+                                        color: Colors.white,
+                                        size: 18,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
                         ],
                       ),
-                    ),
-                    const SizedBox(height: 24),
 
-                    // Description Field
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Text(
-                          'Deskripsi Masalah',
-                          style: TextStyle(
-                            fontFamily: 'Inter',
-                            fontSize: 16,
-                            fontWeight: FontWeight.w600,
-                            color: Color(0xFF666666),
-                          ),
-                        ),
-                        const SizedBox(height: 8),
-                        TextFormField(
-                          controller: _descriptionController,
-                          decoration: InputDecoration(
-                            hintText:
-                                'Jelaskan masalah yang Anda alami dengan aset ini (minimal 5 karakter)',
-                            hintStyle: const TextStyle(
-                              color: Color(0xFFAAAAAA),
-                              fontSize: 14,
-                            ),
-                            fillColor: Colors.white,
-                            filled: true,
-                            border: OutlineInputBorder(
+                      if (controller.errorMessage != null)
+                        Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 16),
+                          child: Container(
+                            padding: const EdgeInsets.all(10),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFFFEBEE),
                               borderRadius: BorderRadius.circular(8),
-                              borderSide:
-                                  const BorderSide(color: Color(0xFFCCCCCC)),
+                              border: Border.all(color: Colors.red.shade200),
                             ),
-                            enabledBorder: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(8),
-                              borderSide:
-                                  const BorderSide(color: Color(0xFFCCCCCC)),
-                            ),
-                            focusedBorder: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(8),
-                              borderSide:
-                                  const BorderSide(color: Color(0xFF213268)),
-                            ),
-                            contentPadding: const EdgeInsets.all(12),
-                          ),
-                          maxLines: 5,
-                          validator: (value) {
-                            if (value == null || value.isEmpty) {
-                              return 'Deskripsi masalah wajib diisi';
-                            }
-                            if (value.length < 5) {
-                              return 'Deskripsi minimal 5 karakter';
-                            }
-                            return null;
-                          },
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 24),
-
-                    // Image Upload Section
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Row(
-                          children: [
-                            Text(
-                              'Lampirkan Foto',
-                              style: TextStyle(
-                                fontFamily: 'Inter',
-                                fontSize: 16,
-                                fontWeight: FontWeight.w600,
-                                color: Color(0xFF666666),
-                              ),
-                            ),
-                            SizedBox(width: 8),
-                            Text(
-                              '(Opsional)',
-                              style: TextStyle(
-                                fontFamily: 'Inter',
-                                fontSize: 14,
-                                fontWeight: FontWeight.w400,
-                                color: Color(0xFF999999),
-                              ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 8),
-                        if (_selectedImage == null)
-                          GestureDetector(
-                            onTap: _showImageSourceDialog,
-                            child: Container(
-                              width: double.infinity,
-                              height: 120,
-                              decoration: BoxDecoration(
-                                color: const Color(0xFFF5F8FF),
-                                borderRadius: BorderRadius.circular(8),
-                                border: Border.all(
-                                  color: const Color(0xFF213268),
-                                  width: 1,
+                            child: Row(
+                              children: [
+                                const Icon(
+                                  Icons.error_outline,
+                                  color: Colors.red,
+                                  size: 20,
                                 ),
-                              ),
-                              child: const Column(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                children: [
-                                  Icon(
-                                    Icons.add_photo_alternate,
-                                    color: Color(0xFF213268),
-                                    size: 32,
-                                  ),
-                                  SizedBox(height: 8),
-                                  Text(
-                                    'Tambahkan Foto',
-                                    style: TextStyle(
-                                      fontFamily: 'Inter',
-                                      fontSize: 14,
-                                      color: Color(0xFF213268),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          )
-                        else
-                          Stack(
-                            children: [
-                              Container(
-                                width: double.infinity,
-                                height: 200,
-                                decoration: BoxDecoration(
-                                  border: Border.all(
-                                      color: const Color(0xFFCCCCCC)),
-                                  borderRadius: BorderRadius.circular(8),
-                                ),
-                                child: ClipRRect(
-                                  borderRadius: BorderRadius.circular(8),
-                                  child: Image.file(
-                                    _selectedImage!,
-                                    fit: BoxFit.cover,
-                                  ),
-                                ),
-                              ),
-                              Positioned(
-                                top: 8,
-                                right: 8,
-                                child: GestureDetector(
-                                  onTap: () {
-                                    setState(() {
-                                      _selectedImage = null;
-                                    });
-                                  },
-                                  child: Container(
-                                    width: 32,
-                                    height: 32,
-                                    decoration: BoxDecoration(
-                                      color: Colors.white.withOpacity(0.8),
-                                      shape: BoxShape.circle,
-                                    ),
-                                    child: const Icon(
-                                      Icons.close,
+                                const SizedBox(width: 8),
+                                Expanded(
+                                  child: Text(
+                                    controller.errorMessage!,
+                                    style: const TextStyle(
                                       color: Colors.red,
-                                      size: 18,
+                                      fontSize: 14,
                                     ),
                                   ),
                                 ),
-                              ),
-                              Positioned(
-                                bottom: 8,
-                                right: 8,
-                                child: GestureDetector(
-                                  onTap: _showImageSourceDialog,
-                                  child: Container(
-                                    width: 32,
-                                    height: 32,
-                                    decoration: BoxDecoration(
-                                      color: const Color(0xFF213268)
-                                          .withOpacity(0.8),
-                                      shape: BoxShape.circle,
-                                    ),
-                                    child: const Icon(
-                                      Icons.edit,
-                                      color: Colors.white,
-                                      size: 18,
-                                    ),
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                      ],
-                    ),
-
-                    if (_errorMessage != null)
-                      Padding(
-                        padding: const EdgeInsets.symmetric(vertical: 16),
-                        child: Container(
-                          padding: const EdgeInsets.all(10),
-                          decoration: BoxDecoration(
-                            color: const Color(0xFFFFEBEE),
-                            borderRadius: BorderRadius.circular(8),
-                            border: Border.all(color: Colors.red.shade200),
-                          ),
-                          child: Row(
-                            children: [
-                              const Icon(
-                                Icons.error_outline,
-                                color: Colors.red,
-                                size: 20,
-                              ),
-                              const SizedBox(width: 8),
-                              Expanded(
-                                child: Text(
-                                  _errorMessage!,
-                                  style: const TextStyle(
-                                    color: Colors.red,
-                                    fontSize: 14,
-                                  ),
-                                ),
-                              ),
-                            ],
+                              ],
+                            ),
                           ),
                         ),
-                      ),
 
-                    const SizedBox(height: 24),
+                      const SizedBox(height: 24),
 
-                    // Submit Button
-                    SizedBox(
-                      width: double.infinity,
-                      height: 48,
-                      child: ElevatedButton(
-                        onPressed: _isLoading ? null : _submitComplaint,
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: const Color(0xFF213268),
-                          foregroundColor: Colors.white,
-                          disabledBackgroundColor: Colors.grey.shade300,
-                          disabledForegroundColor: Colors.grey.shade500,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(8),
+                      // Submit Button
+                      SizedBox(
+                        width: double.infinity,
+                        height: 48,
+                        child: ElevatedButton(
+                          onPressed:
+                              controller.isLoading ? null : _submitComplaint,
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: const Color(0xFF213268),
+                            foregroundColor: Colors.white,
+                            disabledBackgroundColor: Colors.grey.shade300,
+                            disabledForegroundColor: Colors.grey.shade500,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            elevation: 0,
                           ),
-                          elevation: 0,
+                          child: controller.isLoading
+                              ? const SizedBox(
+                                  height: 24,
+                                  width: 24,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                    valueColor: AlwaysStoppedAnimation<Color>(
+                                        Colors.white),
+                                  ),
+                                )
+                              : const Text(
+                                  'Kirim Komplain',
+                                  style: TextStyle(
+                                    fontFamily: 'Inter',
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                ),
                         ),
-                        child: _isLoading
-                            ? const SizedBox(
-                                height: 24,
-                                width: 24,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2,
-                                  valueColor: AlwaysStoppedAnimation<Color>(
-                                      Colors.white),
-                                ),
-                              )
-                            : const Text(
-                                'Kirim Komplain',
-                                style: TextStyle(
-                                  fontFamily: 'Inter',
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.w500,
-                                ),
-                              ),
                       ),
-                    ),
-                    const SizedBox(height: 24),
-                  ],
+                      const SizedBox(height: 24),
+                    ],
+                  ),
                 ),
               ),
             ),
-          ),
-        ],
-      ),
-    );
+          ],
+        ),
+      );
+    });
   }
 
   @override

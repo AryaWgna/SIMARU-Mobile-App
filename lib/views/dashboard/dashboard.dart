@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import '../pages/profile.dart';
 import '../pages/home_screen.dart';
 import '../pages/qr_scanner_screen.dart';
@@ -6,6 +7,7 @@ import '../stockopname/stockopname.dart';
 import '../complain/complain_list_screen.dart';
 import '../../widgets/custom_app_bar.dart';
 import '../../controllers/auth_controller.dart';
+import '../../controllers/dashboard_controller.dart';
 import '../../auth/login.dart';
 
 // Import untuk mengatasi masalah anti-screenshot
@@ -22,19 +24,21 @@ class DashboardScreen extends StatefulWidget {
 }
 
 class _DashboardScreenState extends State<DashboardScreen> {
-  late int _selectedIndex;
   final List<Widget> _screens = [];
-  String? _errorMessage;
-  bool _tokenChecked = false;
-  final NoScreenshot _noScreenshot = NoScreenshot();
+  late DashboardController _dashboardController;
 
   @override
   void initState() {
     super.initState();
-    _selectedIndex = widget.initialIndex;
+
+    _dashboardController =
+        Provider.of<DashboardController>(context, listen: false);
+
+    // Reset selected index ke 0 (Home) saat dashboard dibuka
+    _dashboardController.setSelectedIndex(widget.initialIndex);
 
     // Pastikan fitur anti-screenshot dinonaktifkan saat dashboard dibuka
-    _disableAnyActiveScreenshotProtection();
+    _dashboardController.disableAnyActiveScreenshotProtection();
 
     try {
       print("Initializing DashboardScreen screens...");
@@ -68,45 +72,15 @@ class _DashboardScreenState extends State<DashboardScreen> {
     }
   }
 
-  // Method untuk menonaktifkan fitur anti-screenshot yang mungkin masih aktif
-  Future<void> _disableAnyActiveScreenshotProtection() async {
-    try {
-      if (Platform.isAndroid || Platform.isIOS) {
-        print("Dashboard: Memastikan anti-screenshot dinonaktifkan");
-        await _noScreenshot.screenshotOn();
-        print("Dashboard: Anti-screenshot berhasil dinonaktifkan");
-      }
-    } catch (e) {
-      print("Dashboard: Error saat menonaktifkan anti-screenshot: $e");
-    }
-  }
-
-  @override
-  void dispose() {
-    super.dispose();
-  }
-
   // Validasi token hanya jika diperlukan
   Future<void> _maybeValidateToken() async {
-    // Skip validasi jika sudah dicek atau token sudah ada dari login screen
-    if (_tokenChecked) return;
-
-    try {
-      final isLoggedIn = await ApiService.isLoggedIn();
-      if (!isLoggedIn && mounted) {
-        // Jika tidak ada token, navigasi ke login tanpa menampilkan loading
-        Navigator.of(context).pushAndRemoveUntil(
-          MaterialPageRoute(builder: (context) => const LoginScreen()),
-          (route) => false,
-        );
-        return;
-      }
-
-      // Token ada dan valid - tandai sudah dicek
-      setState(() => _tokenChecked = true);
-    } catch (e) {
-      print("Error validating token: $e");
-      setState(() => _tokenChecked = true);
+    final isValid = await _dashboardController.maybeValidateToken();
+    if (!isValid && mounted) {
+      // Jika tidak ada token, navigasi ke login tanpa menampilkan loading
+      Navigator.of(context).pushAndRemoveUntil(
+        MaterialPageRoute(builder: (context) => const LoginScreen()),
+        (route) => false,
+      );
     }
   }
 
@@ -138,7 +112,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
             ElevatedButton.icon(
               onPressed: () {
                 // Refresh screen by rebuilding it
-                setState(() {});
+                _dashboardController.refreshState();
               },
               icon: const Icon(Icons.refresh),
               label: const Text('Refresh'),
@@ -155,14 +129,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
     }
   }
 
-  void _onItemTapped(int index) {
-    if (index == 2) return; // Ignore QR Scanner tab
-    setState(() {
-      _selectedIndex = index;
-    });
-  }
-
   void showError(String message) {
+    _dashboardController.showError(message);
+
     // Tampilkan snackbar dengan pesan error yang tidak mengganggu tab bar
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
@@ -185,124 +154,107 @@ class _DashboardScreenState extends State<DashboardScreen> {
         ),
       ),
     );
-
-    // Set errorMessage dan clear setelah beberapa waktu
-    setState(() {
-      _errorMessage = message;
-    });
-    Future.delayed(const Duration(seconds: 3), () {
-      if (mounted) {
-        setState(() {
-          _errorMessage = null;
-        });
-      }
-    });
   }
 
   @override
   Widget build(BuildContext context) {
-    final bool isKeyboardVisible = MediaQuery.of(context).viewInsets.bottom > 0;
+    return Consumer<DashboardController>(
+      builder: (context, controller, _) {
+        final bool isKeyboardVisible =
+            MediaQuery.of(context).viewInsets.bottom > 0;
 
-    return Scaffold(
-      appBar: const CustomAppBar(),
-      body: _screens[_selectedIndex],
-      floatingActionButton: isKeyboardVisible
-          ? null
-          : SizedBox(
-              width: 84,
-              height: 84,
-              child: FloatingActionButton(
-                elevation: 0,
-                backgroundColor: const Color(0xFF203268),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(42),
-                  side: const BorderSide(
-                    color: Color(0xFF25B1FF),
-                    width: 6,
+        // Menggunakan initialIndex hanya saat pertama kali dibuat
+        if (widget.initialIndex != 0 && controller.selectedIndex == 0) {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            controller.setSelectedIndex(widget.initialIndex);
+          });
+        }
+
+        return Scaffold(
+          appBar: const CustomAppBar(),
+          body: _screens[controller.selectedIndex],
+          floatingActionButton: isKeyboardVisible
+              ? null
+              : SizedBox(
+                  width: 84,
+                  height: 84,
+                  child: FloatingActionButton(
+                    elevation: 0,
+                    backgroundColor: const Color(0xFF203268),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(42),
+                      side: const BorderSide(
+                        color: Color(0xFF25B1FF),
+                        width: 6,
+                      ),
+                    ),
+                    onPressed: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => QRScannerScreen(
+                            previousScreen: controller.getPreviousScreenName(),
+                          ),
+                        ),
+                      ).then((_) {
+                        // Refresh state jika diperlukan
+                        controller.refreshState();
+                      });
+                    },
+                    child: const Icon(
+                      Icons.qr_code_scanner,
+                      color: Color(0xFFACC3EF),
+                      size: 24,
+                    ),
                   ),
                 ),
-                onPressed: () {
-                  String previousScreen;
-                  switch (_selectedIndex) {
-                    case 0:
-                      previousScreen = 'home';
-                      break;
-                    case 1:
-                      previousScreen = 'stockopname';
-                      break;
-                    case 3:
-                      previousScreen = 'repair';
-                      break;
-                    case 4:
-                      previousScreen = 'profile';
-                      break;
-                    default:
-                      previousScreen = 'home';
-                  }
-
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) =>
-                          QRScannerScreen(previousScreen: previousScreen),
-                    ),
-                  ).then((_) {
-                    setState(() {
-                      // Refresh state jika diperlukan
-                    });
-                  });
-                },
-                child: const Icon(
-                  Icons.qr_code_scanner,
-                  color: Color(0xFFACC3EF),
-                  size: 24,
+          floatingActionButtonLocation:
+              FloatingActionButtonLocation.centerDocked,
+          bottomNavigationBar: Container(
+            decoration: BoxDecoration(
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.2),
+                  spreadRadius: 0,
+                  blurRadius: 10,
+                  offset: const Offset(0, -5),
                 ),
-              ),
+              ],
             ),
-      floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
-      bottomNavigationBar: Container(
-        decoration: BoxDecoration(
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(0.2),
-              spreadRadius: 0,
-              blurRadius: 10,
-              offset: const Offset(0, -5),
+            child: BottomNavigationBar(
+              currentIndex: controller.selectedIndex,
+              onTap: controller.setSelectedIndex,
+              type: BottomNavigationBarType.fixed,
+              selectedItemColor: const Color(0xFF213268),
+              unselectedItemColor: Colors.grey,
+              backgroundColor: Colors.white,
+              elevation: 8,
+              items: const [
+                BottomNavigationBarItem(
+                  icon: Icon(Icons.home),
+                  label: 'Beranda',
+                ),
+                BottomNavigationBarItem(
+                  icon: Icon(Icons.inventory),
+                  label: 'Opname',
+                ),
+                BottomNavigationBarItem(
+                  icon: Icon(Icons.qr_code_scanner, color: Colors.transparent),
+                  label: '',
+                ),
+                BottomNavigationBarItem(
+                  icon: Icon(Icons.report_problem),
+                  label: 'Komplain',
+                ),
+                BottomNavigationBarItem(
+                  icon: Icon(Icons.person),
+                  label: 'Profil',
+                ),
+              ],
             ),
-          ],
-        ),
-        child: BottomNavigationBar(
-          currentIndex: _selectedIndex,
-          onTap: _onItemTapped,
-          type: BottomNavigationBarType.fixed,
-          selectedItemColor: const Color(0xFF213268),
-          unselectedItemColor: Colors.grey,
-          backgroundColor: Colors.white,
-          elevation: 8,
-          items: const [
-            BottomNavigationBarItem(
-              icon: Icon(Icons.home),
-              label: 'Beranda',
-            ),
-            BottomNavigationBarItem(
-              icon: Icon(Icons.inventory),
-              label: 'Opname',
-            ),
-            BottomNavigationBarItem(
-              icon: Icon(Icons.qr_code_scanner, color: Colors.transparent),
-              label: '',
-            ),
-            BottomNavigationBarItem(
-              icon: Icon(Icons.report_problem),
-              label: 'Komplain',
-            ),
-            BottomNavigationBarItem(
-              icon: Icon(Icons.person),
-              label: 'Profil',
-            ),
-          ],
-        ),
-      ),
+          ),
+        );
+      },
     );
   }
 }

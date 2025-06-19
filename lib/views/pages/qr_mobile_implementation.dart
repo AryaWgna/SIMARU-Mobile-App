@@ -20,12 +20,20 @@ Widget buildQRView(BuildContext context, GlobalKey key,
       });
     },
     overlay: QrScannerOverlayShape(
-      borderColor: Colors.transparent,
-      borderRadius: 4,
-      borderLength: 0,
-      borderWidth: 0,
-      cutOutSize: 200,
+      borderColor: const Color(0xFF213268),
+      borderRadius: 10,
+      borderLength: 30,
+      borderWidth: 10,
+      cutOutSize: 250,
+      overlayColor: Colors.black.withOpacity(0.5),
     ),
+    onPermissionSet: (ctrl, p) {
+      if (!p) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Izin kamera tidak diberikan')),
+        );
+      }
+    },
   );
 }
 

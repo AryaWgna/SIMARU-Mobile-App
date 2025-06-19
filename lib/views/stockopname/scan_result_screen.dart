@@ -1,100 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'dart:convert';
-import '../../controllers/auth_controller.dart' as auth;
-
-class AssetScanDetail {
-  final int detailId;
-  final int opnameId;
-  final String opnameCode;
-  final int assetId;
-  final String assetCode;
-  final String assetDescription;
-  final String? scanDate;
-  final String scanStatus;
-  final int? actualLocationId;
-  final int? expectedLocationId;
-  final String? expectedLocationName;
-  final int? scannedBy;
-  final String? scannerName;
-  final String? notes;
-
-  AssetScanDetail({
-    required this.detailId,
-    required this.opnameId,
-    required this.opnameCode,
-    required this.assetId,
-    required this.assetCode,
-    required this.assetDescription,
-    this.scanDate,
-    required this.scanStatus,
-    this.actualLocationId,
-    this.expectedLocationId,
-    this.expectedLocationName,
-    this.scannedBy,
-    this.scannerName,
-    this.notes,
-  });
-
-  factory AssetScanDetail.fromJson(Map<String, dynamic> json) {
-    return AssetScanDetail(
-      detailId: json['detail_id'],
-      opnameId: json['opname_id'],
-      opnameCode: json['opname_code'],
-      assetId: json['asset_id'],
-      assetCode: json['asset_code'],
-      assetDescription: json['asset_description'],
-      scanDate: json['scan_date'],
-      scanStatus: json['scan_status'],
-      actualLocationId: json['actual_location_id'],
-      expectedLocationId: json['expected_location_id'],
-      expectedLocationName: json['expected_location_name'],
-      scannedBy: json['scanned_by'],
-      scannerName: json['scanner_name'],
-      notes: json['notes'],
-    );
-  }
-}
-
-class SummaryData {
-  final int totalAssets;
-  final int scannedAssets;
-  final int foundAssets;
-  final int missingAssets;
-  final int misplacedAssets;
-
-  SummaryData({
-    required this.totalAssets,
-    required this.scannedAssets,
-    required this.foundAssets,
-    required this.missingAssets,
-    required this.misplacedAssets,
-  });
-
-  factory SummaryData.fromJson(Map<String, dynamic> json) {
-    return SummaryData(
-      totalAssets: json['total_assets'],
-      scannedAssets: json['scanned_assets'],
-      foundAssets: json['found_assets'],
-      missingAssets: json['missing_assets'],
-      misplacedAssets: json['misplaced_assets'],
-    );
-  }
-}
-
-class RoomInfo {
-  final int roomId;
-  final String roomName;
-
-  RoomInfo({required this.roomId, required this.roomName});
-
-  factory RoomInfo.fromJson(Map<String, dynamic> json) {
-    return RoomInfo(
-      roomId: json['room_id'],
-      roomName: json['room_name'],
-    );
-  }
-}
+import 'package:provider/provider.dart';
+import '../../controllers/scan_result_controller.dart';
+import '../../models/scan_result_model.dart';
 
 class ScanResultScreen extends StatefulWidget {
   final List<String>? scannedAssets;
@@ -117,15 +25,7 @@ class ScanResultScreen extends StatefulWidget {
 class _ScanResultScreenState extends State<ScanResultScreen>
     with SingleTickerProviderStateMixin {
   late TabController _tabController;
-
-  // Data dari API
-  List<AssetScanDetail> foundAssets = [];
-  List<AssetScanDetail> missingAssets = [];
-  List<AssetScanDetail> misplacedAssets = [];
-  SummaryData? summaryData;
-  RoomInfo? roomInfo;
-  bool isLoading = true;
-  String? errorMessage;
+  late ScanResultController _scanResultController;
 
   // Controller untuk input catatan
   final TextEditingController _notesController = TextEditingController();
@@ -134,7 +34,10 @@ class _ScanResultScreenState extends State<ScanResultScreen>
   void initState() {
     super.initState();
     _tabController = TabController(length: 3, vsync: this);
-    _loadScanResults();
+    _scanResultController =
+        Provider.of<ScanResultController>(context, listen: false);
+    _scanResultController.reset(); // Reset controller state
+    _scanResultController.loadScanResults(widget.opnameId);
 
     // Listener untuk mengubah tab
     _tabController.addListener(() {
@@ -149,161 +52,6 @@ class _ScanResultScreenState extends State<ScanResultScreen>
     _tabController.dispose();
     _notesController.dispose();
     super.dispose();
-  }
-
-  // Mengambil data scan dari API
-  Future<void> _loadScanResults() async {
-    setState(() {
-      isLoading = true;
-      errorMessage = null;
-    });
-
-    try {
-      // Ambil data untuk setiap status scan
-      await Future.wait([
-        _fetchAssetsByStatus('found'),
-        _fetchAssetsByStatus('missing'),
-        _fetchAssetsByStatus('misplaced'),
-      ]);
-    } catch (e) {
-      setState(() {
-        errorMessage = 'Gagal memuat data: $e';
-        isLoading = false;
-      });
-    }
-  }
-
-  // Mengambil data aset berdasarkan status scan
-  Future<void> _fetchAssetsByStatus(String status) async {
-    try {
-      print('Memuat aset dengan status: $status');
-      final response = await auth.ApiService.get(
-        '/asset-opname-details/opname/${widget.opnameId}?scan_status=$status',
-      );
-
-      print(
-          'Response untuk status $status: ${response.statusCode} - ${response.body}');
-
-      if (response.statusCode == 200) {
-        final data = jsonDecode(response.body);
-
-        if (data['success'] == true) {
-          // Tambahkan penanganan untuk berbagai format data yang mungkin dikembalikan
-          List<dynamic> assetsJson = [];
-
-          // Periksa tipe data dari data['data']
-          if (data['data'] is List) {
-            // Jika sudah berupa list, gunakan langsung
-            assetsJson = data['data'];
-          } else if (data['data'] is Map) {
-            // Jika berupa map, cek apakah ada kunci yang berisi list
-            // Ini adalah solusi sementara, lebih baik menyesuaikan dengan struktur API yang sebenarnya
-            if (data['data']['assets'] is List) {
-              assetsJson = data['data']['assets'];
-            } else {
-              // Jika tidak ada list di dalam map, gunakan list kosong
-              print(
-                  'Data assets tidak ditemukan atau bukan list: ${data['data']}');
-              assetsJson = [];
-            }
-          } else {
-            // Jika bukan list atau map, gunakan list kosong
-            print('Tipe data tidak didukung: ${data['data']}');
-            assetsJson = [];
-          }
-
-          final List<AssetScanDetail> assets = assetsJson
-              .where((json) => json != null)
-              .map((json) => AssetScanDetail.fromJson(json))
-              .toList();
-
-          // Simpan data summary dan room info saat first call
-          if (summaryData == null && data['summary'] != null) {
-            try {
-              summaryData = SummaryData.fromJson(data['summary']);
-            } catch (e) {
-              print('Error saat parsing summary: $e');
-            }
-          }
-
-          if (roomInfo == null && data['room_info'] != null) {
-            try {
-              roomInfo = RoomInfo.fromJson(data['room_info']);
-            } catch (e) {
-              print('Error saat parsing room_info: $e');
-            }
-          }
-
-          setState(() {
-            if (status == 'found') {
-              foundAssets = assets;
-            } else if (status == 'missing') {
-              missingAssets = assets;
-            } else if (status == 'misplaced') {
-              misplacedAssets = assets;
-            }
-            isLoading = false;
-          });
-        } else {
-          throw data['message'] ?? 'Gagal memuat data';
-        }
-      } else {
-        throw 'Error status code: ${response.statusCode}';
-      }
-    } catch (e, stackTrace) {
-      print('Error saat memuat data: $e');
-      print('Stack trace: $stackTrace');
-      setState(() {
-        errorMessage = 'Gagal memuat data: $e';
-        isLoading = false;
-      });
-    }
-  }
-
-  // Menyimpan catatan untuk aset
-  Future<void> _saveNotes(int detailId, String notes) async {
-    try {
-      setState(() {
-        isLoading = true;
-      });
-
-      final response = await auth.ApiService.put(
-        '/asset-opname-details/$detailId/notes',
-        body: {
-          'notes': notes,
-        },
-      );
-
-      if (response.statusCode == 200) {
-        final data = jsonDecode(response.body);
-
-        if (data['success'] == true) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Catatan berhasil disimpan'),
-              backgroundColor: Colors.green,
-            ),
-          );
-
-          // Refresh data
-          await _loadScanResults();
-        } else {
-          throw data['message'] ?? 'Gagal menyimpan catatan';
-        }
-      } else {
-        throw 'Error status code: ${response.statusCode}';
-      }
-    } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Gagal menyimpan catatan: $e'),
-          backgroundColor: Colors.red,
-        ),
-      );
-      setState(() {
-        isLoading = false;
-      });
-    }
   }
 
   void _showAddNotesDialog(AssetScanDetail asset) {
@@ -411,9 +159,23 @@ class _ScanResultScreenState extends State<ScanResultScreen>
                 children: [
                   Expanded(
                     child: ElevatedButton.icon(
-                      onPressed: () {
+                      onPressed: () async {
                         Navigator.pop(context);
-                        _saveNotes(asset.detailId, _notesController.text);
+                        final success = await _scanResultController.saveNotes(
+                            asset.detailId, _notesController.text, context);
+
+                        if (success && mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text('Catatan berhasil disimpan'),
+                              backgroundColor: Colors.green,
+                            ),
+                          );
+
+                          // Refresh data
+                          _scanResultController
+                              .loadScanResults(widget.opnameId);
+                        }
                       },
                       style: ElevatedButton.styleFrom(
                         backgroundColor: const Color(0xFF213268),
@@ -446,93 +208,96 @@ class _ScanResultScreenState extends State<ScanResultScreen>
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text(
-          'SCAN RESULT',
-          style: TextStyle(
-            fontSize: 16,
-            fontWeight: FontWeight.w600,
-            color: Colors.white,
+    return Consumer<ScanResultController>(builder: (context, controller, _) {
+      return Scaffold(
+        appBar: AppBar(
+          title: const Text(
+            'SCAN RESULT',
+            style: TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.w600,
+              color: Colors.white,
+            ),
+          ),
+          centerTitle: true,
+          backgroundColor: const Color(0xFF213268),
+          elevation: 0,
+          leading: IconButton(
+            icon: const Icon(Icons.arrow_back, color: Colors.white),
+            onPressed: () => Navigator.pop(context),
           ),
         ),
-        centerTitle: true,
-        backgroundColor: const Color(0xFF213268),
-        elevation: 0,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Colors.white),
-          onPressed: () => Navigator.pop(context),
-        ),
-      ),
-      body: isLoading
-          ? const Center(child: CircularProgressIndicator())
-          : errorMessage != null
-              ? Center(child: Text(errorMessage!))
-              : Column(
-                  children: [
-                    if (summaryData != null) _buildSummaryCard(),
-                    // Tab Bar View
-                    Expanded(
-                      child: TabBarView(
-                        controller: _tabController,
-                        children: [
-                          _buildFoundAssetsList(),
-                          _buildMissingAssetsList(),
-                          _buildMisplacedAssetsList(),
-                        ],
+        body: controller.isLoading
+            ? const Center(child: CircularProgressIndicator())
+            : controller.errorMessage != null
+                ? Center(child: Text(controller.errorMessage!))
+                : Column(
+                    children: [
+                      if (controller.summaryData != null)
+                        _buildSummaryCard(controller),
+                      // Tab Bar View
+                      Expanded(
+                        child: TabBarView(
+                          controller: _tabController,
+                          children: [
+                            _buildFoundAssetsList(controller),
+                            _buildMissingAssetsList(controller),
+                            _buildMisplacedAssetsList(controller),
+                          ],
+                        ),
                       ),
-                    ),
-                  ],
-                ),
-      backgroundColor: Colors.white,
-      bottomNavigationBar: Container(
-        height: 60,
-        decoration: const BoxDecoration(
-          color: Colors.white,
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black12,
-              blurRadius: 4,
-              offset: Offset(0, -2),
-            ),
-          ],
-        ),
-        child: TabBar(
-          controller: _tabController,
-          indicatorColor: const Color(0xFF213268),
-          labelColor: const Color(0xFF213268),
-          unselectedLabelColor: Colors.grey,
-          tabs: const [
-            Tab(
-              icon: Icon(Icons.list_alt),
-              text: 'Semua',
-              iconMargin: EdgeInsets.only(bottom: 2),
-            ),
-            Tab(
-              icon: Icon(Icons.content_paste_search),
-              text: 'Aset Hilang',
-              iconMargin: EdgeInsets.only(bottom: 2),
-            ),
-            Tab(
-              icon: Icon(Icons.help_outline),
-              text: 'Aset Pindah',
-              iconMargin: EdgeInsets.only(bottom: 2),
-            ),
-          ],
-          labelStyle: GoogleFonts.poppins(
-            fontSize: 10,
-            fontWeight: FontWeight.w500,
+                    ],
+                  ),
+        backgroundColor: Colors.white,
+        bottomNavigationBar: Container(
+          height: 60,
+          decoration: const BoxDecoration(
+            color: Colors.white,
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black12,
+                blurRadius: 4,
+                offset: Offset(0, -2),
+              ),
+            ],
           ),
-          unselectedLabelStyle: GoogleFonts.poppins(
-            fontSize: 10,
-            fontWeight: FontWeight.w400,
+          child: TabBar(
+            controller: _tabController,
+            indicatorColor: const Color(0xFF213268),
+            labelColor: const Color(0xFF213268),
+            unselectedLabelColor: Colors.grey,
+            tabs: const [
+              Tab(
+                icon: Icon(Icons.list_alt),
+                text: 'Semua',
+                iconMargin: EdgeInsets.only(bottom: 2),
+              ),
+              Tab(
+                icon: Icon(Icons.content_paste_search),
+                text: 'Aset Hilang',
+                iconMargin: EdgeInsets.only(bottom: 2),
+              ),
+              Tab(
+                icon: Icon(Icons.help_outline),
+                text: 'Aset Pindah',
+                iconMargin: EdgeInsets.only(bottom: 2),
+              ),
+            ],
+            labelStyle: GoogleFonts.poppins(
+              fontSize: 10,
+              fontWeight: FontWeight.w500,
+            ),
+            unselectedLabelStyle: GoogleFonts.poppins(
+              fontSize: 10,
+              fontWeight: FontWeight.w400,
+            ),
           ),
         ),
-      ),
-    );
+      );
+    });
   }
 
-  Widget _buildSummaryCard() {
+  Widget _buildSummaryCard(ScanResultController controller) {
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(16),
@@ -548,7 +313,7 @@ class _ScanResultScreenState extends State<ScanResultScreen>
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              'Ringkasan Aset - ${roomInfo?.roomName ?? widget.roomName ?? ""}',
+              'Ringkasan Aset - ${controller.roomInfo?.roomName ?? widget.roomName ?? ""}',
               style: GoogleFonts.poppins(
                 fontSize: 14,
                 fontWeight: FontWeight.w600,
@@ -561,28 +326,28 @@ class _ScanResultScreenState extends State<ScanResultScreen>
                 Expanded(
                   child: _buildSummaryItem(
                     'Total Aset',
-                    summaryData!.totalAssets.toString(),
+                    controller.summaryData!.totalAssets.toString(),
                     Icons.inventory_2_outlined,
                   ),
                 ),
                 Expanded(
                   child: _buildBadgeItem(
                     'Ditemukan',
-                    summaryData!.foundAssets.toString(),
+                    controller.summaryData!.foundAssets.toString(),
                     Colors.green,
                   ),
                 ),
                 Expanded(
                   child: _buildBadgeItem(
                     'Hilang',
-                    summaryData!.missingAssets.toString(),
+                    controller.summaryData!.missingAssets.toString(),
                     Colors.red,
                   ),
                 ),
                 Expanded(
                   child: _buildBadgeItem(
                     'Pindah',
-                    summaryData!.misplacedAssets.toString(),
+                    controller.summaryData!.misplacedAssets.toString(),
                     Colors.orange,
                   ),
                 ),
@@ -658,8 +423,8 @@ class _ScanResultScreenState extends State<ScanResultScreen>
     );
   }
 
-  Widget _buildFoundAssetsList() {
-    if (foundAssets.isEmpty) {
+  Widget _buildFoundAssetsList(ScanResultController controller) {
+    if (controller.foundAssets.isEmpty) {
       return _buildEmptyState("Tidak ada aset yang ditemukan");
     }
 
@@ -671,9 +436,9 @@ class _ScanResultScreenState extends State<ScanResultScreen>
           Expanded(
             child: ListView.builder(
               padding: const EdgeInsets.all(16),
-              itemCount: foundAssets.length,
+              itemCount: controller.foundAssets.length,
               itemBuilder: (context, index) {
-                final asset = foundAssets[index];
+                final asset = controller.foundAssets[index];
                 return _buildAssetCard(
                   asset.assetCode,
                   asset.assetDescription,
@@ -688,8 +453,8 @@ class _ScanResultScreenState extends State<ScanResultScreen>
     );
   }
 
-  Widget _buildMissingAssetsList() {
-    if (missingAssets.isEmpty) {
+  Widget _buildMissingAssetsList(ScanResultController controller) {
+    if (controller.missingAssets.isEmpty) {
       return _buildEmptyState(
           "Tidak ada aset yang hilang di Lokasi yang dipilih");
     }
@@ -702,7 +467,7 @@ class _ScanResultScreenState extends State<ScanResultScreen>
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
             child: Text(
-              "Hasil: ${missingAssets.length} Aset",
+              "Hasil: ${controller.missingAssets.length} Aset",
               style: GoogleFonts.poppins(
                 fontSize: 14,
                 fontWeight: FontWeight.w500,
@@ -712,9 +477,9 @@ class _ScanResultScreenState extends State<ScanResultScreen>
           Expanded(
             child: ListView.builder(
               padding: const EdgeInsets.all(16),
-              itemCount: missingAssets.length,
+              itemCount: controller.missingAssets.length,
               itemBuilder: (context, index) {
-                final asset = missingAssets[index];
+                final asset = controller.missingAssets[index];
                 return _buildDetailedAssetCard(asset);
               },
             ),
@@ -724,8 +489,8 @@ class _ScanResultScreenState extends State<ScanResultScreen>
     );
   }
 
-  Widget _buildMisplacedAssetsList() {
-    if (misplacedAssets.isEmpty) {
+  Widget _buildMisplacedAssetsList(ScanResultController controller) {
+    if (controller.misplacedAssets.isEmpty) {
       return _buildEmptyState(
           "Tidak ada aset yang berpindah di Lokasi yang dipilih");
     }
@@ -738,7 +503,7 @@ class _ScanResultScreenState extends State<ScanResultScreen>
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
             child: Text(
-              "Hasil: ${misplacedAssets.length} Aset",
+              "Hasil: ${controller.misplacedAssets.length} Aset",
               style: GoogleFonts.poppins(
                 fontSize: 14,
                 fontWeight: FontWeight.w500,
@@ -748,9 +513,9 @@ class _ScanResultScreenState extends State<ScanResultScreen>
           Expanded(
             child: ListView.builder(
               padding: const EdgeInsets.all(16),
-              itemCount: misplacedAssets.length,
+              itemCount: controller.misplacedAssets.length,
               itemBuilder: (context, index) {
-                final asset = misplacedAssets[index];
+                final asset = controller.misplacedAssets[index];
                 return _buildDetailedAssetCard(asset);
               },
             ),

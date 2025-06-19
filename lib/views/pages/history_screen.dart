@@ -18,10 +18,8 @@ class HistoryScreen extends StatefulWidget {
 }
 
 class _HistoryScreenState extends State<HistoryScreen> {
-  final ScrollController _scrollController = ScrollController();
   final RefreshController _refreshController =
       RefreshController(initialRefresh: false);
-  bool _isLoadingMore = false;
   final GlobalKey _contentKey = GlobalKey();
 
   @override
@@ -33,13 +31,16 @@ class _HistoryScreenState extends State<HistoryScreen> {
     });
 
     // Setup scroll listener for pagination
-    _scrollController.addListener(_onScroll);
+    final controller = context.read<RecentActivityController>();
+    controller.initScrollController();
+    controller.scrollController.addListener(_onScroll);
   }
 
   @override
   void dispose() {
-    _scrollController.removeListener(_onScroll);
-    _scrollController.dispose();
+    final controller = context.read<RecentActivityController>();
+    controller.scrollController.removeListener(_onScroll);
+    // Biarkan controller yang dispose scrollController
     _refreshController.dispose();
     super.dispose();
   }
@@ -78,19 +79,21 @@ class _HistoryScreenState extends State<HistoryScreen> {
   }
 
   void _onScroll() {
-    if (!_scrollController.hasClients) return;
+    final controller = context.read<RecentActivityController>();
+    if (!controller.scrollController.hasClients) return;
 
-    if (_scrollController.position.pixels >=
-        _scrollController.position.maxScrollExtent * 0.8) {
+    if (controller.scrollController.position.pixels >=
+        controller.scrollController.position.maxScrollExtent * 0.8) {
       _loadMoreData();
     }
   }
 
   Future<void> _loadMoreData() async {
-    if (_isLoadingMore) return;
-    setState(() => _isLoadingMore = true);
-    await context.read<RecentActivityController>().loadMoreActivities();
-    if (mounted) setState(() => _isLoadingMore = false);
+    final controller = context.read<RecentActivityController>();
+    if (controller.isLoadingMore) return;
+    controller.setLoadingMore(true);
+    await controller.loadMoreActivities();
+    controller.setLoadingMore(false);
   }
 
   Widget _buildHistoryItem(HistoryModel activity) {
@@ -567,42 +570,42 @@ class _HistoryScreenState extends State<HistoryScreen> {
           onPressed: () => _navigateBack(context),
         ),
       ),
-      body: SmartRefresher(
-        enablePullDown: true,
-        enablePullUp: false,
-        controller: _refreshController,
-        onRefresh: _loadData,
-        scrollController: _scrollController,
-        physics: const BouncingScrollPhysics(
-            parent: AlwaysScrollableScrollPhysics()),
-        footer: ClassicFooter(
-          loadStyle: LoadStyle.ShowWhenLoading,
-          completeDuration: const Duration(milliseconds: 500),
-        ),
-        header: const WaterDropMaterialHeader(
-          backgroundColor: Color(0xFF213268),
-          color: Colors.white,
-          distance: 40.0,
-        ),
-        child: Column(
-          children: [
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.fromLTRB(24, 16, 24, 8),
-              child: Text(
-                'Menampilkan semua aktivitas Anda',
-                style: GoogleFonts.inter(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w400,
-                  color: const Color(0xFF757575),
-                ),
-              ),
+      body: Consumer<RecentActivityController>(
+        builder: (context, controller, _) {
+          return SmartRefresher(
+            enablePullDown: true,
+            enablePullUp: false,
+            controller: _refreshController,
+            onRefresh: _loadData,
+            scrollController: controller.scrollController,
+            physics: const BouncingScrollPhysics(
+                parent: AlwaysScrollableScrollPhysics()),
+            footer: ClassicFooter(
+              loadStyle: LoadStyle.ShowWhenLoading,
+              completeDuration: const Duration(milliseconds: 500),
             ),
-            Consumer<RecentActivityController>(
-              builder: (context, controller, child) {
+            header: const WaterDropMaterialHeader(
+              backgroundColor: Color(0xFF213268),
+              color: Colors.white,
+              distance: 40.0,
+            ),
+            child: Column(
+              children: [
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.fromLTRB(24, 16, 24, 8),
+                  child: Text(
+                    'Menampilkan semua aktivitas Anda',
+                    style: GoogleFonts.inter(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w400,
+                      color: const Color(0xFF757575),
+                    ),
+                  ),
+                ),
                 // Tampilkan skeleton saat loading pertama kali
-                if (controller.isLoading && controller.activities.isEmpty) {
-                  return Expanded(
+                if (controller.isLoading && controller.activities.isEmpty)
+                  Expanded(
                     child: Skeletonizer(
                       enabled: true,
                       effect: ShimmerEffect(
@@ -620,12 +623,11 @@ class _HistoryScreenState extends State<HistoryScreen> {
                         ),
                       ),
                     ),
-                  );
-                }
-
+                  )
                 // Tampilkan pesan error jika ada
-                if (controller.error != null && controller.activities.isEmpty) {
-                  return Expanded(
+                else if (controller.error != null &&
+                    controller.activities.isEmpty)
+                  Expanded(
                     child: Center(
                       child: Column(
                         mainAxisAlignment: MainAxisAlignment.center,
@@ -656,12 +658,10 @@ class _HistoryScreenState extends State<HistoryScreen> {
                         ],
                       ),
                     ),
-                  );
-                }
-
-                // Tampilkan daftar aktivitas
-                if (controller.activities.isEmpty) {
-                  return Expanded(
+                  )
+                // Tampilkan daftar aktivitas kosong
+                else if (controller.activities.isEmpty)
+                  Expanded(
                     child: Center(
                       child: Column(
                         mainAxisAlignment: MainAxisAlignment.center,
@@ -691,122 +691,118 @@ class _HistoryScreenState extends State<HistoryScreen> {
                         ],
                       ),
                     ),
-                  );
-                }
+                  )
+                // Tampilkan daftar aktivitas
+                else
+                  Expanded(
+                    child: Padding(
+                      padding: const EdgeInsets.fromLTRB(24, 9, 24, 0),
+                      child: Stack(
+                        children: [
+                          ListView.builder(
+                            // Gunakan controller.scrollController
+                            controller:
+                                null, // Tidak perlu controller di sini karena sudah digunakan di SmartRefresher
+                            physics: const AlwaysScrollableScrollPhysics(),
+                            itemCount: controller.activitiesByMonth.length + 1,
+                            itemBuilder: (context, index) {
+                              if (index < controller.activitiesByMonth.length) {
+                                final List<String> sortedMonths = controller
+                                    .activitiesByMonth.keys
+                                    .toList()
+                                  ..sort((a, b) {
+                                    // Sort bulan secara descending (terbaru dulu)
+                                    final List<String> monthsId = [
+                                      'Januari',
+                                      'Februari',
+                                      'Maret',
+                                      'April',
+                                      'Mei',
+                                      'Juni',
+                                      'Juli',
+                                      'Agustus',
+                                      'September',
+                                      'Oktober',
+                                      'November',
+                                      'Desember'
+                                    ];
 
-                return Expanded(
-                  child: Padding(
-                    padding: const EdgeInsets.fromLTRB(24, 9, 24, 0),
-                    child: Stack(
-                      children: [
-                        ListView.builder(
-                          // Jangan gunakan controller yang sama dengan SmartRefresher
-                          // agar tidak konflik
-                          physics: const AlwaysScrollableScrollPhysics(),
-                          itemCount: controller.activitiesByMonth.length + 1,
-                          itemBuilder: (context, index) {
-                            if (index < controller.activitiesByMonth.length) {
-                              final List<String> sortedMonths =
-                                  controller.activitiesByMonth.keys.toList()
-                                    ..sort((a, b) {
-                                      // Sort bulan secara descending (terbaru dulu)
-                                      final List<String> monthsId = [
-                                        'Januari',
-                                        'Februari',
-                                        'Maret',
-                                        'April',
-                                        'Mei',
-                                        'Juni',
-                                        'Juli',
-                                        'Agustus',
-                                        'September',
-                                        'Oktober',
-                                        'November',
-                                        'Desember'
-                                      ];
+                                    final aParts = a.split(' ');
+                                    final bParts = b.split(' ');
 
-                                      final aParts = a.split(' ');
-                                      final bParts = b.split(' ');
+                                    // Bandingkan tahun terlebih dahulu
+                                    final int aYear = int.parse(aParts[1]);
+                                    final int bYear = int.parse(bParts[1]);
+                                    if (aYear != bYear)
+                                      return bYear.compareTo(aYear);
 
-                                      // Bandingkan tahun terlebih dahulu
-                                      final int aYear = int.parse(aParts[1]);
-                                      final int bYear = int.parse(bParts[1]);
-                                      if (aYear != bYear)
-                                        return bYear.compareTo(aYear);
+                                    // Jika tahun sama, bandingkan bulan
+                                    final int aMonthIndex =
+                                        monthsId.indexOf(aParts[0]);
+                                    final int bMonthIndex =
+                                        monthsId.indexOf(bParts[0]);
+                                    return bMonthIndex.compareTo(aMonthIndex);
+                                  });
 
-                                      // Jika tahun sama, bandingkan bulan
-                                      final int aMonthIndex =
-                                          monthsId.indexOf(aParts[0]);
-                                      final int bMonthIndex =
-                                          monthsId.indexOf(bParts[0]);
-                                      return bMonthIndex.compareTo(aMonthIndex);
-                                    });
-
-                              final month = sortedMonths[index];
-                              return _buildMonthSection(
-                                  month, controller.activitiesByMonth[month]!);
-                            } else {
-                              if (controller.hasMoreData) {
-                                return Padding(
-                                  padding: const EdgeInsets.symmetric(
-                                      vertical: 16.0),
-                                  child: Center(
-                                    child: controller.isLoading
-                                        ? const CircularProgressIndicator(
-                                            color: Color(0xFF213268),
-                                          )
-                                        : const SizedBox.shrink(),
-                                  ),
-                                );
+                                final month = sortedMonths[index];
+                                return _buildMonthSection(month,
+                                    controller.activitiesByMonth[month]!);
+                              } else {
+                                if (controller.hasMoreData) {
+                                  return Padding(
+                                    padding: const EdgeInsets.symmetric(
+                                        vertical: 16.0),
+                                    child: Center(
+                                      child: controller.isLoading
+                                          ? const CircularProgressIndicator(
+                                              color: Color(0xFF213268),
+                                            )
+                                          : const SizedBox.shrink(),
+                                    ),
+                                  );
+                                }
+                                return const SizedBox(height: 20);
                               }
-                              return const SizedBox(height: 20);
-                            }
-                          },
-                        ),
-                        if (_isLoadingMore && !controller.isLoading)
-                          Positioned(
-                            bottom: 0,
-                            left: 0,
-                            right: 0,
-                            child: Container(
-                              color: Colors.white.withOpacity(0.7),
-                              padding: const EdgeInsets.all(8.0),
-                              child: const Center(
-                                child: CircularProgressIndicator(
-                                  color: Color(0xFF213268),
+                            },
+                          ),
+                          if (controller.isLoadingMore && !controller.isLoading)
+                            Positioned(
+                              bottom: 0,
+                              left: 0,
+                              right: 0,
+                              child: Container(
+                                color: Colors.white.withOpacity(0.7),
+                                padding: const EdgeInsets.all(8.0),
+                                child: const Center(
+                                  child: CircularProgressIndicator(
+                                    color: Color(0xFF213268),
+                                  ),
                                 ),
                               ),
                             ),
-                          ),
-                      ],
+                        ],
+                      ),
                     ),
                   ),
-                );
-              },
-            ),
-            Consumer<RecentActivityController>(
-              builder: (context, controller, _) {
-                final pagination = controller.pagination;
-                if (pagination != null) {
-                  return Container(
+                // Footer dengan informasi pagination
+                if (controller.pagination != null)
+                  Container(
                     padding:
                         const EdgeInsets.symmetric(vertical: 8, horizontal: 24),
                     color: Colors.grey[100],
                     child: Text(
-                      'Halaman ${pagination.currentPage} dari ${pagination.totalPages} (${pagination.totalItems} item)',
+                      'Halaman ${controller.pagination!.currentPage} dari ${controller.pagination!.totalPages} (${controller.pagination!.totalItems} item)',
                       style: GoogleFonts.inter(
                         fontSize: 12,
                         color: Colors.grey,
                       ),
                       textAlign: TextAlign.center,
                     ),
-                  );
-                }
-                return const SizedBox.shrink();
-              },
+                  ),
+              ],
             ),
-          ],
-        ),
+          );
+        },
       ),
     );
   }

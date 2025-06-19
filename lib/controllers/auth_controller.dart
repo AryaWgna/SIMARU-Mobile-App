@@ -35,7 +35,7 @@ class ApiException implements Exception {
 
 class ApiService {
   // Base URL untuk perangkat fisik
-  static String baseUrl = 'http://192.168.43.221:5000';
+  static String baseUrl = 'https://web-magangunbin2025.rsummi.co.id/api/';
   // Alternatif: 'http://localhost:3000' untuk iOS simulator
   // Gunakan URL publik Anda untuk perangkat fisik, misalnya: 'https://api.example.com'
 
@@ -236,11 +236,12 @@ class ApiService {
         body: jsonEncode(requestBody),
       )
           .timeout(
-        const Duration(seconds: 15),
+        const Duration(
+            seconds: 10), // Mengurangi timeout dari 15 detik menjadi 10 detik
         onTimeout: () {
-          print('Login request timed out after 15 seconds');
+          print('Login request timed out after 10 seconds');
           throw ApiException(
-              message: 'Koneksi timeout',
+              message: 'Koneksi timeout, silakan coba lagi',
               code: 'TIMEOUT',
               details: 'Login request timeout');
         },
@@ -364,7 +365,7 @@ class ApiService {
         }),
       )
           .timeout(
-        const Duration(seconds: 5), // Mengurangi timeout menjadi 5 detik
+        const Duration(seconds: 3), // Mengurangi timeout menjadi 3 detik
         onTimeout: () {
           print('Refresh token request timed out');
           throw TimeoutException('Refresh token request timed out');
@@ -596,7 +597,14 @@ class ApiService {
   // Metode untuk mendapatkan profil pengguna
   static Future<Map<String, dynamic>> getProfile(BuildContext context) async {
     try {
-      final response = await get('/users/profile', context: context);
+      final response = await get('/users/profile', context: context).timeout(
+        const Duration(seconds: 5), // Menambahkan timeout untuk getProfile
+        onTimeout: () {
+          print('Profile request timed out after 5 seconds');
+          throw TimeoutException('Profile request timed out');
+        },
+      );
+
       print('Profile response status: ${response.statusCode}');
       print('Profile response body: ${response.body}');
 

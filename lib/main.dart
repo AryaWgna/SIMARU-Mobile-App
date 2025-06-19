@@ -6,6 +6,22 @@ import 'controllers/recent_activity_controller.dart';
 import 'controllers/total_asset_controller.dart';
 import 'controllers/asset_under_repair_controller.dart';
 import 'controllers/net_asset_value_controller.dart';
+import 'controllers/asset_complaint_controller.dart';
+import 'controllers/complaint_controller.dart';
+import 'controllers/notification_controller.dart';
+import 'controllers/stockopname_controller.dart';
+import 'controllers/asset_document_controller.dart';
+import 'controllers/asset_history_controller.dart';
+import 'controllers/asset_mutation_controller.dart';
+import 'controllers/asset_details_controller.dart';
+import 'controllers/asset_checkin_controller.dart';
+import 'controllers/asset_checkout_controller.dart';
+import 'controllers/asset_lost_controller.dart';
+import 'controllers/profile_controller.dart';
+import 'controllers/qr_scanner_controller.dart';
+import 'controllers/dashboard_controller.dart';
+import 'controllers/notification_settings_controller.dart';
+import 'controllers/notification_badge_controller.dart';
 import 'dart:developer' as developer;
 import 'services/socket_service.dart';
 import 'services/firebase_messaging_service.dart';
@@ -15,6 +31,7 @@ import 'firebase_options.dart';
 // Import untuk mengatasi masalah anti-screenshot
 import 'dart:io';
 import 'package:no_screenshot/no_screenshot.dart';
+import 'controllers/scan_result_controller.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -22,15 +39,17 @@ void main() async {
   // Pastikan fitur anti-screenshot dinonaktifkan saat aplikasi dimulai
   await _disableGlobalScreenshotProtection();
 
+  // Log untuk debugging
+  developer.log('Starting app...', name: 'APP_LIFECYCLE');
+
   // Inisialisasi Firebase dengan detail logging dan error handling
   try {
-    print('Initializing Firebase...');
     await Firebase.initializeApp(
       options: DefaultFirebaseOptions.currentPlatform,
     );
-    print('Firebase successfully initialized');
+    developer.log('Firebase initialized successfully', name: 'FIREBASE');
   } catch (e) {
-    print('Error initializing Firebase: $e');
+    developer.log('Failed to initialize Firebase: $e', name: 'FIREBASE');
   }
 
   // Buat instance tapi jangan initialize dulu
@@ -57,27 +76,45 @@ void main() async {
     );
   };
 
-  // Log untuk debugging
-  developer.log('Starting app...', name: 'APP_LIFECYCLE');
+  await messagingService.initialize();
 
   runApp(
     MultiProvider(
       providers: [
-        ChangeNotifierProvider(create: (_) => RecentActivityController()),
+        // Controllers lama
         ChangeNotifierProvider(create: (_) => TotalAssetController()),
-        ChangeNotifierProvider(create: (_) => AssetUnderRepairController()),
         ChangeNotifierProvider(create: (_) => NetAssetValueController()),
+        ChangeNotifierProvider(create: (_) => RecentActivityController()),
+        ChangeNotifierProvider(create: (_) => AssetUnderRepairController()),
+        // Controllers baru
+        ChangeNotifierProvider(create: (_) => AssetHistoryController()),
+        ChangeNotifierProvider(create: (_) => AssetDocumentController()),
+        ChangeNotifierProvider(create: (_) => AssetComplaintController()),
+        ChangeNotifierProvider(create: (_) => ComplaintController()),
+        ChangeNotifierProvider(create: (_) => NotificationController()),
+        ChangeNotifierProvider(create: (_) => StockOpnameController()),
+        ChangeNotifierProvider(create: (_) => AssetMutationController()),
         ChangeNotifierProvider(create: (_) => SocketService()),
         Provider.value(value: messagingService),
+        ChangeNotifierProvider(create: (_) => AssetDetailsController()),
+        // Controllers untuk checkin dan checkout
+        ChangeNotifierProvider(create: (_) => AssetCheckinController()),
+        ChangeNotifierProvider(create: (_) => AssetCheckoutController()),
+        ChangeNotifierProvider(create: (_) => AssetLostController()),
+        ChangeNotifierProvider(create: (_) => ProfileController()),
+        ChangeNotifierProvider(create: (_) => QRScannerController()),
+        // Controller untuk scan result
+        ChangeNotifierProvider(create: (_) => ScanResultController()),
+        // Tambahkan provider untuk DashboardController
+        ChangeNotifierProvider(create: (_) => DashboardController()),
+        // Controller untuk notification settings
+        ChangeNotifierProvider(create: (_) => NotificationSettingsController()),
+        // Controller untuk badge notifikasi
+        ChangeNotifierProvider(create: (_) => NotificationBadgeController()),
       ],
       child: const MyApp(),
     ),
   );
-
-  // Inisialisasi penuh Firebase setelah UI muncul
-  Future.delayed(const Duration(seconds: 1), () async {
-    await messagingService.initialize();
-  });
 }
 
 // Fungsi untuk menonaktifkan anti-screenshot secara global
@@ -122,7 +159,20 @@ class MyApp extends StatelessWidget {
       },
       theme: ThemeData(
         fontFamily: 'Inter',
-        primarySwatch: Colors.blue,
+        colorScheme: ColorScheme.fromSeed(
+            seedColor: const Color(0xFF213268),
+            primary: const Color(0xFF213268)),
+        scaffoldBackgroundColor: Colors.white,
+        appBarTheme: const AppBarTheme(
+          backgroundColor: Color(0xFF213268),
+          foregroundColor: Colors.white,
+        ),
+        elevatedButtonTheme: ElevatedButtonThemeData(
+          style: ElevatedButton.styleFrom(
+            backgroundColor: const Color(0xFF213268),
+            foregroundColor: Colors.white,
+          ),
+        ),
         visualDensity: VisualDensity.adaptivePlatformDensity,
       ),
       // Tambahkan dukungan lokalisasi untuk Indonesia
@@ -136,18 +186,10 @@ class MyApp extends StatelessWidget {
         Locale('en', 'US'), // English
       ],
       locale: const Locale('id', 'ID'), // Set bahasa default ke Indonesia
-      // Handle route errors
-      onGenerateRoute: (settings) {
-        developer.log('Generating route for: ${settings.name}',
-            name: 'APP_NAVIGATION');
-        return null; // Let the normal routes handle it
-      },
-      // Handle page not found
-      onUnknownRoute: (settings) {
-        developer.log('Unknown route: ${settings.name}',
-            name: 'APP_NAVIGATION');
-        return MaterialPageRoute(builder: (context) => const LoginScreen());
-      },
     );
   }
 }
+
+// Info Pembuat Aplikasi
+// Made by Ardwiyan (PakBos), Ahmad (Programmer Galak), 
+// Farhan (Design Maker), and Daffa (Backend Specialist)

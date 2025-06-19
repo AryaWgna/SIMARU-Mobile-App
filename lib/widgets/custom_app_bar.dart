@@ -1,11 +1,7 @@
 import 'package:flutter/material.dart';
-import 'dart:async';
 import '../views/notification/notification_screen.dart';
-import '../services/notification_service.dart';
-
-// Stream global untuk pembaruan jumlah notifikasi
-final StreamController<int> notificationCountController =
-    StreamController<int>.broadcast();
+import 'package:provider/provider.dart';
+import '../controllers/notification_badge_controller.dart';
 
 class CustomAppBar extends StatefulWidget implements PreferredSizeWidget {
   final VoidCallback? onNotificationTap;
@@ -23,63 +19,13 @@ class CustomAppBar extends StatefulWidget implements PreferredSizeWidget {
 }
 
 class _CustomAppBarState extends State<CustomAppBar> {
-  int _notificationCount = 0;
-  bool _isLoading = true;
-  late StreamSubscription<int> _subscription;
+  late NotificationBadgeController _controller;
 
   @override
   void initState() {
     super.initState();
-    // Muat jumlah notifikasi saat pertama kali
-    _loadUnreadNotificationCount();
-
-    // Dengarkan perubahan jumlah notifikasi
-    _subscription = notificationCountController.stream.listen((count) {
-      if (mounted) {
-        setState(() {
-          _notificationCount = count;
-          _isLoading = false;
-        });
-      }
-    });
-
-    // Refresh jumlah notifikasi setiap 30 detik
-    Timer.periodic(const Duration(seconds: 30), (timer) {
-      if (mounted) {
-        _loadUnreadNotificationCount();
-      } else {
-        timer.cancel();
-      }
-    });
-  }
-
-  @override
-  void dispose() {
-    _subscription.cancel();
-    super.dispose();
-  }
-
-  Future<void> _loadUnreadNotificationCount() async {
-    try {
-      final count = await NotificationService.getUnreadCount(context: context);
-
-      // Update stream dengan jumlah notifikasi baru
-      notificationCountController.add(count);
-
-      if (mounted) {
-        setState(() {
-          _notificationCount = count;
-          _isLoading = false;
-        });
-      }
-    } catch (e) {
-      debugPrint('Error loading notification count: $e');
-      if (mounted) {
-        setState(() {
-          _isLoading = false;
-        });
-      }
-    }
+    _controller =
+        Provider.of<NotificationBadgeController>(context, listen: false);
   }
 
   @override
@@ -126,59 +72,62 @@ class _CustomAppBarState extends State<CustomAppBar> {
                       ),
                     ).then((_) {
                       // Refresh jumlah notifikasi setelah kembali dari halaman notifikasi
-                      _loadUnreadNotificationCount();
+                      _controller.loadUnreadNotificationCount(context: context);
                     });
                   },
-              child: Stack(
-                alignment: Alignment.center,
-                children: [
-                  const Icon(
-                    Icons.notifications_outlined,
-                    color: Color(0xFF213268),
-                    size: 28,
-                  ),
-                  if (_isLoading)
-                    const Positioned(
-                      right: 0,
-                      top: 0,
-                      child: SizedBox(
-                        width: 10,
-                        height: 10,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2,
-                          color: Color(0xFF25B1FF),
-                        ),
-                      ),
-                    )
-                  else if (_notificationCount > 0)
-                    Positioned(
-                      right: 0,
-                      top: 0,
-                      child: Container(
-                        padding: const EdgeInsets.all(2),
-                        decoration: const BoxDecoration(
-                          color: Color(0xFF25B1FF),
-                          shape: BoxShape.circle,
-                        ),
-                        constraints: const BoxConstraints(
-                          minWidth: 16,
-                          minHeight: 16,
-                        ),
-                        child: Text(
-                          _notificationCount > 9
-                              ? '9+'
-                              : _notificationCount.toString(),
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 10,
-                            fontWeight: FontWeight.bold,
-                          ),
-                          textAlign: TextAlign.center,
-                        ),
-                      ),
+              child: Consumer<NotificationBadgeController>(
+                  builder: (context, controller, _) {
+                return Stack(
+                  alignment: Alignment.center,
+                  children: [
+                    const Icon(
+                      Icons.notifications_outlined,
+                      color: Color(0xFF213268),
+                      size: 28,
                     ),
-                ],
-              ),
+                    if (controller.isLoading)
+                      const Positioned(
+                        right: 0,
+                        top: 0,
+                        child: SizedBox(
+                          width: 10,
+                          height: 10,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: Color(0xFF25B1FF),
+                          ),
+                        ),
+                      )
+                    else if (controller.notificationCount > 0)
+                      Positioned(
+                        right: 0,
+                        top: 0,
+                        child: Container(
+                          padding: const EdgeInsets.all(2),
+                          decoration: const BoxDecoration(
+                            color: Color(0xFF25B1FF),
+                            shape: BoxShape.circle,
+                          ),
+                          constraints: const BoxConstraints(
+                            minWidth: 16,
+                            minHeight: 16,
+                          ),
+                          child: Text(
+                            controller.notificationCount > 9
+                                ? '9+'
+                                : controller.notificationCount.toString(),
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 10,
+                              fontWeight: FontWeight.bold,
+                            ),
+                            textAlign: TextAlign.center,
+                          ),
+                        ),
+                      ),
+                  ],
+                );
+              }),
             ),
           ],
         ),

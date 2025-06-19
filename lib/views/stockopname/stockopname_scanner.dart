@@ -2,9 +2,10 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:qr_code_scanner/qr_code_scanner.dart';
 import 'dart:convert';
-import '../../controllers/auth_controller.dart' as auth;
 import 'package:google_fonts/google_fonts.dart';
+import 'package:provider/provider.dart';
 import 'scan_result_screen.dart';
+import '../../controllers/stockopname_controller.dart';
 
 class StockopnameScanner extends StatefulWidget {
   final String previousScreen;
@@ -68,22 +69,24 @@ class _StockopnameScannerState extends State<StockopnameScanner>
     with WidgetsBindingObserver, SingleTickerProviderStateMixin {
   final GlobalKey qrKey = GlobalKey(debugLabel: 'QR');
   QRViewController? controller;
-  String? scannedCode;
-  String? lastScannedCode;
   Timer? debounceTimer;
-  bool isProcessing = false;
-  bool flashOn = false;
-  int scannedAssets = 0;
-  List<String> scannedAssetCodes = [];
+  late StockOpnameController _stockOpnameController;
 
   // Animasi untuk scanner
   late AnimationController _animationController;
   late Animation<double> _animation;
 
+  // Untuk zoom
+  double _currentZoomFactor = 1.0;
+
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    _stockOpnameController =
+        Provider.of<StockOpnameController>(context, listen: false);
+    _stockOpnameController
+        .resetItems(); // Reset item setiap kali buka scanner baru
 
     // Setup animasi naik turun
     _animationController = AnimationController(
@@ -114,114 +117,51 @@ class _StockopnameScannerState extends State<StockopnameScanner>
 
   void _onQRViewCreated(QRViewController controller) {
     this.controller = controller;
-    controller.scannedDataStream.listen((scanData) {
-      if (scanData.code != null && !isProcessing) {
-        if (scanData.code != lastScannedCode) {
-          setState(() {
-            scannedCode = scanData.code;
-          });
 
-          debounceTimer?.cancel();
-          debounceTimer = Timer(const Duration(milliseconds: 500), () {
-            if (mounted && !isProcessing) {
-              _processScannedQR(scanData.code!);
-            }
-          });
+    // Check flash availability
+    controller.getFlashStatus().then((value) {
+      _stockOpnameController.setFlashAvailability(value ?? false);
+    });
+
+    controller.scannedDataStream.listen((scanData) {
+      if (scanData.code != null && !_stockOpnameController.processingQR) {
+        // Langsung proses QR tanpa debounce untuk respons yang lebih cepat
+        if (scanData.code != _stockOpnameController.lastScannedCode) {
+          _stockOpnameController.setScannedCode(scanData.code);
+          if (mounted && !_stockOpnameController.isLoading) {
+            _processScannedQR(scanData.code!);
+          }
         }
       }
     });
   }
 
   Future<void> _processScannedQR(String qrCode) async {
-    if (isProcessing) return;
+    _stockOpnameController.setProcessingQR(true);
 
-    setState(() {
-      isProcessing = true;
-    });
+    bool success = await _stockOpnameController.processScannedQR(
+        qrCode, widget.opnameId, widget.roomId, context);
 
-    try {
-      final assetCode = qrCode.trim();
-
-      // Validasi format QR yang lebih longgar
-      // bool isValidFormat =
-      //     assetCode.startsWith('ANMD-') || RegExp(r'^\d+$').hasMatch(assetCode);
-
-      // Hanya memvalidasi bahwa kode tidak kosong, untuk memudahkan pengujian
-      bool isValidFormat = assetCode.isNotEmpty;
-
-      if (!isValidFormat) {
-        _showError('Format kode QR tidak valid');
-        setState(() {
-          isProcessing = false;
-        });
-        return;
-      }
-
-      // Tambahkan log untuk debugging
-      print('QR Code dipindai: $assetCode');
-
-      // Cek apakah asset sudah di-scan sebelumnya
-      if (scannedAssetCodes.contains(assetCode)) {
-        _showError('Aset ini sudah dipindai sebelumnya');
-        setState(() {
-          isProcessing = false;
-        });
-        return;
-      }
-
-      // Kirim data scan ke API
-      final response = await auth.ApiService.post(
-        '/asset-opname-details',
-        body: {
-          'opname_id': widget.opnameId,
-          'actual_location_id': widget.roomId,
-          'asset_code': assetCode,
-        },
-        context: context,
+    if (success) {
+      // Notifikasi sukses
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Aset berhasil dipindai: $qrCode'),
+          backgroundColor: Colors.green,
+          behavior: SnackBarBehavior.floating,
+          margin: EdgeInsets.only(
+            bottom: MediaQuery.of(context).padding.bottom > 0 ? 90.0 : 70.0,
+            left: 20.0,
+            right: 20.0,
+          ),
+          duration: const Duration(seconds: 1),
+        ),
       );
-
-      print('API response: ${response.statusCode} - ${response.body}');
-
-      if (response.statusCode == 200 || response.statusCode == 201) {
-        final data = jsonDecode(response.body);
-
-        if (data['success'] == true) {
-          // Tambahkan ke daftar asset yang sudah di-scan
-          setState(() {
-            scannedAssetCodes.add(assetCode);
-            scannedAssets++;
-            lastScannedCode = assetCode;
-          });
-
-          // Tampilkan notifikasi sukses
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('Aset berhasil dipindai: $assetCode'),
-              backgroundColor: Colors.green,
-              behavior: SnackBarBehavior.floating,
-              margin: EdgeInsets.only(
-                bottom: MediaQuery.of(context).padding.bottom > 0 ? 90.0 : 70.0,
-                left: 20.0,
-                right: 20.0,
-              ),
-              duration: const Duration(seconds: 1),
-            ),
-          );
-        } else {
-          throw data['message'] ?? 'Gagal memindai aset';
-        }
-      } else {
-        final data = jsonDecode(response.body);
-        throw data['message'] ?? 'Gagal memindai aset';
-      }
-    } catch (e) {
-      _showError('Error: $e');
-      print('Error saat memproses QR: $e');
-    } finally {
-      setState(() {
-        isProcessing = false;
-      });
+    } else if (_stockOpnameController.error != null) {
+      _showError(_stockOpnameController.error!);
     }
+
+    _stockOpnameController.setProcessingQR(false);
   }
 
   void _showError(String message) {
@@ -240,329 +180,434 @@ class _StockopnameScannerState extends State<StockopnameScanner>
   }
 
   Future<void> _completeScan() async {
-    if (scannedAssets == 0) {
-      _showError('Belum ada aset yang dipindai');
-      return;
-    }
+    final success = await _stockOpnameController.completeStockOpname(
+        widget.opnameId, context);
 
-    try {
-      setState(() {
-        isProcessing = true;
-      });
-
-      // Kirim data ke server untuk menyelesaikan stockopname
-      final response = await auth.ApiService.post(
-        '/asset-opnames/${widget.opnameId}/complete',
-        body: {},
-        context: context,
-      );
-
-      if (response.statusCode == 200 || response.statusCode == 201) {
-        final data = jsonDecode(response.body);
-
-        if (data['success'] == true) {
-          if (mounted) {
-            // Navigate to scan result screen
-            Navigator.pushReplacement(
-              context,
-              MaterialPageRoute(
-                builder: (context) => ScanResultScreen(
-                  scannedAssets: scannedAssetCodes,
-                  roomName: widget.roomName,
-                  opnameId: widget.opnameId,
-                  opnameCode: widget.opnameCode,
-                ),
-              ),
-            );
-          }
-        } else {
-          throw data['message'] ?? 'Gagal menyelesaikan stockopname';
-        }
-      } else {
-        final data = jsonDecode(response.body);
-        throw data['message'] ?? 'Gagal menyelesaikan stockopname';
+    if (success) {
+      if (mounted) {
+        // Navigate to scan result screen
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(
+            builder: (context) => ScanResultScreen(
+              scannedAssets: _stockOpnameController.scannedItems
+                  .map((item) => item.assetCode)
+                  .toList(),
+              roomName: widget.roomName,
+              opnameId: widget.opnameId,
+              opnameCode: widget.opnameCode,
+            ),
+          ),
+        );
       }
-    } catch (e) {
-      _showError('Error: $e');
-    } finally {
-      setState(() {
-        isProcessing = false;
-      });
+    } else {
+      // Tampilkan error jika gagal
+      if (_stockOpnameController.error != null) {
+        _showError(_stockOpnameController.error!);
+      }
     }
+  }
+
+  void _toggleFlash() {
+    controller?.toggleFlash();
+    _stockOpnameController.toggleFlash();
+  }
+
+  void _flipCamera() {
+    controller?.flipCamera();
+    _stockOpnameController.toggleCamera();
+  }
+
+  void _zoomIn() {
+    setState(() {
+      _currentZoomFactor += 0.2;
+      if (_currentZoomFactor > 2.5) {
+        _currentZoomFactor = 2.5;
+      }
+    });
+  }
+
+  void _zoomOut() {
+    setState(() {
+      _currentZoomFactor -= 0.2;
+      if (_currentZoomFactor < 1.0) {
+        _currentZoomFactor = 1.0;
+      }
+    });
   }
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Colors.white,
-      body: Stack(
-        children: [
-          // QR Scanner View
-          Positioned.fill(
-            child: QRView(
-              key: qrKey,
-              onQRViewCreated: _onQRViewCreated,
-              overlay: QrScannerOverlayShape(
-                borderColor: const Color(0xFF213268),
-                borderRadius: 20,
-                borderLength: 40,
-                borderWidth: 10,
-                cutOutSize: 250,
-                cutOutBottomOffset: 0,
-                overlayColor: Colors.black.withOpacity(0.7),
-              ),
-              formatsAllowed: const [BarcodeFormat.qrcode],
-            ),
-          ),
-
-          // Animasi garis scanner yang lebih jelas
-          Positioned.fill(
-            child: IgnorePointer(
-              child: AnimatedBuilder(
-                animation: _animation,
-                builder: (context, child) {
-                  return CustomPaint(
-                    painter: ScannerLinePainter(_animation.value),
-                  );
+    return Consumer<StockOpnameController>(
+      builder: (context, stockOpnameController, _) => Scaffold(
+        body: Stack(
+          children: [
+            // QR Scanner View with zoom
+            Transform.scale(
+              scale: _currentZoomFactor,
+              child: QRView(
+                key: qrKey,
+                onQRViewCreated: _onQRViewCreated,
+                overlay: QrScannerOverlayShape(
+                  borderColor: const Color(0xFF213268),
+                  borderRadius: 10,
+                  borderLength: 30,
+                  borderWidth: 10,
+                  cutOutSize: 250,
+                  overlayColor: Colors.black.withOpacity(0.5),
+                ),
+                onPermissionSet: (ctrl, p) {
+                  if (!p) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                          content: Text('Izin kamera tidak diberikan')),
+                    );
+                  }
                 },
               ),
             ),
-          ),
 
-          // Header dengan icon dan title
-          Positioned(
-            top: 0,
-            left: 0,
-            right: 0,
-            child: SafeArea(
-              child: Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                decoration: BoxDecoration(
-                  color: const Color(0xFF213268),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withOpacity(0.3),
-                      blurRadius: 4,
-                      offset: const Offset(0, 2),
-                    ),
-                  ],
-                ),
+            // Animasi Garis Scanner
+            AnimatedBuilder(
+              animation: _animation,
+              builder: (context, child) {
+                return CustomPaint(
+                  painter: ScannerLinePainter(_animation.value),
+                  size: Size.infinite,
+                );
+              },
+            ),
+
+            // Top Bar dengan Informasi
+            SafeArea(
+              child: Padding(
+                padding: const EdgeInsets.all(16.0),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
+                    // Top Bar Action
                     Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
+                        // Tombol Kembali
                         Container(
-                          padding: const EdgeInsets.all(8),
                           decoration: BoxDecoration(
-                            color: Colors.white.withOpacity(0.2),
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          child: const Icon(
-                            Icons.qr_code_scanner,
                             color: Colors.white,
-                            size: 24,
+                            borderRadius: BorderRadius.circular(30),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black.withOpacity(0.1),
+                                blurRadius: 8,
+                                offset: const Offset(0, 2),
+                              ),
+                            ],
+                          ),
+                          child: IconButton(
+                            icon: const Icon(Icons.arrow_back),
+                            color: const Color(0xFF213268),
+                            onPressed: () {
+                              Navigator.pop(context);
+                            },
                           ),
                         ),
-                        const SizedBox(width: 12),
-                        Text(
-                          'SCAN IN PROGRESS',
-                          style: GoogleFonts.inter(
-                            fontSize: 18,
-                            fontWeight: FontWeight.w600,
-                            color: Colors.white,
+
+                        // Action Buttons
+                        Row(
+                          children: [
+                            // Flash button pada posisi yang sama dengan tombol kamera sebelumnya
+                            Container(
+                              decoration: BoxDecoration(
+                                color: Colors.white,
+                                borderRadius: BorderRadius.circular(30),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: Colors.black.withOpacity(0.1),
+                                    blurRadius: 8,
+                                    offset: const Offset(0, 2),
+                                  ),
+                                ],
+                              ),
+                              child: IconButton(
+                                icon: Icon(
+                                  stockOpnameController.flashOn
+                                      ? Icons.flash_on
+                                      : Icons.flash_off,
+                                ),
+                                color: const Color(0xFF213268),
+                                onPressed: _toggleFlash,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ),
+
+            // Zoom Controls
+            Positioned(
+              right: 16,
+              top: MediaQuery.of(context).size.height / 2 - 60,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      shape: BoxShape.circle,
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withOpacity(0.1),
+                          blurRadius: 8,
+                          offset: const Offset(0, 2),
+                        ),
+                      ],
+                    ),
+                    child: IconButton(
+                      icon: const Icon(Icons.add),
+                      color: const Color(0xFF213268),
+                      onPressed: _zoomIn,
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  Container(
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      shape: BoxShape.circle,
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withOpacity(0.1),
+                          blurRadius: 8,
+                          offset: const Offset(0, 2),
+                        ),
+                      ],
+                    ),
+                    child: IconButton(
+                      icon: const Icon(Icons.remove),
+                      color: const Color(0xFF213268),
+                      onPressed: _zoomOut,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+
+            // Bottom Bar dengan Informasi Scanning
+            Positioned(
+              bottom: 0,
+              left: 0,
+              right: 0,
+              child: Container(
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: const BorderRadius.only(
+                    topLeft: Radius.circular(20),
+                    topRight: Radius.circular(20),
+                  ),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.05),
+                      blurRadius: 10,
+                      offset: const Offset(0, -5),
+                    ),
+                  ],
+                ),
+                child: SafeArea(
+                  top: false,
+                  child: Padding(
+                    padding: const EdgeInsets.all(16.0),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        // Info Section
+                        Row(
+                          children: [
+                            // Room Icon
+                            Container(
+                              padding: const EdgeInsets.all(8),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFF213268).withOpacity(0.1),
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              child: const Icon(
+                                Icons.meeting_room,
+                                color: Color(0xFF213268),
+                                size: 24,
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            // Room Info
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    widget.roomName,
+                                    style: GoogleFonts.poppins(
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.w600,
+                                      color: const Color(0xFF213268),
+                                    ),
+                                  ),
+                                  Text(
+                                    'Total Aset: ${widget.totalAssets}',
+                                    style: GoogleFonts.poppins(
+                                      fontSize: 12,
+                                      color: Colors.grey[600],
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            // Scanned Counter
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 12, vertical: 8),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFF213268),
+                                borderRadius: BorderRadius.circular(16),
+                              ),
+                              child: Text(
+                                '${stockOpnameController.scannedItems.length}/${widget.totalAssets}',
+                                style: GoogleFonts.poppins(
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w600,
+                                  color: Colors.white,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 16),
+
+                        // Last scanned asset
+                        if (stockOpnameController.scannedItems.isNotEmpty)
+                          Container(
+                            padding: const EdgeInsets.all(12),
+                            decoration: BoxDecoration(
+                              color: Colors.grey[100],
+                              borderRadius: BorderRadius.circular(8),
+                              border: Border.all(
+                                color: const Color(0xFFE0E0E0),
+                              ),
+                            ),
+                            child: Row(
+                              children: [
+                                const Icon(
+                                  Icons.check_circle,
+                                  color: Colors.green,
+                                  size: 20,
+                                ),
+                                const SizedBox(width: 8),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        'Terakhir Dipindai:',
+                                        style: GoogleFonts.poppins(
+                                          fontSize: 12,
+                                          color: Colors.grey[600],
+                                        ),
+                                      ),
+                                      Text(
+                                        stockOpnameController
+                                            .scannedItems.last.assetCode,
+                                        style: GoogleFonts.poppins(
+                                          fontSize: 14,
+                                          fontWeight: FontWeight.w500,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        const SizedBox(height: 16),
+
+                        // Button to Complete Scan
+                        ElevatedButton.icon(
+                          onPressed: stockOpnameController.isLoading
+                              ? null
+                              : _completeScan,
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: const Color(0xFF213268),
+                            foregroundColor: Colors.white,
+                            padding: const EdgeInsets.symmetric(vertical: 12),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            elevation: 0,
+                            minimumSize: const Size(double.infinity, 50),
+                          ),
+                          icon: stockOpnameController.isLoading
+                              ? Container(
+                                  width: 24,
+                                  height: 24,
+                                  padding: const EdgeInsets.all(2.0),
+                                  child: const CircularProgressIndicator(
+                                    color: Colors.white,
+                                    strokeWidth: 3,
+                                  ),
+                                )
+                              : const Icon(Icons.check),
+                          label: Text(
+                            stockOpnameController.isLoading
+                                ? 'Memproses...'
+                                : 'Selesaikan Pemindaian',
+                            style: GoogleFonts.poppins(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w600,
+                            ),
                           ),
                         ),
                       ],
                     ),
-                    const SizedBox(height: 4),
-                    Text(
-                      'ID: ${widget.opnameCode} - ${widget.roomName}',
-                      style: GoogleFonts.inter(
-                        fontSize: 14,
-                        color: Colors.white.withOpacity(0.8),
-                      ),
-                    ),
-                  ],
+                  ),
                 ),
               ),
             ),
-          ),
 
-          // Status Panel
-          Positioned(
-            top: 120,
-            left: 16,
-            right: 16,
-            child: Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                  color: const Color(0xFF213268).withOpacity(0.9),
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(
-                      color: Colors.white.withOpacity(0.3), width: 1)),
-              child: Column(
-                children: [
-                  _buildStatusRow('Total Asset', widget.totalAssets.toString()),
-                  const SizedBox(height: 8),
-                  _buildStatusRow('Scanned Asset', scannedAssets.toString()),
-                  const SizedBox(height: 8),
-                  if (widget.totalAssets > 0)
-                    LinearProgressIndicator(
-                      value: scannedAssets / widget.totalAssets,
-                      backgroundColor: Colors.white.withOpacity(0.2),
-                      valueColor:
-                          const AlwaysStoppedAnimation<Color>(Colors.white),
-                    ),
-                ],
+            // Loading Indicator saat Memproses QR
+            if (stockOpnameController.processingQR)
+              Container(
+                color: Colors.black.withOpacity(0.3),
+                child: const Center(
+                  child: CircularProgressIndicator(
+                    color: Colors.white,
+                  ),
+                ),
               ),
-            ),
-          ),
 
-          // Scanned Tag ID
-          if (scannedCode != null)
+            // Zoom factor indicator
             Positioned(
-              top: 200,
-              left: 16,
+              top: 80,
               right: 16,
               child: Container(
-                padding: const EdgeInsets.all(16),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
                 decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(8),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withOpacity(0.1),
-                      blurRadius: 4,
-                      offset: const Offset(0, 2),
-                    ),
-                  ],
+                  color: Colors.black.withOpacity(0.6),
+                  borderRadius: BorderRadius.circular(15),
                 ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'TagID:',
-                      style: GoogleFonts.inter(
-                        fontSize: 14,
-                        color: Colors.grey[600],
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      scannedCode!,
-                      style: GoogleFonts.inter(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w600,
-                        color: const Color(0xFF213268),
-                      ),
-                    ),
-                  ],
+                child: Text(
+                  '${(_currentZoomFactor * 100).toInt()}%',
+                  style: GoogleFonts.poppins(
+                    fontSize: 12,
+                    color: Colors.white,
+                    fontWeight: FontWeight.w500,
+                  ),
                 ),
               ),
             ),
-
-          // Complete Scan Button
-          Positioned(
-            bottom: 32,
-            left: 16,
-            right: 16,
-            child: ElevatedButton(
-              onPressed: _completeScan,
-              style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF213268),
-                foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(vertical: 16),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                elevation: 2,
-              ),
-              child: Text(
-                'COMPLETE SCAN',
-                style: GoogleFonts.inter(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            ),
-          ),
-
-          // Flash Toggle
-          Positioned(
-            top: MediaQuery.of(context).padding.top + 12,
-            right: 16,
-            child: GestureDetector(
-              onTap: () {
-                controller?.toggleFlash();
-                setState(() {
-                  flashOn = !flashOn;
-                });
-              },
-              child: Container(
-                padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  color: const Color(0xFF213268),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Icon(
-                  flashOn ? Icons.flash_on : Icons.flash_off,
-                  color: Colors.white,
-                  size: 24,
-                ),
-              ),
-            ),
-          ),
-
-          // Loading Indicator
-          if (isProcessing)
-            Container(
-              color: Colors.black.withOpacity(0.7),
-              child: Center(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    const CircularProgressIndicator(
-                      valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
-                    ),
-                    const SizedBox(height: 16),
-                    Text(
-                      'Memproses Data...',
-                      style: GoogleFonts.inter(
-                        fontSize: 16,
-                        color: Colors.white,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-        ],
+          ],
+        ),
       ),
-    );
-  }
-
-  Widget _buildStatusRow(String label, String value) {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      children: [
-        Text(
-          label,
-          style: GoogleFonts.inter(
-            fontSize: 16,
-            color: Colors.white,
-          ),
-        ),
-        Text(
-          value,
-          style: GoogleFonts.inter(
-            fontSize: 16,
-            fontWeight: FontWeight.w600,
-            color: Colors.white,
-          ),
-        ),
-      ],
     );
   }
 }

@@ -231,7 +231,7 @@ class _LoginScreenState extends State<LoginScreen> {
         // Navigasi ke dashboard
         Navigator.of(context).pushAndRemoveUntil(
           MaterialPageRoute(
-            builder: (context) => const DashboardScreen(),
+            builder: (context) => const DashboardScreen(initialIndex: 0),
           ),
           (route) => false,
         );

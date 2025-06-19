@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:provider/provider.dart';
 import '../../models/notification_model.dart';
 import '../../models/notification_types.dart';
+import '../../controllers/notification_controller.dart';
 
-class NotificationDetailScreen extends StatefulWidget {
+class NotificationDetailScreen extends StatelessWidget {
   final NotificationModel notification;
 
   const NotificationDetailScreen({
@@ -12,52 +14,11 @@ class NotificationDetailScreen extends StatefulWidget {
   });
 
   @override
-  State<NotificationDetailScreen> createState() =>
-      _NotificationDetailScreenState();
-}
-
-class _NotificationDetailScreenState extends State<NotificationDetailScreen> {
-  // Format tanggal lengkap
-  String _formatDateTime(DateTime dateTime) {
-    // Konversi UTC ke waktu lokal Indonesia (GMT+7)
-    final localDateTime = dateTime.add(const Duration(hours: 7));
-    return DateFormat('EEEE, d MMMM yyyy - HH:mm', 'id_ID')
-        .format(localDateTime);
-  }
-
-  // Format tanggal untuk waktu dibaca
-  String _formatReadDateTime(DateTime dateTime) {
-    // Konversi UTC ke waktu lokal Indonesia (GMT+7)
-    final localDateTime = dateTime.add(const Duration(hours: 7));
-
-    // Format lengkap dalam bahasa Indonesia tanpa "WIB"
-    return '${DateFormat('EEEE', 'id_ID').format(localDateTime)}, ${localDateTime.day} ${_getIndonesianMonth(localDateTime.month)} ${localDateTime.year} pukul ${DateFormat('HH:mm', 'id_ID').format(localDateTime)}';
-  }
-
-  // Helper untuk mendapatkan nama bulan dalam bahasa Indonesia
-  String _getIndonesianMonth(int month) {
-    const months = [
-      'Januari',
-      'Februari',
-      'Maret',
-      'April',
-      'Mei',
-      'Juni',
-      'Juli',
-      'Agustus',
-      'September',
-      'Oktober',
-      'November',
-      'Desember'
-    ];
-    return months[month - 1];
-  }
-
-  @override
   Widget build(BuildContext context) {
-    final notification = widget.notification;
     final notificationType =
         NotificationTypeExtension.fromString(notification.type);
+    final controller =
+        Provider.of<NotificationController>(context, listen: false);
 
     return Scaffold(
       backgroundColor: Colors.white,
@@ -121,7 +82,7 @@ class _NotificationDetailScreenState extends State<NotificationDetailScreen> {
                       ),
                     ),
                     Text(
-                      _formatDateTime(notification.createdAt),
+                      controller.formatDateTime(notification.createdAt),
                       style: const TextStyle(
                         fontSize: 14,
                         color: Colors.grey,
@@ -181,7 +142,7 @@ class _NotificationDetailScreenState extends State<NotificationDetailScreen> {
                     ),
                     const SizedBox(width: 8),
                     Text(
-                      'Dibaca pada ${_formatReadDateTime(notification.readAt!)}',
+                      'Dibaca pada ${controller.formatReadDateTime(notification.readAt!)}',
                       style: const TextStyle(
                         fontSize: 14,
                         color: Colors.grey,

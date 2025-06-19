@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import '../../controllers/auth_controller.dart';
+import '../../controllers/profile_controller.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:flutter_secure_storage/flutter_secure_storage.dart';
-import 'dart:convert';
+import 'package:provider/provider.dart';
+import '../../auth/login.dart';
+import '../profile/notification_settings.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -12,89 +14,16 @@ class ProfileScreen extends StatefulWidget {
 }
 
 class _ProfileScreenState extends State<ProfileScreen> {
-  Map<String, dynamic>? _profile;
-  bool _isLoading = true;
-  bool _mounted = true;
-  final _storage = const FlutterSecureStorage();
-
   @override
   void initState() {
     super.initState();
-    Future.microtask(() => _loadUserData());
+    final profileController =
+        Provider.of<ProfileController>(context, listen: false);
+    Future.microtask(() => profileController.loadUserData(context));
   }
 
-  @override
-  void dispose() {
-    _mounted = false;
-    super.dispose();
-  }
-
-  Future<void> _loadUserData() async {
-    if (!_mounted) return;
-
-    setState(() {
-      _isLoading = true;
-    });
-
-    try {
-      print("Fetching user profile data...");
-
-      // Coba ambil dari API dulu
-      try {
-        final userData = await ApiService.getProfile(context);
-        if (_mounted) {
-          setState(() {
-            _profile = userData;
-            _isLoading = false;
-          });
-          return;
-        }
-      } catch (e) {
-        print("Error fetching from API: $e");
-        // Jika gagal, coba ambil dari secure storage
-        try {
-          final userId = await _storage.read(key: 'user_id');
-          final employeeNumber = await _storage.read(key: 'employee_number');
-          final rolesString = await _storage.read(key: 'roles');
-
-          if (employeeNumber != null) {
-            final Map<String, dynamic> userData = {
-              'user_id': userId,
-              'employee_number': employeeNumber,
-              'roles': rolesString != null ? json.decode(rolesString) : [],
-            };
-
-            if (_mounted) {
-              setState(() {
-                _profile = userData;
-                _isLoading = false;
-              });
-              return;
-            }
-          }
-        } catch (storageError) {
-          print("Error reading from secure storage: $storageError");
-        }
-      }
-
-      // Jika semua cara gagal
-      throw Exception('Tidak dapat memuat data profil');
-    } catch (e) {
-      print("Error loading user data: $e");
-      if (_mounted) {
-        setState(() => _isLoading = false);
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Error: ${e.toString()}'),
-            backgroundColor: Colors.red.shade900,
-          ),
-        );
-      }
-    }
-  }
-
-  Future<void> _logout() async {
-    if (!_mounted) return;
+  Future<void> _logout(ProfileController controller) async {
+    if (!mounted) return;
 
     final shouldLogout = await showDialog<bool>(
       context: context,
@@ -193,29 +122,29 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
     if (shouldLogout == true) {
       try {
-        // Lakukan logout dengan API tanpa menampilkan loading indicator
-        final result = await ApiService.logout(context);
+        // Lakukan logout dengan controller
+        final success = await controller.logout(context);
 
-        if (_mounted) {
-          // Tampilkan snackbar sukses jika ada pesan dari server
-          if (result['status'] == true && result['message'] != null) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text(result['message']),
-                backgroundColor: Colors.green,
-              ),
-            );
-          }
-
+        if (mounted && success) {
           // Navigasi ke halaman login
-          Navigator.pushReplacementNamed(context, '/');
-        }
-      } catch (e) {
-        if (_mounted) {
-          // Tampilkan error
+          Navigator.of(context).pushAndRemoveUntil(
+            MaterialPageRoute(builder: (context) => const LoginScreen()),
+            (route) => false,
+          );
+        } else if (mounted) {
+          // Tampilkan pesan error
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text('Error: ${e.toString()}'),
+              content: Text(controller.errorMessage ?? 'Gagal logout'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Error: $e'),
               backgroundColor: Colors.red,
             ),
           );
@@ -226,73 +155,78 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Colors.white,
-      body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
-          : SingleChildScrollView(
-              child: Padding(
-                padding: const EdgeInsets.all(16.0),
-                child: Column(
-                  children: [
-                    // Profile Picture
-                    Container(
-                      width: 120,
-                      height: 120,
-                      decoration: const BoxDecoration(
-                        color: Color(0xFF4D4D4D),
-                        shape: BoxShape.circle,
-                      ),
-                      child: const Center(
-                        child: Icon(
-                          Icons.person,
-                          color: Colors.white,
-                          size: 60,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 32),
-
-                    // Name Field changed to Employee Number
-                    _buildProfileField(
-                      label: 'Nomor Karyawan',
-                      value: _profile?['employee_number'] ?? '',
-                    ),
-
-                    // Phone Number Field changed to Role
-                    _buildProfileField(
-                      label: 'Role',
-                      value: _getRoleNameFromRoles(_profile?['roles']),
-                    ),
-
-                    const SizedBox(height: 24),
-
-                    // Logout Button (previously Update button)
-                    SizedBox(
-                      width: double.infinity,
-                      child: ElevatedButton(
-                        onPressed: _logout,
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.red,
-                          padding: const EdgeInsets.symmetric(vertical: 16),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(4),
+    return Consumer<ProfileController>(
+      builder: (context, controller, _) {
+        return Scaffold(
+          backgroundColor: Colors.white,
+          body: controller.isLoading
+              ? const Center(child: CircularProgressIndicator())
+              : SingleChildScrollView(
+                  child: Padding(
+                    padding: const EdgeInsets.all(16.0),
+                    child: Column(
+                      children: [
+                        // Profile Picture
+                        Container(
+                          width: 120,
+                          height: 120,
+                          decoration: const BoxDecoration(
+                            color: Color(0xFF4D4D4D),
+                            shape: BoxShape.circle,
+                          ),
+                          child: const Center(
+                            child: Icon(
+                              Icons.person,
+                              color: Colors.white,
+                              size: 60,
+                            ),
                           ),
                         ),
-                        child: const Text(
-                          'Logout',
-                          style: TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.white,
+                        const SizedBox(height: 32),
+
+                        // Employee Number Field
+                        _buildProfileField(
+                          label: 'Nomor Karyawan',
+                          value: controller.profile?['employee_number'] ?? '',
+                        ),
+
+                        // Role Field
+                        _buildProfileField(
+                          label: 'Role',
+                          value: _getRoleNameFromRoles(
+                              controller.profile?['roles']),
+                        ),
+
+                        const SizedBox(height: 24),
+
+                        // Logout Button
+                        SizedBox(
+                          width: double.infinity,
+                          child: ElevatedButton(
+                            onPressed: () => _logout(controller),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: Colors.red,
+                              padding: const EdgeInsets.symmetric(vertical: 16),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(4),
+                              ),
+                            ),
+                            child: const Text(
+                              'Logout',
+                              style: TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.white,
+                              ),
+                            ),
                           ),
                         ),
-                      ),
+                      ],
                     ),
-                  ],
+                  ),
                 ),
-              ),
-            ),
+        );
+      },
     );
   }
 
@@ -332,7 +266,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   String _getInitials() {
-    final employeeNumber = _profile?['employee_number'] ?? '';
+    final employeeNumber =
+        Provider.of<ProfileController>(context, listen: false)
+                .profile?['employee_number'] ??
+            '';
     if (employeeNumber.isEmpty) return '?';
 
     if (employeeNumber.length >= 2) {

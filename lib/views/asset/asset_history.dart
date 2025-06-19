@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import 'dart:convert';
-import '../../controllers/auth_controller.dart';
+import '../../controllers/asset_history_controller.dart';
+import '../../controllers/auth_controller.dart' as auth;
+import '../../models/asset_history_item_model.dart';
 import 'asset_document.dart';
 import 'asset_mutation.dart';
 import 'asset_details.dart';
@@ -24,17 +27,97 @@ class AssetHistory extends StatefulWidget {
 }
 
 class _AssetHistoryState extends State<AssetHistory> {
-  DateTime selectedDate = DateTime.now();
-  bool isLoading = true;
-  String? errorMessage;
-  List<dynamic> histories = [];
+  late AssetHistoryController _historyController;
   final RefreshController _refreshController =
       RefreshController(initialRefresh: false);
+  int? _assetId;
 
   @override
   void initState() {
     super.initState();
+    _historyController =
+        Provider.of<AssetHistoryController>(context, listen: false);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _initializeAssetId();
+    });
+  }
+
+  @override
+  void dispose() {
+    // Bersihkan controller saat widget dihapus
+    _refreshController.dispose();
+    // Reset controller untuk memastikan data segar saat halaman dibuka kembali
+    _historyController.reset();
+    super.dispose();
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // Perbarui data setiap kali halaman muncul kembali
+    if (_assetId != null) {
+      _fetchAssetHistory();
+    }
+  }
+
+  // Ambil asset_id dari widget.assetData
+  void _initializeAssetId() {
+    if (widget.assetData == null) {
+      _showError('Data aset tidak tersedia');
+      return;
+    }
+
+    // Debug: tampilkan semua key yang tersedia di assetData
+    print('Asset data keys available: ${widget.assetData!.keys.toList()}');
+    print('Asset data: ${widget.assetData}');
+
+    // Coba ambil asset_id dari berbagai properti yang mungkin
+    var assetId = widget.assetData!['asset_id'];
+    if (assetId == null) {
+      assetId = widget.assetData!['id'];
+      if (assetId == null) {
+        assetId = widget.assetData!['asset_master_id'];
+      }
+    }
+
+    if (assetId == null) {
+      _showError('ID aset tidak ditemukan');
+      return;
+    }
+
+    // Convert ke int jika diperlukan
+    _assetId = assetId is int ? assetId : int.tryParse(assetId.toString());
+    if (_assetId == null) {
+      _showError('ID aset tidak valid');
+      return;
+    }
+
+    // Fetch history
     _fetchAssetHistory();
+  }
+
+  // Mengambil riwayat aset berdasarkan asset_id
+  Future<void> _fetchAssetHistory() async {
+    if (_assetId == null) return;
+
+    // Perbarui UI terlebih dahulu
+    _historyController.refreshUI();
+
+    // Ambil data baru
+    await _historyController.fetchAssetHistory(_assetId!, context);
+  }
+
+  // Fungsi untuk refresh
+  void _onRefresh() async {
+    if (_assetId == null) return;
+    await _historyController.fetchAssetHistory(_assetId!, context);
+    _refreshController.refreshCompleted();
+  }
+
+  // Tampilkan pesan error
+  void _showError(String message) {
+    _historyController.clearError();
+    _historyController.setError(message);
   }
 
   // Format tanggal API
@@ -43,355 +126,14 @@ class _AssetHistoryState extends State<AssetHistory> {
     return '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
   }
 
-  void _onRefresh() async {
-    // Aktivasi loading state
-    if (mounted) {
-      setState(() {
-        isLoading = true;
-      });
-    }
-
-    // Fetch data dengan flag showLoading=false karena kita sudah mengaktifkan loading state
-    await _fetchAssetHistory(showLoading: false);
-
-    // Reset refresh controller
-    _refreshController.refreshCompleted();
-  }
-
-  Future<void> _fetchAssetHistory({bool showLoading = true}) async {
-    if (widget.assetData == null) {
-      setState(() {
-        isLoading = false;
-        errorMessage = 'Data aset tidak tersedia';
-      });
-      return;
-    }
-
-    if (showLoading) {
-      setState(() {
-        isLoading = true;
-        errorMessage = null;
-      });
-    }
-
-    try {
-      // Debug: tampilkan semua key yang tersedia di assetData
-      print('Asset data keys available: ${widget.assetData!.keys.toList()}');
-      print('Asset data: ${widget.assetData}');
-
-      // Gunakan asset_id untuk konsistensi dengan dokumen
-      var assetId = widget.assetData!['asset_id']?.toString();
-
-      // Jika asset_id tidak tersedia, coba ambil dari property lain
-      if (assetId == null || assetId.isEmpty) {
-        // Coba dari id
-        assetId = widget.assetData!['id']?.toString();
-
-        // Jika masih null, coba asset_master_id
-        if (assetId == null || assetId.isEmpty) {
-          assetId = widget.assetData!['asset_master_id']?.toString();
-        }
-      }
-
-      if (assetId == null || assetId.isEmpty) {
-        setState(() {
-          isLoading = false;
-          errorMessage = 'ID aset tidak ditemukan (asset_id)';
-        });
-        return;
-      }
-
-      final formattedDate = formatAPIDateParam(selectedDate);
-      print(
-          'Mengambil riwayat untuk aset dengan ID: $assetId pada tanggal: $formattedDate');
-
-      // Gunakan endpoint tanpa parameter tanggal
-      // API mungkin tidak mendukung parameter tanggal atau mengharapkan format yang berbeda
-      String url = '/asset-histories/$assetId';
-
-      // Debug endpoint yang digunakan
-      print('URL request yang digunakan: $url');
-
-      final response = await ApiService.get(
-        url,
-        context: context,
-      );
-
-      print('Response status: ${response.statusCode}');
-      print('Response body: ${response.body}');
-
-      if (response.statusCode == 200) {
-        final data = json.decode(response.body);
-        if (data['success'] == true) {
-          List<dynamic> allHistories = [];
-
-          // Cek format respons - biasanya dalam 'data' dan kemungkinan 'histories'
-          if (data['data'] != null) {
-            if (data['data'] is List) {
-              // Jika data adalah array langsung
-              allHistories = data['data'];
-            } else if (data['data']['histories'] != null &&
-                data['data']['histories'] is List) {
-              // Jika data memiliki property histories
-              allHistories = data['data']['histories'];
-            } else if (data['data']['items'] != null &&
-                data['data']['items'] is List) {
-              // Jika data memiliki property items
-              allHistories = data['data']['items'];
-            } else {
-              // Jika data adalah object tunggal, coba tangani secara khusus
-              print('Data berformat tidak standar: ${data['data']}');
-              if (data['data'] is Map) {
-                final mapData = data['data'] as Map;
-                // Coba cari list dalam property apa pun
-                for (var key in mapData.keys) {
-                  if (mapData[key] is List) {
-                    print('Menemukan array di property: $key');
-                    allHistories = mapData[key];
-                    break;
-                  }
-                }
-
-                // Jika masih kosong, tambahkan data sebagai satu item
-                if (allHistories.isEmpty) {
-                  allHistories = [data['data']];
-                }
-              } else {
-                // Fallback: tambahkan sebagai satu item
-                allHistories = [data['data']];
-              }
-            }
-          }
-
-          print('Jumlah riwayat sebelum filter: ${allHistories.length}');
-
-          // Filter hasil berdasarkan tanggal yang dipilih dalam aplikasi
-          // Ini diproses pada sisi client, bukan server
-          final filteredHistories =
-              _filterHistoriesByDate(allHistories, selectedDate);
-          print('Jumlah riwayat setelah filter: ${filteredHistories.length}');
-
-          setState(() {
-            histories = filteredHistories;
-            isLoading = false;
-          });
-        } else {
-          setState(() {
-            isLoading = false;
-            errorMessage = data['message'] ?? 'Gagal memuat riwayat aset';
-          });
-        }
-      } else if (response.statusCode == 400) {
-        // Penanganan khusus untuk error 400
-        String errorMsg =
-            'Permintaan tidak valid. Format parameter mungkin tidak sesuai.';
-        try {
-          final data = json.decode(response.body);
-          if (data['message'] != null) {
-            errorMsg = data['message'];
-          } else if (data['error'] != null) {
-            errorMsg = data['error'];
-          }
-          print('Error 400 detail: $data');
-        } catch (e) {
-          print('Failed to parse error response: $e');
-        }
-
-        setState(() {
-          isLoading = false;
-          errorMessage = errorMsg;
-          histories = [];
-        });
-
-        // Jika mendapat error 400, coba endpoint alternatif
-        _tryAlternativeEndpoint(assetId);
-      } else if (response.statusCode == 404) {
-        setState(() {
-          isLoading = false;
-          histories = [];
-          errorMessage = 'Riwayat aset tidak ditemukan';
-        });
-
-        // Coba endpoint alternatif jika 404
-        _tryAlternativeEndpoint(assetId);
-      } else if (response.statusCode == 500) {
-        // Handle error 500 dengan pesan yang lebih jelas
-        String serverError;
-        try {
-          final data = json.decode(response.body);
-          serverError =
-              data['message'] ?? 'Terjadi kesalahan pada server (500)';
-        } catch (e) {
-          serverError = 'Terjadi kesalahan pada server (500)';
-        }
-
-        print('Error 500: $serverError');
-        setState(() {
-          isLoading = false;
-          errorMessage =
-              'Kesalahan server: $serverError. Silakan coba lagi nanti.';
-        });
-
-        // Coba endpoint alternatif jika error 500
-        _tryAlternativeEndpoint(assetId);
-      } else {
-        setState(() {
-          isLoading = false;
-          errorMessage = 'Gagal memuat riwayat: Error ${response.statusCode}';
-        });
-
-        // Coba endpoint alternatif untuk kesalahan lain
-        _tryAlternativeEndpoint(assetId);
-      }
-    } catch (e) {
-      print('Error saat mengambil riwayat aset: $e');
-      setState(() {
-        isLoading = false;
-        errorMessage = 'Terjadi kesalahan: ${e.toString()}';
-      });
-    }
-  }
-
-  // Metode untuk mencoba endpoint alternatif
-  Future<void> _tryAlternativeEndpoint(String assetId) async {
-    print('Mencoba endpoint alternatif untuk riwayat...');
-
-    try {
-      // Daftar endpoint alternatif untuk dicoba
-      List<String> alternativeEndpoints = [
-        '/histories/asset/$assetId',
-        '/assets/$assetId/histories',
-        '/assets/histories/$assetId',
-      ];
-
-      // Jika assetId adalah kode QR, tambahkan endpoint khusus QR
-      if (assetId.contains('-')) {
-        alternativeEndpoints
-            .add('/asset-histories/code/${Uri.encodeComponent(assetId)}');
-        alternativeEndpoints
-            .add('/assets/qr/${Uri.encodeComponent(assetId)}/histories');
-      }
-
-      // Coba semua endpoint alternatif satu per satu
-      for (var endpoint in alternativeEndpoints) {
-        print('Mencoba endpoint alternatif: $endpoint');
-
-        try {
-          final response = await ApiService.get(
-            endpoint,
-            context: context,
-          );
-
-          print('Response alternatif status: ${response.statusCode}');
-          if (response.statusCode == 200) {
-            print('Response alternatif body: ${response.body}');
-            final data = json.decode(response.body);
-
-            if (data['success'] == true) {
-              List<dynamic> allHistories = [];
-
-              if (data['data'] != null) {
-                if (data['data'] is List) {
-                  allHistories = data['data'];
-                } else if (data['data']['histories'] != null &&
-                    data['data']['histories'] is List) {
-                  allHistories = data['data']['histories'];
-                } else if (data['data']['items'] != null &&
-                    data['data']['items'] is List) {
-                  allHistories = data['data']['items'];
-                } else if (data['data'] is Map) {
-                  // Mencari array dalam data
-                  for (var key in (data['data'] as Map).keys) {
-                    if (data['data'][key] is List) {
-                      allHistories = data['data'][key];
-                      break;
-                    }
-                  }
-
-                  // Jika masih kosong, gunakan data sebagai satu item
-                  if (allHistories.isEmpty) {
-                    allHistories = [data['data']];
-                  }
-                } else {
-                  allHistories = [data['data']];
-                }
-              }
-
-              print(
-                  'Jumlah riwayat dari endpoint alternatif: ${allHistories.length}');
-
-              final filteredHistories =
-                  _filterHistoriesByDate(allHistories, selectedDate);
-              print(
-                  'Jumlah riwayat alternatif setelah filter: ${filteredHistories.length}');
-
-              // Hanya perbarui state jika berhasil mendapatkan data
-              if (filteredHistories.isNotEmpty) {
-                setState(() {
-                  histories = filteredHistories;
-                  isLoading = false;
-                  errorMessage = null; // Hapus pesan error sebelumnya
-                });
-
-                // Keluar dari loop jika berhasil
-                break;
-              }
-            }
-          }
-        } catch (e) {
-          print('Error pada endpoint alternatif $endpoint: $e');
-          // Lanjutkan ke endpoint berikutnya
-        }
-      }
-    } catch (e) {
-      print('Error umum saat mencoba endpoint alternatif: $e');
-    }
-  }
-
-  // Fungsi untuk memfilter riwayat berdasarkan tanggal dengan penanganan yang lebih baik
-  List<dynamic> _filterHistoriesByDate(List<dynamic> histories, DateTime date) {
-    final targetDate = DateTime(date.year, date.month, date.day);
-    print('Filtering untuk tanggal: $targetDate');
-
-    return histories.where((history) {
-      // Cek beberapa kemungkinan field tanggal
-      String? dateField;
-
-      if (history['action_date'] != null) {
-        dateField = history['action_date'];
-      } else if (history['timestamp'] != null) {
-        dateField = history['timestamp'];
-      } else if (history['created_at'] != null) {
-        dateField = history['created_at'];
-      } else if (history['date'] != null) {
-        dateField = history['date'];
-      }
-
-      if (dateField != null) {
-        try {
-          final DateTime historyDate = DateTime.parse(dateField);
-          final bool match = historyDate.year == targetDate.year &&
-              historyDate.month == targetDate.month &&
-              historyDate.day == targetDate.day;
-
-          if (match) {
-            print('Tanggal cocok: $dateField');
-          }
-
-          return match;
-        } catch (e) {
-          print('Error parsing date: $dateField - $e');
-          return false;
-        }
-      }
-      return false;
-    }).toList();
-  }
+  DateTime selectedDate = DateTime.now();
+  bool isLoading = true;
+  String? errorMessage;
+  List<dynamic> histories = [];
 
   // Format tanggal
   String formatDate(DateTime date) {
-    // Format untuk Indonesia: DD Bulan YYYY
-    List<String> months = [
+    final List<String> months = [
       'Januari',
       'Februari',
       'Maret',
@@ -405,6 +147,7 @@ class _AssetHistoryState extends State<AssetHistory> {
       'November',
       'Desember'
     ];
+
     return '${date.day} ${months[date.month - 1]} ${date.year}';
   }
 
@@ -455,7 +198,7 @@ class _AssetHistoryState extends State<AssetHistory> {
 
     final DateTime? picked = await showDatePicker(
       context: context,
-      initialDate: selectedDate,
+      initialDate: _historyController.selectedDate,
       firstDate: DateTime(2020),
       lastDate: DateTime(2030),
       builder: (context, child) {
@@ -484,22 +227,21 @@ class _AssetHistoryState extends State<AssetHistory> {
       errorInvalidText: 'Tanggal tidak valid',
     );
 
-    if (picked != null && picked != selectedDate) {
-      setState(() {
-        selectedDate = picked;
-      });
-      // Ambil riwayat untuk tanggal baru
-      _fetchAssetHistory();
+    if (picked != null && picked != _historyController.selectedDate) {
+      // Gunakan fungsi baru yang langsung mengambil data
+      if (_assetId != null) {
+        await _historyController.updateSelectedDateAndFetch(
+            picked, _assetId!, context);
+      }
     }
   }
 
   // Fungsi untuk navigasi hari
-  void _changeDay(int days) {
-    setState(() {
-      selectedDate = selectedDate.add(Duration(days: days));
-    });
-    // Ambil riwayat untuk tanggal baru
-    _fetchAssetHistory();
+  void _changeDay(int days) async {
+    // Gunakan fungsi baru yang langsung mengambil data
+    if (_assetId != null) {
+      await _historyController.changeDayAndFetch(days, _assetId!, context);
+    }
   }
 
   @override
@@ -558,8 +300,8 @@ class _AssetHistoryState extends State<AssetHistory> {
                   icon: const Icon(Icons.arrow_back,
                       color: Colors.white, size: 32),
                   onPressed: () {
-                    // Navigasi langsung ke halaman AssetDetails ketika tombol kembali ditekan
-                    Navigator.pushReplacement(
+                    // Navigasi ke halaman AssetDetails ketika tombol kembali ditekan
+                    Navigator.push(
                       context,
                       MaterialPageRoute(
                         builder: (context) => AssetDetails(
@@ -659,14 +401,18 @@ class _AssetHistoryState extends State<AssetHistory> {
                         left: 0,
                         right: 0,
                         child: Center(
-                          child: Text(
-                            formatDate(selectedDate),
-                            style: const TextStyle(
-                              fontFamily: 'Inter',
-                              fontSize: 32,
-                              fontWeight: FontWeight.w500,
-                              color: Color(0xFF213268),
-                            ),
+                          child: Consumer<AssetHistoryController>(
+                            builder: (context, controller, child) {
+                              return Text(
+                                formatDate(controller.selectedDate),
+                                style: const TextStyle(
+                                  fontFamily: 'Inter',
+                                  fontSize: 32,
+                                  fontWeight: FontWeight.w500,
+                                  color: Color(0xFF213268),
+                                ),
+                              );
+                            },
                           ),
                         ),
                       ),
@@ -692,16 +438,20 @@ class _AssetHistoryState extends State<AssetHistory> {
                               constraints: const BoxConstraints(minWidth: 120),
                               padding:
                                   const EdgeInsets.symmetric(horizontal: 8),
-                              child: Text(
-                                formatDay(selectedDate),
-                                textAlign: TextAlign.center,
-                                style: const TextStyle(
-                                  fontFamily: 'Inter',
-                                  fontSize: 22,
-                                  fontWeight: FontWeight.w500,
-                                  color: Color(0xFF213268),
-                                ),
-                                overflow: TextOverflow.visible,
+                              child: Consumer<AssetHistoryController>(
+                                builder: (context, controller, child) {
+                                  return Text(
+                                    formatDay(controller.selectedDate),
+                                    textAlign: TextAlign.center,
+                                    style: const TextStyle(
+                                      fontFamily: 'Inter',
+                                      fontSize: 22,
+                                      fontWeight: FontWeight.w500,
+                                      color: Color(0xFF213268),
+                                    ),
+                                    overflow: TextOverflow.visible,
+                                  );
+                                },
                               ),
                             ),
                             IconButton(
@@ -725,8 +475,10 @@ class _AssetHistoryState extends State<AssetHistory> {
                   child: Container(
                     width: double.infinity,
                     color: Colors.white,
-                    child: isLoading && errorMessage == null
-                        ? Skeletonizer(
+                    child: Consumer<AssetHistoryController>(
+                      builder: (context, controller, child) {
+                        if (controller.isLoading && controller.error == null) {
+                          return Skeletonizer(
                             enabled: true,
                             effect: ShimmerEffect(
                               baseColor: Colors.grey.shade300,
@@ -760,225 +512,199 @@ class _AssetHistoryState extends State<AssetHistory> {
                                 ],
                               ),
                             ),
-                          )
-                        : errorMessage != null
-                            ? Center(
-                                child: Padding(
-                                  padding: const EdgeInsets.all(16.0),
-                                  child: Column(
-                                    mainAxisAlignment: MainAxisAlignment.center,
-                                    children: [
-                                      Icon(
-                                        Icons.error_outline,
-                                        color: Colors.red[700],
-                                        size: 48,
-                                      ),
-                                      const SizedBox(height: 16),
-                                      Text(
-                                        errorMessage!,
-                                        style: TextStyle(
-                                          color: Colors.red[700],
-                                          fontSize: 16,
-                                        ),
-                                        textAlign: TextAlign.center,
-                                      ),
-                                      const SizedBox(height: 24),
-                                      ElevatedButton.icon(
-                                        onPressed: _fetchAssetHistory,
-                                        icon: const Icon(Icons.refresh),
-                                        label: const Text('Coba Lagi'),
-                                        style: ElevatedButton.styleFrom(
-                                          backgroundColor:
-                                              const Color(0xFF213268),
-                                          foregroundColor: Colors.white,
-                                          shape: RoundedRectangleBorder(
-                                            borderRadius:
-                                                BorderRadius.circular(8),
-                                          ),
-                                        ),
-                                      ),
-                                    ],
+                          );
+                        } else if (controller.error != null) {
+                          return Center(
+                            child: Padding(
+                              padding: const EdgeInsets.all(16.0),
+                              child: Column(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Icon(
+                                    Icons.error_outline,
+                                    color: Colors.red[700],
+                                    size: 48,
                                   ),
-                                ),
-                              )
-                            : histories.isEmpty
-                                ? Center(
-                                    child: Padding(
-                                      padding: const EdgeInsets.all(16.0),
-                                      child: Column(
-                                        mainAxisAlignment:
-                                            MainAxisAlignment.center,
-                                        children: [
-                                          Icon(
-                                            Icons.history,
-                                            color: Colors.grey[400],
-                                            size: 64,
-                                          ),
-                                          const SizedBox(height: 16),
-                                          const Text(
-                                            'Tidak ada riwayat',
-                                            style: TextStyle(
-                                              fontSize: 18,
-                                              fontWeight: FontWeight.w500,
-                                              color: Color(0xFF666666),
-                                            ),
-                                          ),
-                                          const SizedBox(height: 8),
-                                          const Text(
-                                            'Tidak ada aktivitas pada tanggal ini',
-                                            style: TextStyle(
-                                              fontSize: 14,
-                                              color: Color(0xFF999999),
-                                            ),
-                                            textAlign: TextAlign.center,
-                                          ),
-                                          const SizedBox(height: 24),
-                                          ElevatedButton.icon(
-                                            onPressed: _fetchAssetHistory,
-                                            icon: const Icon(Icons.refresh),
-                                            label: const Text('Muat Ulang'),
-                                            style: ElevatedButton.styleFrom(
-                                              backgroundColor:
-                                                  const Color(0xFF25B1FF),
-                                              foregroundColor: Colors.white,
-                                              shape: RoundedRectangleBorder(
-                                                borderRadius:
-                                                    BorderRadius.circular(8),
+                                  const SizedBox(height: 16),
+                                  Text(
+                                    controller.error!,
+                                    style: TextStyle(
+                                      color: Colors.red[700],
+                                      fontSize: 16,
+                                    ),
+                                    textAlign: TextAlign.center,
+                                  ),
+                                  const SizedBox(height: 24),
+                                  ElevatedButton.icon(
+                                    onPressed: _fetchAssetHistory,
+                                    icon: const Icon(Icons.refresh),
+                                    label: const Text('Coba Lagi'),
+                                    style: ElevatedButton.styleFrom(
+                                      backgroundColor: const Color(0xFF213268),
+                                      foregroundColor: Colors.white,
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(8),
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          );
+                        } else if (controller.histories.isEmpty) {
+                          return Center(
+                            child: Padding(
+                              padding: const EdgeInsets.all(16.0),
+                              child: Column(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Icon(
+                                    Icons.history,
+                                    color: Colors.grey[400],
+                                    size: 64,
+                                  ),
+                                  const SizedBox(height: 16),
+                                  const Text(
+                                    'Tidak ada riwayat',
+                                    style: TextStyle(
+                                      fontSize: 18,
+                                      fontWeight: FontWeight.w500,
+                                      color: Color(0xFF666666),
+                                    ),
+                                  ),
+                                  const SizedBox(height: 8),
+                                  const Text(
+                                    'Tidak ada aktivitas pada tanggal ini',
+                                    style: TextStyle(
+                                      fontSize: 14,
+                                      color: Color(0xFF999999),
+                                    ),
+                                    textAlign: TextAlign.center,
+                                  ),
+                                  const SizedBox(height: 24),
+                                  ElevatedButton.icon(
+                                    onPressed: _fetchAssetHistory,
+                                    icon: const Icon(Icons.refresh),
+                                    label: const Text('Muat Ulang'),
+                                    style: ElevatedButton.styleFrom(
+                                      backgroundColor: const Color(0xFF25B1FF),
+                                      foregroundColor: Colors.white,
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(8),
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          );
+                        } else {
+                          return SmartRefresher(
+                            enablePullDown: true,
+                            controller: _refreshController,
+                            onRefresh: _onRefresh,
+                            header: const WaterDropMaterialHeader(
+                              backgroundColor: Color(0xFF25B1FF),
+                              color: Colors.white,
+                              distance: 60.0,
+                            ),
+                            child: SingleChildScrollView(
+                              child: Container(
+                                padding:
+                                    const EdgeInsets.only(top: 30, bottom: 30),
+                                child: Stack(
+                                  children: [
+                                    // Vertical Timeline Line - Berhenti di lingkaran terakhir
+                                    Builder(builder: (context) {
+                                      // Hitung tinggi total item
+                                      final double totalHeight =
+                                          (controller.histories.length - 1) *
+                                              (69 + 20);
+
+                                      return Positioned(
+                                        left: 35,
+                                        top: 0,
+                                        height:
+                                            totalHeight > 0 ? totalHeight : 0,
+                                        width: 3,
+                                        child: Container(
+                                          color: const Color(0xFFAAAAAA),
+                                        ),
+                                      );
+                                    }),
+
+                                    // Timeline Items
+                                    Column(
+                                      children: controller.histories
+                                          .map<Widget>((history) {
+                                        final actionType = history.actionType;
+                                        final message = history.message;
+                                        final time = formatAPIDate(
+                                            history.actionDate.toString());
+
+                                        if (actionType.toUpperCase() ==
+                                            'ASSET_STATUS_CHANGE') {
+                                          final oldStatus = history.oldStatus;
+                                          final newStatus = history.newStatus;
+                                          final employeeId = history.employeeId;
+
+                                          return Column(
+                                            children: [
+                                              _buildTimelineItem(
+                                                actionType: actionType,
+                                                message:
+                                                    '$employeeId mengubah status dari ',
+                                                oldStatus: history
+                                                    .translateStatus(oldStatus),
+                                                connecting: ' ke ',
+                                                newStatus: history
+                                                    .translateStatus(newStatus),
+                                                time: time,
                                               ),
-                                            ),
-                                          ),
-                                        ],
-                                      ),
+                                              const SizedBox(height: 20),
+                                            ],
+                                          );
+                                        } else if (actionType.toUpperCase() ==
+                                            'DOCUMENT_UPLOAD') {
+                                          final docTitle =
+                                              history.document?['title'] ?? '';
+
+                                          return Column(
+                                            children: [
+                                              _buildDocumentTimelineItem(
+                                                message: message
+                                                        .contains('uploaded')
+                                                    ? '${history.employeeId} mengunggah dokumen $docTitle'
+                                                    : message
+                                                            .contains('updated')
+                                                        ? '${history.employeeId} memperbarui dokumen'
+                                                        : message,
+                                                time: time,
+                                              ),
+                                              const SizedBox(height: 20),
+                                            ],
+                                          );
+                                        } else {
+                                          return Column(
+                                            children: [
+                                              _buildSimpleTimelineItem(
+                                                message: message,
+                                                time: time,
+                                              ),
+                                              const SizedBox(height: 20),
+                                            ],
+                                          );
+                                        }
+                                      }).toList(),
                                     ),
-                                  )
-                                : SmartRefresher(
-                                    enablePullDown: true,
-                                    controller: _refreshController,
-                                    onRefresh: _onRefresh,
-                                    header: const WaterDropMaterialHeader(
-                                      backgroundColor: Color(0xFF25B1FF),
-                                      color: Colors.white,
-                                      distance: 60.0,
-                                    ),
-                                    child: SingleChildScrollView(
-                                      child: Container(
-                                        padding: const EdgeInsets.only(
-                                            top: 30, bottom: 30),
-                                        child: Stack(
-                                          children: [
-                                            // Vertical Timeline Line - Berhenti di lingkaran terakhir
-                                            Builder(builder: (context) {
-                                              // Hitung tinggi total item
-                                              final double totalHeight =
-                                                  (histories.length - 1) *
-                                                      (69 + 20);
-
-                                              return Positioned(
-                                                left: 35,
-                                                top: 0,
-                                                height: totalHeight > 0
-                                                    ? totalHeight
-                                                    : 0,
-                                                width: 3,
-                                                child: Container(
-                                                  color:
-                                                      const Color(0xFFAAAAAA),
-                                                ),
-                                              );
-                                            }),
-
-                                            // Timeline Items
-                                            Column(
-                                              children: histories
-                                                  .map<Widget>((history) {
-                                                final actionType =
-                                                    history['action_type'] ??
-                                                        '';
-                                                final message =
-                                                    history['message'] ?? '';
-                                                final time = formatAPIDate(
-                                                    history['action_date'] ??
-                                                        '');
-
-                                                if (actionType ==
-                                                    'ASSET_STATUS_CHANGE') {
-                                                  final oldStatus =
-                                                      history['old_status'] ??
-                                                          '';
-                                                  final newStatus =
-                                                      history['new_status'] ??
-                                                          '';
-                                                  final employeeNumber = history[
-                                                              'user']?[
-                                                          'employee_number'] ??
-                                                      '';
-
-                                                  return Column(
-                                                    children: [
-                                                      _buildTimelineItem(
-                                                        actionType: actionType,
-                                                        message:
-                                                            '$employeeNumber mengubah status dari ',
-                                                        oldStatus:
-                                                            _translateStatus(
-                                                                oldStatus),
-                                                        connecting: ' ke ',
-                                                        newStatus:
-                                                            _translateStatus(
-                                                                newStatus),
-                                                        time: time,
-                                                      ),
-                                                      const SizedBox(
-                                                          height: 20),
-                                                    ],
-                                                  );
-                                                } else if (actionType ==
-                                                    'DOCUMENT_UPLOAD') {
-                                                  final documentTitle =
-                                                      history['document']
-                                                              ?['title'] ??
-                                                          '';
-                                                  final employeeNumber = history[
-                                                              'user']?[
-                                                          'employee_number'] ??
-                                                      '';
-
-                                                  return Column(
-                                                    children: [
-                                                      _buildDocumentTimelineItem(
-                                                        message: message
-                                                                .contains(
-                                                                    'uploaded')
-                                                            ? '$employeeNumber mengunggah dokumen $documentTitle'
-                                                            : message.contains(
-                                                                    'updated')
-                                                                ? '$employeeNumber memperbarui dokumen'
-                                                                : message,
-                                                        time: time,
-                                                      ),
-                                                      const SizedBox(
-                                                          height: 20),
-                                                    ],
-                                                  );
-                                                } else {
-                                                  return Column(
-                                                    children: [
-                                                      _buildSimpleTimelineItem(
-                                                        message: message,
-                                                        time: time,
-                                                      ),
-                                                      const SizedBox(
-                                                          height: 20),
-                                                    ],
-                                                  );
-                                                }
-                                              }).toList(),
-                                            ),
-                                          ],
-                                        ),
-                                      ),
-                                    ),
-                                  ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          );
+                        }
+                      },
+                    ),
                   ),
                 ),
               ],
@@ -988,24 +714,6 @@ class _AssetHistoryState extends State<AssetHistory> {
       ),
       bottomNavigationBar: _buildBottomNavigationBar(),
     );
-  }
-
-  String _translateStatus(String status) {
-    switch (status.toLowerCase()) {
-      case 'available':
-      case 'returned':
-        return 'Tersedia';
-      case 'checked out':
-        return 'Dipinjam';
-      case 'under repair':
-        return 'Perbaikan';
-      case 'lost':
-        return 'Hilang';
-      case 'dispose':
-        return 'Dibuang';
-      default:
-        return status;
-    }
   }
 
   Widget _buildTimelineItem({

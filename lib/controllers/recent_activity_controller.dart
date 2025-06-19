@@ -8,19 +8,23 @@ class RecentActivityController extends ChangeNotifier {
   Map<String, List<HistoryModel>> _activitiesByMonth = {};
   HistoryPagination? _pagination;
   bool _isLoading = false;
+  bool _isLoadingMore = false;
   String? _error;
   int _currentPage = 1;
   bool _hasMoreData = true;
   final int _limit = 10;
   bool _isSuccess = false;
+  ScrollController _scrollController = ScrollController();
 
   List<HistoryModel> get activities => _activities;
   Map<String, List<HistoryModel>> get activitiesByMonth => _activitiesByMonth;
   HistoryPagination? get pagination => _pagination;
   bool get isLoading => _isLoading;
+  bool get isLoadingMore => _isLoadingMore;
   String? get error => _error;
   bool get hasMoreData => _hasMoreData;
   bool get isSuccess => _isSuccess;
+  ScrollController get scrollController => _scrollController;
 
   // Method untuk mengatur status loading secara manual
   void setLoading(bool loading) {
@@ -29,6 +33,28 @@ class RecentActivityController extends ChangeNotifier {
       notifyListeners();
       print('RecentActivityController loading state set to: $_isLoading');
     }
+  }
+
+  // Method untuk mengatur status loading more secara manual
+  void setLoadingMore(bool loading) {
+    if (_isLoadingMore != loading) {
+      _isLoadingMore = loading;
+      notifyListeners();
+    }
+  }
+
+  // Method untuk initialize scroll controller
+  void initScrollController() {
+    if (_scrollController.hasClients) {
+      _scrollController.dispose();
+    }
+    _scrollController = ScrollController();
+  }
+
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    super.dispose();
   }
 
   Future<void> loadRecentActivities({bool refresh = true}) async {

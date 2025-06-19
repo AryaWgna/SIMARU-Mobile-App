@@ -248,9 +248,11 @@ class FirebaseMessagingService {
         print('Request data prepared: $requestData');
 
         try {
-          print('Sending HTTP request to: http://192.168.43.221:5000/notifications/fcm-token');
+          print(
+              'Sending HTTP request to: https://web-magangunbin2025.rsummi.co.id/api/notifications/fcm-token');
           final response = await http.post(
-            Uri.parse('http://192.168.43.221:5000/notifications/fcm-token'),
+            Uri.parse(
+                'https://web-magangunbin2025.rsummi.co.id/api/notifications/fcm-token'),
             headers: {
               'Authorization': 'Bearer $authToken',
               'Content-Type': 'application/json',

@@ -8,6 +8,8 @@ import '../../controllers/asset_under_repair_controller.dart';
 import '../../controllers/net_asset_value_controller.dart';
 import '../../controllers/recent_activity_controller.dart';
 import '../../widgets/today_activities_widget.dart';
+import 'package:flutter_assets_monitoring/models/net_asset_model.dart';
+import 'package:flutter_assets_monitoring/views/notification/notification_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});

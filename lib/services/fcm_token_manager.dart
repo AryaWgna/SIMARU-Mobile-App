@@ -7,7 +7,7 @@ class FcmTokenManager {
   static const FlutterSecureStorage _storage = FlutterSecureStorage();
   static const String _fcmTokenKey = 'fcm_token';
   static const String _apiEndpoint =
-      'http://192.168.43.221:5000/notifications/fcm-token'; // Ganti dengan API endpoint Anda
+      'https://web-magangunbin2025.rsummi.co.id/api/notifications/fcm-token'; // Ganti dengan API endpoint Anda
 
   // Mendapatkan token FCM
   static Future<String?> getFcmToken() async {

@@ -2,69 +2,17 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../pages/qr_scanner_screen.dart';
 import 'dart:convert';
-import '../../controllers/auth_controller.dart';
+import 'dart:async';
+import '../../controllers/auth_controller.dart' as auth;
 import 'stockopname_scanner.dart';
 import 'package:pull_to_refresh_flutter3/pull_to_refresh_flutter3.dart';
 import 'package:skeletonizer/skeletonizer.dart';
-
-class Building {
-  final int id;
-  final String name;
-
-  Building({required this.id, required this.name});
-
-  factory Building.fromJson(Map<String, dynamic> json) {
-    return Building(
-      id: json['id'],
-      name: json['name'],
-    );
-  }
-}
-
-class Room {
-  final int id;
-  final String name;
-  final int buildingId;
-
-  Room({required this.id, required this.name, required this.buildingId});
-
-  factory Room.fromJson(Map<String, dynamic> json) {
-    return Room(
-      id: json['id'],
-      name: json['name'],
-      buildingId: json['building_id'],
-    );
-  }
-}
-
-class StockOpname {
-  final int opnameId;
-  final String opnameCode;
-  final int roomId;
-  final String roomName;
-  final int totalAssets;
-  final int scannedAssets;
-
-  StockOpname({
-    required this.opnameId,
-    required this.opnameCode,
-    required this.roomId,
-    required this.roomName,
-    required this.totalAssets,
-    required this.scannedAssets,
-  });
-
-  factory StockOpname.fromJson(Map<String, dynamic> json) {
-    return StockOpname(
-      opnameId: json['opname_id'],
-      opnameCode: json['opname_code'],
-      roomId: json['room_id'],
-      roomName: json['room_name'],
-      totalAssets: json['total_assets'],
-      scannedAssets: json['scanned_assets'],
-    );
-  }
-}
+import 'package:provider/provider.dart';
+import 'package:intl/intl.dart';
+import '../../controllers/stockopname_controller.dart';
+import '../../models/stockopname_model.dart';
+import 'package:drop_down_list/drop_down_list.dart';
+import 'package:drop_down_list/model/selected_list_item.dart';
 
 class StockopnameScreen extends StatefulWidget {
   const StockopnameScreen({super.key});
@@ -74,50 +22,31 @@ class StockopnameScreen extends StatefulWidget {
 }
 
 class _StockopnameScreenState extends State<StockopnameScreen> {
-  Building? selectedBuilding;
-  Room? selectedRoom;
-  List<Building> buildings = [];
-  List<Room> rooms = [];
-  List<Room> filteredRooms = [];
-  bool isLoadingBuildings = false;
-  bool isLoadingRooms = false;
-  bool isCreatingOpname = false;
-  String? errorMessage;
-  List<StockOpname> pendingOpnames = [];
-  final TextEditingController buildingSearchController =
-      TextEditingController();
-  final TextEditingController roomSearchController = TextEditingController();
   final GlobalKey<ScaffoldMessengerState> _scaffoldMessengerKey =
       GlobalKey<ScaffoldMessengerState>();
   final RefreshController _refreshController =
       RefreshController(initialRefresh: false);
+  late StockOpnameController _stockOpnameController;
+  bool _firstLoad = true; // Untuk track apakah ini adalah load pertama
+
+  // Tambahkan timer untuk debounce pencarian
+  Timer? _buildingSearchDebounce;
+  Timer? _roomSearchDebounce;
 
   @override
   void initState() {
     super.initState();
+    _stockOpnameController =
+        Provider.of<StockOpnameController>(context, listen: false);
     _loadData();
-  }
-
-  Future<void> _loadData() async {
-    try {
-      await _fetchBuildings();
-      await _fetchPendingOpnames();
-      if (_refreshController.isRefresh) {
-        _refreshController.refreshCompleted();
-      }
-    } catch (e) {
-      print('Error loading data: $e');
-      if (_refreshController.isRefresh) {
-        _refreshController.refreshFailed();
-      }
-    }
   }
 
   @override
   void dispose() {
-    buildingSearchController.dispose();
-    roomSearchController.dispose();
     _refreshController.dispose();
+    // Pastikan untuk membatalkan timer debounce saat widget dihapus
+    _buildingSearchDebounce?.cancel();
+    _roomSearchDebounce?.cancel();
     super.dispose();
   }
 
@@ -144,242 +73,73 @@ class _StockopnameScreenState extends State<StockopnameScreen> {
     );
   }
 
-  Future<void> _fetchBuildings() async {
-    setState(() {
-      isLoadingBuildings = true;
-      errorMessage = null;
-    });
-
-    try {
-      final response = await ApiService.get('/buildings');
-
-      if (response.statusCode == 200) {
-        final data = jsonDecode(response.body);
-        if (data['success'] == true) {
-          final List<dynamic> buildingsJson = data['data'] ?? [];
-          setState(() {
-            buildings =
-                buildingsJson.map((json) => Building.fromJson(json)).toList();
-            isLoadingBuildings = false;
-          });
-        } else {
-          // Gunakan data simulasi jika success tidak true
-          setState(() {
-            isLoadingBuildings = false;
-            buildings = [
-              Building(id: 1, name: 'Gedung Utama'),
-              Building(id: 2, name: 'Gedung Rawat Inap'),
-              Building(id: 3, name: 'Gedung Poliklinik'),
-            ];
-          });
-        }
-      } else {
-        // Gunakan data simulasi jika status code bukan 200
-        setState(() {
-          isLoadingBuildings = false;
-          buildings = [
-            Building(id: 1, name: 'Gedung Utama'),
-            Building(id: 2, name: 'Gedung Rawat Inap'),
-            Building(id: 3, name: 'Gedung Poliklinik'),
-          ];
-        });
-      }
-    } catch (e) {
-      setState(() {
-        errorMessage = null; // Tidak perlu menampilkan error di state
-        isLoadingBuildings = false;
-
-        // Simulasi data gedung untuk pengembangan
-        buildings = [
-          Building(id: 1, name: 'Gedung Utama'),
-          Building(id: 2, name: 'Gedung Rawat Inap'),
-          Building(id: 3, name: 'Gedung Poliklinik'),
-        ];
-      });
-
-      // Hindari menampilkan error menggunakan snackbar
-      // _showError('Gagal memuat daftar gedung: $e');
-      print('Error saat memuat gedung: $e'); // Hanya log error
-    }
-  }
-
-  Future<void> _fetchRoomsByBuilding(int buildingId) async {
-    setState(() {
-      isLoadingRooms = true;
-      selectedRoom = null;
-      rooms = [];
-      filteredRooms = [];
-      errorMessage = null;
-      roomSearchController.clear();
-    });
-
-    try {
-      final response = await ApiService.get('/rooms?building_id=$buildingId');
-
-      if (response.statusCode == 200) {
-        final data = jsonDecode(response.body);
-        if (data['success'] == true) {
-          final List<dynamic> roomsJson = data['data'];
-          setState(() {
-            rooms = roomsJson.map((json) => Room.fromJson(json)).toList();
-            filteredRooms = List.from(rooms);
-            isLoadingRooms = false;
-          });
-        } else {
-          // Gunakan data simulasi jika success tidak true
-          _setSimulatedRooms(buildingId);
-        }
-      } else {
-        // Gunakan data simulasi jika status code bukan 200
-        _setSimulatedRooms(buildingId);
-      }
-    } catch (e) {
-      // Gunakan data simulasi jika terjadi error
-      _setSimulatedRooms(buildingId);
-
-      // Hanya log error, tidak perlu menampilkan snackbar error
-      print('Error saat memuat ruangan: $e');
-    }
-  }
-
-  // Fungsi helper untuk mengeset data ruangan simulasi
-  void _setSimulatedRooms(int buildingId) {
-    setState(() {
-      isLoadingRooms = false;
-
-      // Simulasi data ruangan untuk pengembangan
-      if (buildingId == 1) {
-        rooms = [
-          Room(id: 1, name: 'Ruang IGD', buildingId: 1),
-          Room(id: 2, name: 'Ruang ICU-01', buildingId: 1),
-          Room(id: 3, name: 'Ruang ICU-02', buildingId: 1),
-        ];
-      } else if (buildingId == 2) {
-        rooms = [
-          Room(id: 4, name: 'Kamar 101', buildingId: 2),
-          Room(id: 5, name: 'Kamar 102', buildingId: 2),
-          Room(id: 6, name: 'Kamar 201', buildingId: 2),
-        ];
-      } else {
-        rooms = [
-          Room(id: 7, name: 'Poli Umum', buildingId: 3),
-          Room(id: 8, name: 'Poli Gigi', buildingId: 3),
-          Room(id: 9, name: 'Poli Anak', buildingId: 3),
-        ];
-      }
-      filteredRooms = List.from(rooms);
-    });
-  }
-
-  void _filterRooms(String query) {
-    setState(() {
-      if (query.isEmpty) {
-        filteredRooms = List.from(rooms);
-      } else {
-        filteredRooms = rooms
-            .where(
-                (room) => room.name.toLowerCase().contains(query.toLowerCase()))
-            .toList();
-      }
-    });
-  }
-
-  Future<void> _fetchPendingOpnames() async {
-    try {
-      final response = await ApiService.get('/asset-opnames?status=pending');
-
-      if (response.statusCode == 200) {
-        final data = jsonDecode(response.body);
-        if (data['success'] == true) {
-          final List<dynamic> opnamesJson = data['data'];
-          setState(() {
-            pendingOpnames =
-                opnamesJson.map((json) => StockOpname.fromJson(json)).toList();
-          });
-        } else {
-          // Gunakan data simulasi jika success tidak true
-          _setSimulatedPendingOpnames();
-        }
-      } else {
-        // Gunakan data simulasi jika status code bukan 200
-        _setSimulatedPendingOpnames();
-      }
-    } catch (e) {
-      // Gunakan data simulasi untuk pengembangan jika terjadi error
-      _setSimulatedPendingOpnames();
-
-      // Hanya log error
-      print('Error saat memuat pending opnames: $e');
-    }
-  }
-
-  // Fungsi helper untuk mengeset data opname simulasi
-  void _setSimulatedPendingOpnames() {
-    setState(() {
-      pendingOpnames = [
-        StockOpname(
-          opnameId: 1,
-          opnameCode: 'OPN25040001',
-          roomId: 2,
-          roomName: 'ICU-01',
-          totalAssets: 5,
-          scannedAssets: 3,
+  void _showSuccess(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: Colors.green,
+        behavior: SnackBarBehavior.floating,
+        margin: EdgeInsets.only(
+          bottom: MediaQuery.of(context).padding.bottom > 0 ? 90.0 : 70.0,
+          left: 20.0,
+          right: 20.0,
         ),
-      ];
-    });
+      ),
+    );
   }
 
-  Future<StockOpname?> _createStockOpname(int roomId) async {
-    setState(() {
-      isCreatingOpname = true;
-      errorMessage = null;
-    });
-
+  Future<void> _loadData() async {
     try {
-      final response = await ApiService.post(
-        '/asset-opnames',
-        body: {'room_id': roomId},
-        context: context,
-      );
+      setState(() {
+        _firstLoad = true; // Set ke true saat mulai loading
+      });
 
-      if (response.statusCode == 200 || response.statusCode == 201) {
-        final data = jsonDecode(response.body);
+      await Future.wait([
+        _stockOpnameController.fetchBuildings(context),
+        _stockOpnameController.fetchPendingOpnames(context),
+      ]);
 
-        if (data['success'] == true) {
-          // Refresh daftar opname yang sedang berjalan
-          _fetchPendingOpnames();
+      // Setelah data dimuat, tandai first load selesai
+      setState(() {
+        _firstLoad = false;
+      });
 
-          // Tampilkan pesan sukses
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(data['message'] ?? 'Stock opname berhasil dibuat'),
-              backgroundColor: Colors.green,
-              behavior: SnackBarBehavior.floating,
-              margin: EdgeInsets.only(
-                bottom: MediaQuery.of(context).padding.bottom > 0 ? 90.0 : 70.0,
-                left: 20.0,
-                right: 20.0,
-              ),
-            ),
-          );
-
-          // Return data untuk diteruskan ke StockopnameScanner
-          return StockOpname.fromJson(data['data']);
-        } else {
-          throw data['message'] ?? 'Gagal membuat stock opname';
-        }
-      } else {
-        final data = jsonDecode(response.body);
-        throw data['message'] ?? 'Gagal membuat stock opname';
+      if (_refreshController.isRefresh) {
+        _refreshController.refreshCompleted();
       }
     } catch (e) {
-      _showError('Gagal membuat stock opname: $e');
-      return null;
-    } finally {
+      print('Error loading data: $e');
+
       setState(() {
-        isCreatingOpname = false;
+        _firstLoad =
+            false; // Pastikan _firstLoad diset false bahkan jika terjadi error
       });
+
+      if (_refreshController.isRefresh) {
+        _refreshController.refreshFailed();
+      }
     }
+  }
+
+  // Navigasi ke halaman scanner
+  void _navigateToScanner(int opnameId, String opnameCode, int roomId,
+      String roomName, int totalAssets) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => StockopnameScanner(
+          opnameId: opnameId,
+          opnameCode: opnameCode,
+          roomId: roomId,
+          roomName: roomName,
+          totalAssets: totalAssets,
+          previousScreen: 'stockopname',
+        ),
+      ),
+    ).then((_) {
+      // Refresh data setelah kembali dari scan
+      _stockOpnameController.fetchPendingOpnames(context);
+    });
   }
 
   @override
@@ -394,7 +154,7 @@ class _StockopnameScreenState extends State<StockopnameScreen> {
         enablePullDown: true,
         enablePullUp: false,
         controller: _refreshController,
-        onRefresh: _loadData,
+        onRefresh: _handleRefresh,
         physics: const BouncingScrollPhysics(
           parent: AlwaysScrollableScrollPhysics(),
         ),
@@ -411,25 +171,51 @@ class _StockopnameScreenState extends State<StockopnameScreen> {
           physics: const AlwaysScrollableScrollPhysics(),
           slivers: [
             SliverToBoxAdapter(
-              child: Container(
-                color: Colors.white,
-                constraints: BoxConstraints(
-                  minHeight: MediaQuery.of(context).size.height -
-                      kBottomNavigationBarHeight -
-                      MediaQuery.of(context).padding.top -
-                      82,
-                ),
-                child: isLoadingBuildings || isLoadingRooms
-                    ? Skeletonizer(
-                        enabled: true,
-                        effect: ShimmerEffect(
-                          baseColor: Colors.grey.shade300,
-                          highlightColor: const Color(0xFFE5EFFF),
-                        ),
-                        child: _buildSkeletonContent(),
-                      )
-                    : _buildMainContent(),
-              ),
+              child: Consumer<StockOpnameController>(
+                  builder: (context, controller, _) {
+                return Container(
+                  color: Colors.white,
+                  constraints: BoxConstraints(
+                    minHeight: MediaQuery.of(context).size.height -
+                        kBottomNavigationBarHeight -
+                        MediaQuery.of(context).padding.top -
+                        82,
+                  ),
+                  child: Stack(
+                    children: [
+                      // Main content
+                      (_firstLoad &&
+                              (controller.isLoadingBuildings ||
+                                  controller.isLoadingRooms))
+                          ? Skeletonizer(
+                              enabled: true,
+                              effect: ShimmerEffect(
+                                baseColor: Colors.grey.shade300,
+                                highlightColor: const Color(0xFFE5EFFF),
+                              ),
+                              child: _buildSkeletonContent(),
+                            )
+                          : _buildMainContent(controller),
+
+                      // Help button
+                      Positioned(
+                        bottom: 16,
+                        right: 16,
+                        child: controller.error != null
+                            ? FloatingActionButton(
+                                heroTag: "helpBtn",
+                                backgroundColor: Colors.orange,
+                                child: const Icon(Icons.help_outline,
+                                    color: Colors.white),
+                                onPressed: () =>
+                                    _showTroubleshootingDialog(controller),
+                              )
+                            : const SizedBox.shrink(),
+                      ),
+                    ],
+                  ),
+                );
+              }),
             ),
           ],
         ),
@@ -552,7 +338,7 @@ class _StockopnameScreenState extends State<StockopnameScreen> {
     );
   }
 
-  Widget _buildMainContent() {
+  Widget _buildMainContent(StockOpnameController controller) {
     return SingleChildScrollView(
       physics: const NeverScrollableScrollPhysics(),
       child: Column(
@@ -594,79 +380,128 @@ class _StockopnameScreenState extends State<StockopnameScreen> {
                         ),
                       ),
                       const SizedBox(height: 8),
-                      if (isLoadingBuildings)
-                        const Center(
-                          child: Padding(
-                            padding: EdgeInsets.symmetric(vertical: 16.0),
-                            child: CircularProgressIndicator(),
+                      if (controller.error != null &&
+                          controller.buildings.isEmpty)
+                        Container(
+                          padding: const EdgeInsets.all(16),
+                          decoration: BoxDecoration(
+                            color: Colors.red.withOpacity(0.1),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Column(
+                            children: [
+                              Text(
+                                'Gagal memuat data gedung',
+                                style: GoogleFonts.inter(
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w500,
+                                  color: Colors.red[800],
+                                ),
+                              ),
+                              const SizedBox(height: 8),
+                              ElevatedButton(
+                                onPressed: () {
+                                  controller.clearError();
+                                  _loadData();
+                                },
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: Colors.red[800],
+                                  foregroundColor: Colors.white,
+                                ),
+                                child: Text(
+                                  'Coba Lagi',
+                                  style: GoogleFonts.inter(
+                                    fontSize: 14,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        )
+                      else if (!_firstLoad &&
+                          controller.buildings.isEmpty &&
+                          !controller.isLoadingBuildings)
+                        Container(
+                          padding: const EdgeInsets.all(16),
+                          alignment: Alignment.center,
+                          child: Text(
+                            'Tidak ada gedung yang tersedia',
+                            style: GoogleFonts.inter(
+                              fontSize: 14,
+                              color: Colors.grey[600],
+                            ),
                           ),
                         )
                       else
                         Column(
                           children: [
                             // Pencarian gedung
-                            Container(
-                              padding: const EdgeInsets.symmetric(
-                                  horizontal: 12, vertical: 4),
-                              decoration: BoxDecoration(
-                                color: Colors.white,
-                                borderRadius: BorderRadius.circular(8),
-                                border: Border.all(color: Colors.grey.shade300),
-                              ),
-                              child: TextField(
-                                controller: buildingSearchController,
-                                decoration: InputDecoration(
-                                  hintText: 'Cari gedung...',
-                                  border: InputBorder.none,
-                                  prefixIcon: const Icon(
-                                    Icons.search,
-                                    color: Color(0xFF213268),
-                                    size: 20,
-                                  ),
-                                  suffixIcon: buildingSearchController
-                                          .text.isNotEmpty
-                                      ? IconButton(
-                                          icon: const Icon(
-                                            Icons.clear,
-                                            size: 18,
-                                            color: Colors.grey,
-                                          ),
-                                          onPressed: () {
-                                            buildingSearchController.clear();
-                                            setState(() {});
-                                          },
-                                        )
-                                      : null,
-                                  hintStyle: GoogleFonts.inter(
-                                    fontSize: 14,
-                                    color: Colors.grey[600],
-                                  ),
-                                  contentPadding:
-                                      const EdgeInsets.symmetric(vertical: 10),
-                                ),
-                                onChanged: (value) {
-                                  setState(() {});
-                                },
-                                style: GoogleFonts.inter(
-                                  fontSize: 14,
-                                  color: Colors.black87,
-                                ),
-                              ),
-                            ),
+                            _buildBuildingSearchField(controller),
 
                             const SizedBox(height: 8),
 
                             // Gedung list
-                            _buildBuildingList(),
+                            _buildBuildingList(controller),
                           ],
                         ),
-                      if (selectedBuilding != null && isLoadingRooms)
-                        const Padding(
-                          padding: EdgeInsets.only(top: 16.0),
-                          child: Center(child: CircularProgressIndicator()),
+                      if (controller.selectedBuilding != null &&
+                          controller.error != null &&
+                          controller.rooms.isEmpty)
+                        Container(
+                          margin: const EdgeInsets.only(top: 16),
+                          padding: const EdgeInsets.all(16),
+                          decoration: BoxDecoration(
+                            color: Colors.red.withOpacity(0.1),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Column(
+                            children: [
+                              Text(
+                                'Gagal memuat data ruangan',
+                                style: GoogleFonts.inter(
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w500,
+                                  color: Colors.red[800],
+                                ),
+                              ),
+                              const SizedBox(height: 8),
+                              ElevatedButton(
+                                onPressed: () {
+                                  controller.clearError();
+                                  controller.fetchRoomsByBuilding(
+                                      controller.selectedBuilding!.id, context);
+                                },
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: Colors.red[800],
+                                  foregroundColor: Colors.white,
+                                ),
+                                child: Text(
+                                  'Coba Lagi',
+                                  style: GoogleFonts.inter(
+                                    fontSize: 14,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
                         )
-                      else if (selectedBuilding != null &&
-                          rooms.isNotEmpty) ...[
+                      else if (controller.selectedBuilding != null &&
+                          !controller.isLoadingRooms &&
+                          controller.rooms.isEmpty)
+                        Container(
+                          margin: const EdgeInsets.only(top: 16),
+                          padding: const EdgeInsets.all(16),
+                          alignment: Alignment.center,
+                          child: Text(
+                            'Tidak ada ruangan yang tersedia di gedung ini',
+                            style: GoogleFonts.inter(
+                              fontSize: 14,
+                              color: Colors.grey[600],
+                            ),
+                            textAlign: TextAlign.center,
+                          ),
+                        )
+                      else if (controller.selectedBuilding != null) ...[
                         const SizedBox(height: 16),
                         Text(
                           'Ruangan',
@@ -679,119 +514,13 @@ class _StockopnameScreenState extends State<StockopnameScreen> {
                         const SizedBox(height: 8),
 
                         // Pencarian ruangan
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 12, vertical: 4),
-                          decoration: BoxDecoration(
-                            color: Colors.white,
-                            borderRadius: BorderRadius.circular(8),
-                            border: Border.all(color: Colors.grey.shade300),
-                          ),
-                          child: TextField(
-                            controller: roomSearchController,
-                            decoration: InputDecoration(
-                              hintText: 'Cari ruangan...',
-                              border: InputBorder.none,
-                              prefixIcon: const Icon(
-                                Icons.search,
-                                color: Color(0xFF213268),
-                                size: 20,
-                              ),
-                              suffixIcon: roomSearchController.text.isNotEmpty
-                                  ? IconButton(
-                                      icon: const Icon(
-                                        Icons.clear,
-                                        size: 18,
-                                        color: Colors.grey,
-                                      ),
-                                      onPressed: () {
-                                        roomSearchController.clear();
-                                        _filterRooms('');
-                                      },
-                                    )
-                                  : null,
-                              hintStyle: GoogleFonts.inter(
-                                fontSize: 14,
-                                color: Colors.grey[600],
-                              ),
-                              contentPadding:
-                                  const EdgeInsets.symmetric(vertical: 10),
-                            ),
-                            onChanged: _filterRooms,
-                            style: GoogleFonts.inter(
-                              fontSize: 14,
-                              color: Colors.black87,
-                            ),
-                          ),
-                        ),
+                        _buildRoomSearchField(controller),
 
                         const SizedBox(height: 8),
 
-                        // Room list
-                        if (filteredRooms.isEmpty &&
-                            roomSearchController.text.isNotEmpty)
-                          Container(
-                            padding: const EdgeInsets.all(12),
-                            alignment: Alignment.center,
-                            child: Text(
-                              'Tidak ada ruangan yang ditemukan',
-                              style: GoogleFonts.inter(
-                                fontSize: 14,
-                                color: Colors.grey[600],
-                              ),
-                            ),
-                          )
-                        else
-                          Container(
-                            decoration: BoxDecoration(
-                              color: Colors.white,
-                              borderRadius: BorderRadius.circular(8),
-                              border: Border.all(color: Colors.grey.shade200),
-                            ),
-                            constraints: const BoxConstraints(
-                              maxHeight: 180,
-                            ),
-                            child: ListView.separated(
-                              padding: EdgeInsets.zero,
-                              shrinkWrap: true,
-                              itemCount: filteredRooms.length,
-                              separatorBuilder: (context, index) => Divider(
-                                height: 1,
-                                color: Colors.grey.shade200,
-                              ),
-                              itemBuilder: (context, index) {
-                                final room = filteredRooms[index];
-                                return ListTile(
-                                  dense: true,
-                                  contentPadding: const EdgeInsets.symmetric(
-                                      horizontal: 12, vertical: 0),
-                                  title: Text(
-                                    room.name,
-                                    style: GoogleFonts.inter(
-                                      fontSize: 14,
-                                      color: Colors.black87,
-                                      fontWeight: selectedRoom?.id == room.id
-                                          ? FontWeight.bold
-                                          : FontWeight.normal,
-                                    ),
-                                  ),
-                                  trailing: selectedRoom?.id == room.id
-                                      ? const Icon(Icons.check_circle,
-                                          color: Color(0xFF213268), size: 20)
-                                      : null,
-                                  onTap: () {
-                                    setState(() {
-                                      selectedRoom = room;
-                                      roomSearchController.clear();
-                                      _filterRooms('');
-                                    });
-                                  },
-                                );
-                              },
-                            ),
-                          ),
+                        // Room list tidak perlu lagi ditampilkan karena sudah menggunakan dropdown
                       ],
-                      if (selectedRoom != null) ...[
+                      if (controller.selectedRoom != null) ...[
                         const SizedBox(height: 16),
                         Container(
                           padding: const EdgeInsets.all(12),
@@ -809,7 +538,7 @@ class _StockopnameScreenState extends State<StockopnameScreen> {
                               const SizedBox(width: 8),
                               Expanded(
                                 child: Text(
-                                  'Lokasi: ${selectedBuilding!.name} - ${selectedRoom!.name}',
+                                  'Lokasi: ${controller.selectedBuilding!.name} - ${controller.selectedRoom!.name}',
                                   style: GoogleFonts.inter(
                                     fontSize: 14,
                                     fontWeight: FontWeight.w500,
@@ -822,32 +551,29 @@ class _StockopnameScreenState extends State<StockopnameScreen> {
                         ),
                         const SizedBox(height: 16),
                         ElevatedButton.icon(
-                          onPressed: (isCreatingOpname || selectedRoom == null)
+                          onPressed: (controller.isCreatingOpname ||
+                                  controller.selectedRoom == null)
                               ? null
                               : () async {
-                                  final stockOpname = await _createStockOpname(
-                                      selectedRoom!.id);
+                                  final stockOpname =
+                                      await controller.createStockOpname(
+                                    controller.selectedRoom!.id,
+                                    context,
+                                  );
 
                                   if (stockOpname != null) {
-                                    Navigator.push(
-                                      context,
-                                      MaterialPageRoute(
-                                        builder: (context) =>
-                                            StockopnameScanner(
-                                          roomId: selectedRoom!.id,
-                                          roomName: selectedRoom!.name,
-                                          totalAssets: stockOpname.totalAssets,
-                                          opnameId: stockOpname.opnameId,
-                                          opnameCode: stockOpname.opnameCode,
-                                          previousScreen: 'stockopname',
-                                        ),
-                                      ),
-                                    ).then((result) {
-                                      if (result == true) {
-                                        // Refresh data setelah selesai scan
-                                        _fetchPendingOpnames();
-                                      }
-                                    });
+                                    // Tampilkan pesan sukses
+                                    _showSuccess(
+                                        'Stock opname berhasil dibuat');
+
+                                    // Navigasi ke halaman scanner
+                                    _navigateToScanner(
+                                      stockOpname.opnameId,
+                                      stockOpname.opnameCode,
+                                      stockOpname.roomId,
+                                      stockOpname.roomName,
+                                      stockOpname.totalAssets,
+                                    );
                                   }
                                 },
                           style: ElevatedButton.styleFrom(
@@ -860,7 +586,7 @@ class _StockopnameScreenState extends State<StockopnameScreen> {
                             ),
                             elevation: 2,
                           ),
-                          icon: isCreatingOpname
+                          icon: controller.isCreatingOpname
                               ? const SizedBox(
                                   width: 24,
                                   height: 24,
@@ -871,7 +597,7 @@ class _StockopnameScreenState extends State<StockopnameScreen> {
                                 )
                               : const Icon(Icons.qr_code_scanner, size: 24),
                           label: Text(
-                            isCreatingOpname
+                            controller.isCreatingOpname
                                 ? 'Memproses...'
                                 : 'Mulai Scan Stock Opname',
                             style: GoogleFonts.inter(
@@ -912,41 +638,80 @@ class _StockopnameScreenState extends State<StockopnameScreen> {
                 const SizedBox(height: 12),
 
                 // Pending opnames list
-                pendingOpnames.isEmpty
-                    ? Center(
-                        child: Padding(
-                          padding: const EdgeInsets.all(16.0),
-                          child: Column(
-                            children: [
-                              const Icon(
-                                Icons.info_outline,
-                                size: 48,
-                                color: Colors.grey,
-                              ),
-                              const SizedBox(height: 16),
-                              Text(
-                                'Tidak ada stock opname yang sedang berlangsung',
-                                textAlign: TextAlign.center,
-                                style: GoogleFonts.inter(
-                                  fontSize: 14,
-                                  color: Colors.grey[700],
-                                ),
-                              ),
-                            ],
+                if (controller.error != null &&
+                    controller.pendingOpnames.isEmpty)
+                  Container(
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: Colors.red.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Column(
+                      children: [
+                        Text(
+                          'Gagal memuat data stock opname',
+                          style: GoogleFonts.inter(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w500,
+                            color: Colors.red[800],
                           ),
                         ),
-                      )
-                    : ListView.separated(
-                        shrinkWrap: true,
-                        physics: const NeverScrollableScrollPhysics(),
-                        itemCount: pendingOpnames.length,
-                        separatorBuilder: (context, index) =>
-                            const SizedBox(height: 8),
-                        itemBuilder: (context, index) {
-                          final opname = pendingOpnames[index];
-                          return _buildOpnameCard(opname);
-                        },
+                        const SizedBox(height: 8),
+                        ElevatedButton(
+                          onPressed: () {
+                            controller.clearError();
+                            controller.fetchPendingOpnames(context);
+                          },
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.red[800],
+                            foregroundColor: Colors.white,
+                          ),
+                          child: Text(
+                            'Coba Lagi',
+                            style: GoogleFonts.inter(
+                              fontSize: 14,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  )
+                else if (controller.pendingOpnames.isEmpty)
+                  Center(
+                    child: Padding(
+                      padding: const EdgeInsets.all(16.0),
+                      child: Column(
+                        children: [
+                          const Icon(
+                            Icons.info_outline,
+                            size: 48,
+                            color: Colors.grey,
+                          ),
+                          const SizedBox(height: 16),
+                          Text(
+                            'Tidak ada stock opname yang sedang berlangsung',
+                            textAlign: TextAlign.center,
+                            style: GoogleFonts.inter(
+                              fontSize: 14,
+                              color: Colors.grey[700],
+                            ),
+                          ),
+                        ],
                       ),
+                    ),
+                  )
+                else
+                  ListView.separated(
+                    shrinkWrap: true,
+                    physics: const NeverScrollableScrollPhysics(),
+                    itemCount: controller.pendingOpnames.length,
+                    separatorBuilder: (context, index) =>
+                        const SizedBox(height: 8),
+                    itemBuilder: (context, index) {
+                      final opname = controller.pendingOpnames[index];
+                      return _buildOpnameCard(opname, controller);
+                    },
+                  ),
               ],
             ),
           ),
@@ -955,7 +720,8 @@ class _StockopnameScreenState extends State<StockopnameScreen> {
     );
   }
 
-  Widget _buildOpnameCard(StockOpname opname) {
+  Widget _buildOpnameCard(
+      StockOpname opname, StockOpnameController controller) {
     final progress = opname.totalAssets > 0
         ? opname.scannedAssets / opname.totalAssets
         : 0.0;
@@ -1044,17 +810,13 @@ class _StockopnameScreenState extends State<StockopnameScreen> {
               Expanded(
                 child: ElevatedButton.icon(
                   onPressed: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) => const QRScannerScreen(
-                          previousScreen: 'stockopname',
-                        ),
-                      ),
-                    ).then((_) {
-                      // Refresh data setelah kembali dari scan
-                      _fetchPendingOpnames();
-                    });
+                    _navigateToScanner(
+                      opname.opnameId,
+                      opname.opnameCode,
+                      opname.roomId,
+                      opname.roomName,
+                      opname.totalAssets,
+                    );
                   },
                   style: ElevatedButton.styleFrom(
                     backgroundColor: Colors.white,
@@ -1103,28 +865,8 @@ class _StockopnameScreenState extends State<StockopnameScreen> {
     );
   }
 
-  Widget _buildBuildingList() {
-    final filteredBuildings = buildings
-        .where((building) => building.name
-            .toLowerCase()
-            .contains(buildingSearchController.text.toLowerCase()))
-        .toList();
-
-    if (filteredBuildings.isEmpty && buildingSearchController.text.isNotEmpty) {
-      return Container(
-        padding: const EdgeInsets.all(12),
-        alignment: Alignment.center,
-        child: Text(
-          'Tidak ada gedung yang ditemukan',
-          style: GoogleFonts.inter(
-            fontSize: 14,
-            color: Colors.grey[600],
-          ),
-        ),
-      );
-    }
-
-    if (buildingSearchController.text.isEmpty && selectedBuilding != null) {
+  Widget _buildBuildingList(StockOpnameController controller) {
+    if (controller.selectedBuilding != null) {
       return Container(
         padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
@@ -1136,7 +878,7 @@ class _StockopnameScreenState extends State<StockopnameScreen> {
           dense: true,
           contentPadding: EdgeInsets.zero,
           title: Text(
-            selectedBuilding!.name,
+            controller.selectedBuilding!.name ?? 'Gedung Tidak Diketahui',
             style: GoogleFonts.inter(
               fontSize: 14,
               fontWeight: FontWeight.bold,
@@ -1151,10 +893,16 @@ class _StockopnameScreenState extends State<StockopnameScreen> {
               const SizedBox(width: 8),
               GestureDetector(
                 onTap: () {
-                  setState(() {
-                    selectedBuilding = null;
-                    selectedRoom = null;
-                  });
+                  try {
+                    // Pastikan kita reset pilihan ruangan terlebih dahulu
+                    controller.resetRoomSelection();
+                    controller.resetBuildingSelection();
+                    setState(() {}); // Memastikan UI diperbarui
+                  } catch (e) {
+                    print('Error saat reset building selection: $e');
+                    _showError(
+                        'Terjadi kesalahan saat menghapus pilihan gedung');
+                  }
                 },
                 child: const Icon(Icons.close, color: Colors.grey, size: 20),
               ),
@@ -1164,68 +912,879 @@ class _StockopnameScreenState extends State<StockopnameScreen> {
       );
     }
 
-    if (buildingSearchController.text.isEmpty) {
-      return Container(
-        padding: const EdgeInsets.all(12),
-        alignment: Alignment.center,
-        child: Text(
-          'Ketik untuk mencari gedung',
-          style: GoogleFonts.inter(
-            fontSize: 14,
-            color: Colors.grey[600],
-          ),
-          textAlign: TextAlign.center,
-        ),
-      );
-    }
-
     return Container(
+      padding: const EdgeInsets.all(12),
+      alignment: Alignment.center,
+      child: Text(
+        'Klik untuk memilih gedung',
+        style: GoogleFonts.inter(
+          fontSize: 14,
+          color: Colors.grey[600],
+        ),
+        textAlign: TextAlign.center,
+      ),
+    );
+  }
+
+  // Modifikasi widget untuk pencarian gedung
+  Widget _buildBuildingSearchField(StockOpnameController controller) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: Colors.grey.shade200),
+        border: Border.all(color: Colors.grey.shade300),
       ),
-      constraints: const BoxConstraints(
-        maxHeight: 180,
-      ),
-      child: ListView.separated(
-        padding: EdgeInsets.zero,
-        shrinkWrap: true,
-        itemCount: filteredBuildings.length,
-        separatorBuilder: (context, index) => Divider(
-          height: 1,
-          color: Colors.grey.shade200,
-        ),
-        itemBuilder: (context, index) {
-          final building = filteredBuildings[index];
-          return ListTile(
-            dense: true,
-            contentPadding:
-                const EdgeInsets.symmetric(horizontal: 12, vertical: 0),
-            title: Text(
-              building.name,
-              style: GoogleFonts.inter(
-                fontSize: 14,
-                color: Colors.black87,
-                fontWeight: selectedBuilding?.id == building.id
-                    ? FontWeight.bold
-                    : FontWeight.normal,
+      child: InkWell(
+        onTap: () {
+          _showBuildingDropdown(context, controller);
+        },
+        child: Row(
+          children: [
+            const Icon(
+              Icons.business,
+              color: Color(0xFF213268),
+              size: 20,
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                controller.selectedBuilding?.name ?? 'Pilih gedung...',
+                style: GoogleFonts.inter(
+                  fontSize: 14,
+                  color: controller.selectedBuilding != null
+                      ? Colors.black87
+                      : Colors.grey[600],
+                ),
+                overflow: TextOverflow.ellipsis,
               ),
             ),
-            trailing: selectedBuilding?.id == building.id
-                ? const Icon(Icons.check_circle,
-                    color: Color(0xFF213268), size: 20)
-                : null,
-            onTap: () {
-              setState(() {
-                selectedBuilding = building;
-                selectedRoom = null;
-                buildingSearchController.clear();
-              });
-              _fetchRoomsByBuilding(building.id);
-            },
-          );
+            if (controller.isLoadingBuildings)
+              Container(
+                width: 24,
+                height: 24,
+                padding: const EdgeInsets.all(6),
+                child: const CircularProgressIndicator(strokeWidth: 2),
+              )
+            else if (controller.selectedBuilding != null)
+              IconButton(
+                icon: const Icon(
+                  Icons.close,
+                  size: 18,
+                  color: Colors.grey,
+                ),
+                onPressed: () {
+                  try {
+                    // Pastikan kita reset pilihan ruangan terlebih dahulu
+                    controller.resetRoomSelection();
+                    controller.resetBuildingSelection();
+                    setState(() {}); // Memastikan UI diperbarui
+                  } catch (e) {
+                    print('Error saat reset building selection: $e');
+                    _showError(
+                        'Terjadi kesalahan saat menghapus pilihan gedung');
+                  }
+                },
+              )
+            else
+              const Icon(
+                Icons.arrow_drop_down,
+                color: Color(0xFF213268),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // Modifikasi widget untuk pencarian ruangan
+  Widget _buildRoomSearchField(StockOpnameController controller) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+      decoration: BoxDecoration(
+        color: controller.selectedBuilding == null
+            ? Colors.grey.shade100
+            : Colors.white,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: Colors.grey.shade300),
+      ),
+      child: InkWell(
+        onTap: () {
+          if (controller.selectedBuilding != null) {
+            _showRoomDropdown(context, controller);
+          }
         },
+        child: Row(
+          children: [
+            const Icon(
+              Icons.meeting_room,
+              color: Color(0xFF213268),
+              size: 20,
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                controller.selectedRoom?.name ?? 'Pilih ruangan...',
+                style: GoogleFonts.inter(
+                  fontSize: 14,
+                  color: controller.selectedRoom != null
+                      ? Colors.black87
+                      : controller.selectedBuilding == null
+                          ? Colors.grey[400]
+                          : Colors.grey[600],
+                ),
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+            if (controller.isLoadingRooms)
+              Container(
+                width: 24,
+                height: 24,
+                padding: const EdgeInsets.all(6),
+                child: const CircularProgressIndicator(strokeWidth: 2),
+              )
+            else if (controller.selectedRoom != null)
+              IconButton(
+                icon: const Icon(
+                  Icons.close,
+                  size: 18,
+                  color: Colors.grey,
+                ),
+                onPressed: () {
+                  try {
+                    controller.resetRoomSelection();
+                    setState(() {}); // Memastikan UI diperbarui
+                  } catch (e) {
+                    print('Error saat reset room selection: $e');
+                    _showError(
+                        'Terjadi kesalahan saat menghapus pilihan ruangan');
+                  }
+                },
+              )
+            else if (controller.selectedBuilding != null)
+              const Icon(
+                Icons.arrow_drop_down,
+                color: Color(0xFF213268),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // Menampilkan dropdown untuk gedung
+  void _showBuildingDropdown(
+      BuildContext context, StockOpnameController controller) async {
+    FocusScope.of(context).unfocus();
+
+    // Reset state controller untuk menghindari data lama
+    controller.resetSearch();
+
+    // Ambil data gedung terlebih dahulu
+    controller.fetchBuildings(context);
+
+    // Status pencarian lokal
+    bool isSearching = false;
+    String currentQuery = '';
+
+    // Custom bottom sheet dengan consumer untuk auto-refresh saat data berubah
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (sheetContext) {
+        return StatefulBuilder(
+          builder: (builderContext, setSheetState) {
+            return Consumer<StockOpnameController>(
+              builder: (consumerContext, updatedController, _) {
+                final ScrollController scrollController = ScrollController();
+
+                // Add scroll listener for infinite scrolling
+                if (!scrollController.hasListeners) {
+                  scrollController.addListener(() {
+                    if (scrollController.position.pixels >=
+                            scrollController.position.maxScrollExtent - 200 &&
+                        !updatedController.isLoadingMoreBuildings &&
+                        updatedController.hasMoreBuildings) {
+                      updatedController.loadMoreBuildings(context);
+                    }
+                  });
+                }
+
+                return DraggableScrollableSheet(
+                  initialChildSize: 0.7,
+                  minChildSize: 0.5,
+                  maxChildSize: 0.9,
+                  expand: false,
+                  builder: (_, controller) {
+                    return Column(
+                      children: [
+                        // Header
+                        Padding(
+                          padding: const EdgeInsets.all(16.0),
+                          child: Row(
+                            children: [
+                              Text(
+                                'Pilih Gedung',
+                                style: GoogleFonts.inter(
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.bold,
+                                  color: const Color(0xFF213268),
+                                ),
+                              ),
+                              const Spacer(),
+                              IconButton(
+                                icon: const Icon(Icons.close),
+                                onPressed: () => Navigator.pop(context),
+                              ),
+                            ],
+                          ),
+                        ),
+
+                        // Search bar
+                        Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 16.0),
+                          child: Container(
+                            decoration: BoxDecoration(
+                              color: Colors.grey.shade200,
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: TextField(
+                              onChanged: (query) {
+                                setSheetState(() {
+                                  isSearching = true;
+                                  currentQuery = query;
+                                });
+
+                                // Cancel previous debounce
+                                if (_buildingSearchDebounce?.isActive ??
+                                    false) {
+                                  _buildingSearchDebounce!.cancel();
+                                }
+
+                                // Create new debounce
+                                _buildingSearchDebounce = Timer(
+                                    const Duration(milliseconds: 500), () {
+                                  if (query.isNotEmpty) {
+                                    print('Debounce search buildings: $query');
+                                    updatedController.fetchBuildings(context,
+                                        searchQuery: query);
+                                  } else {
+                                    // Jika query kosong, ambil semua gedung
+                                    updatedController.fetchBuildings(context);
+                                  }
+                                });
+                              },
+                              decoration: InputDecoration(
+                                hintText: 'Cari gedung...',
+                                prefixIcon: const Icon(Icons.search),
+                                border: InputBorder.none,
+                                contentPadding:
+                                    const EdgeInsets.symmetric(vertical: 15),
+                                suffixIcon: currentQuery.isNotEmpty
+                                    ? IconButton(
+                                        icon: const Icon(Icons.clear),
+                                        onPressed: () {
+                                          setSheetState(() {
+                                            currentQuery = '';
+                                          });
+                                          // Reset text field
+                                          FocusScope.of(context).unfocus();
+                                          // Refresh data
+                                          updatedController
+                                              .fetchBuildings(context);
+                                        },
+                                      )
+                                    : null,
+                              ),
+                            ),
+                          ),
+                        ),
+
+                        const SizedBox(height: 8),
+
+                        // Content - Skeleton or results
+                        Expanded(
+                          child: updatedController.isLoadingBuildings &&
+                                  updatedController.buildings.isEmpty
+                              ? _buildSkeletonList() // Skeleton loader saat loading awal
+                              : updatedController.buildings.isEmpty &&
+                                      !updatedController.isLoadingBuildings
+                                  ? _buildEmptyResults(currentQuery)
+                                  : _buildBuildingListWithLoadMore(
+                                      updatedController,
+                                      scrollController,
+                                      context),
+                        ),
+                      ],
+                    );
+                  },
+                );
+              },
+            );
+          },
+        );
+      },
+    );
+  }
+
+  // Widget untuk menampilkan daftar gedung dengan load more
+  Widget _buildBuildingListWithLoadMore(StockOpnameController controller,
+      ScrollController scrollController, BuildContext context) {
+    return ListView.separated(
+      controller: scrollController,
+      itemCount:
+          controller.buildings.length + (controller.hasMoreBuildings ? 1 : 0),
+      separatorBuilder: (context, index) => const Divider(height: 1),
+      itemBuilder: (context, index) {
+        // Tampilkan loader di item terakhir jika masih ada data
+        if (index == controller.buildings.length) {
+          return _buildLoadMoreIndicator();
+        }
+
+        final building = controller.buildings[index];
+        final isSelected = controller.selectedBuilding?.id == building.id;
+
+        return ListTile(
+          title: Text(
+            building.name ?? 'Gedung Tidak Diketahui',
+            style: GoogleFonts.inter(
+              fontSize: 16,
+              fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+              color: Colors.black87,
+            ),
+          ),
+          subtitle: Text(
+            '${building.address}',
+            style: GoogleFonts.inter(
+              fontSize: 12,
+              color: Colors.grey[600],
+            ),
+          ),
+          trailing: isSelected
+              ? const Icon(Icons.check_circle, color: Color(0xFF213268))
+              : null,
+          onTap: () {
+            controller.selectRoom(null); // Reset room selection
+            controller.selectBuilding(building);
+            controller.fetchRoomsByBuilding(building.id, context);
+            Navigator.pop(context);
+          },
+        );
+      },
+    );
+  }
+
+  // Widget untuk menampilkan indikator loading more
+  Widget _buildLoadMoreIndicator() {
+    return Container(
+      padding: const EdgeInsets.symmetric(vertical: 16.0),
+      alignment: Alignment.center,
+      child: Column(
+        children: [
+          const SizedBox(
+            width: 24,
+            height: 24,
+            child: CircularProgressIndicator(strokeWidth: 2),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'Memuat gedung lainnya...',
+            style: GoogleFonts.inter(
+              fontSize: 14,
+              fontStyle: FontStyle.italic,
+              color: Colors.grey[600],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // Widget untuk menampilkan skeleton loading list
+  Widget _buildSkeletonList() {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16.0),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 12.0),
+            child: Text(
+              'Mencari gedung...',
+              style: GoogleFonts.inter(
+                fontSize: 14,
+                fontStyle: FontStyle.italic,
+                color: Colors.grey[600],
+              ),
+            ),
+          ),
+          Expanded(
+            child: Skeletonizer(
+              enabled: true,
+              effect: ShimmerEffect(
+                baseColor: Colors.grey.shade300,
+                highlightColor: const Color(0xFFE5EFFF),
+              ),
+              child: ListView.separated(
+                itemCount: 6,
+                separatorBuilder: (context, index) => const Divider(height: 1),
+                itemBuilder: (context, index) => ListTile(
+                  title: Container(
+                    height: 20,
+                    width: double.infinity,
+                    decoration: BoxDecoration(
+                      color: Colors.grey.shade300,
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // Widget untuk menampilkan hasil kosong
+  Widget _buildEmptyResults(String query) {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(Icons.search_off, size: 48, color: Colors.grey[400]),
+          const SizedBox(height: 16),
+          Text(
+            query.isEmpty
+                ? 'Tidak ada gedung yang tersedia'
+                : 'Tidak ditemukan gedung "$query"',
+            style: GoogleFonts.inter(
+              fontSize: 16,
+              color: Colors.grey[600],
+            ),
+            textAlign: TextAlign.center,
+          ),
+        ],
+      ),
+    );
+  }
+
+  // Menampilkan dropdown untuk ruangan
+  void _showRoomDropdown(
+      BuildContext context, StockOpnameController controller) async {
+    FocusScope.of(context).unfocus();
+
+    if (controller.selectedBuilding == null) {
+      _showError('Pilih gedung terlebih dahulu');
+      return;
+    }
+
+    // Reset state controller untuk menghindari data lama
+    controller.resetSearch();
+
+    // Ambil data ruangan terlebih dahulu jika belum ada
+    if (controller.rooms.isEmpty) {
+      controller.fetchRoomsByBuilding(controller.selectedBuilding!.id, context);
+
+      // Tunggu hingga data selesai diambil
+      await Future.delayed(const Duration(milliseconds: 500));
+
+      // Jika masih loading atau error, tampilkan pesan
+      if (controller.isLoadingRooms) {
+        _showError('Sedang memuat data ruangan...');
+        return;
+      }
+
+      if (controller.error != null) {
+        _showError(controller.error!);
+        return;
+      }
+    }
+
+    // Konversi data ruangan ke format yang dibutuhkan oleh dropdown
+    List<SelectedListItem<Room>> roomItems = controller.rooms
+        .map((room) => SelectedListItem<Room>(
+              data: room,
+            ))
+        .toList();
+
+    // Jika tidak ada data ruangan, return
+    if (roomItems.isEmpty) {
+      _showError('Tidak ada data ruangan yang tersedia');
+      return;
+    }
+
+    // Status pencarian lokal
+    bool isSearching = false;
+    String currentQuery = '';
+
+    // Custom bottom sheet dengan consumer untuk auto-refresh saat data berubah
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (sheetContext) {
+        return StatefulBuilder(
+          builder: (builderContext, setSheetState) {
+            return Consumer<StockOpnameController>(
+              builder: (consumerContext, updatedController, _) {
+                // Update items jika ada perubahan data
+                if (!isSearching || !updatedController.isLoadingRooms) {
+                  roomItems = updatedController.rooms
+                      .map((room) => SelectedListItem<Room>(
+                            data: room,
+                          ))
+                      .toList();
+                }
+
+                return DraggableScrollableSheet(
+                  initialChildSize: 0.7,
+                  minChildSize: 0.5,
+                  maxChildSize: 0.9,
+                  expand: false,
+                  builder: (_, scrollController) {
+                    return Column(
+                      children: [
+                        // Header
+                        Padding(
+                          padding: const EdgeInsets.all(16.0),
+                          child: Row(
+                            children: [
+                              Text(
+                                'Pilih Ruangan',
+                                style: GoogleFonts.inter(
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.bold,
+                                  color: const Color(0xFF213268),
+                                ),
+                              ),
+                              const Spacer(),
+                              IconButton(
+                                icon: const Icon(Icons.close),
+                                onPressed: () => Navigator.pop(context),
+                              ),
+                            ],
+                          ),
+                        ),
+
+                        // Gedung yang dipilih
+                        if (updatedController.selectedBuilding != null)
+                          Padding(
+                            padding:
+                                const EdgeInsets.symmetric(horizontal: 16.0),
+                            child: Container(
+                              padding: const EdgeInsets.all(8.0),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFF213268).withOpacity(0.1),
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              child: Row(
+                                children: [
+                                  const Icon(
+                                    Icons.business,
+                                    color: Color(0xFF213268),
+                                    size: 20,
+                                  ),
+                                  const SizedBox(width: 8),
+                                  Expanded(
+                                    child: Text(
+                                      'Gedung: ${updatedController.selectedBuilding!.name}',
+                                      style: GoogleFonts.inter(
+                                        fontSize: 14,
+                                        fontWeight: FontWeight.w500,
+                                        color: const Color(0xFF213268),
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+
+                        const SizedBox(height: 8),
+
+                        // Search bar
+                        Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 16.0),
+                          child: Container(
+                            decoration: BoxDecoration(
+                              color: Colors.grey.shade200,
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: TextField(
+                              onChanged: (query) {
+                                setSheetState(() {
+                                  isSearching = true;
+                                  currentQuery = query;
+                                });
+
+                                // Cancel previous debounce
+                                if (_roomSearchDebounce?.isActive ?? false) {
+                                  _roomSearchDebounce!.cancel();
+                                }
+
+                                // Create new debounce
+                                _roomSearchDebounce = Timer(
+                                    const Duration(milliseconds: 500), () {
+                                  if (query.isNotEmpty) {
+                                    print('Debounce search rooms: $query');
+                                    updatedController.fetchRoomsByBuilding(
+                                      updatedController.selectedBuilding!.id,
+                                      context,
+                                      searchQuery: query,
+                                    );
+                                  } else {
+                                    // Jika query kosong, ambil semua ruangan
+                                    updatedController.fetchRoomsByBuilding(
+                                      updatedController.selectedBuilding!.id,
+                                      context,
+                                    );
+                                  }
+                                });
+                              },
+                              decoration: InputDecoration(
+                                hintText: 'Cari ruangan...',
+                                prefixIcon: const Icon(Icons.search),
+                                border: InputBorder.none,
+                                contentPadding:
+                                    const EdgeInsets.symmetric(vertical: 15),
+                                suffixIcon: currentQuery.isNotEmpty
+                                    ? IconButton(
+                                        icon: const Icon(Icons.clear),
+                                        onPressed: () {
+                                          setSheetState(() {
+                                            currentQuery = '';
+                                          });
+                                          // Reset text field
+                                          FocusScope.of(context).unfocus();
+                                          // Refresh data
+                                          updatedController
+                                              .fetchRoomsByBuilding(
+                                            updatedController
+                                                .selectedBuilding!.id,
+                                            context,
+                                          );
+                                        },
+                                      )
+                                    : null,
+                              ),
+                            ),
+                          ),
+                        ),
+
+                        const SizedBox(height: 8),
+
+                        // Content - Skeleton or results
+                        Expanded(
+                          child: updatedController.isLoadingRooms
+                              ? _buildRoomSkeletonList() // Skeleton loader saat loading
+                              : roomItems.isEmpty
+                                  ? _buildEmptyRoomResults(currentQuery)
+                                  : ListView.separated(
+                                      controller: scrollController,
+                                      itemCount: roomItems.length,
+                                      separatorBuilder: (context, index) =>
+                                          const Divider(height: 1),
+                                      itemBuilder: (context, index) {
+                                        final room = roomItems[index].data;
+                                        final isSelected = updatedController
+                                                .selectedRoom?.id ==
+                                            room.id;
+
+                                        return ListTile(
+                                          title: Text(
+                                            room.name ??
+                                                'Ruangan Tidak Diketahui',
+                                            style: GoogleFonts.inter(
+                                              fontSize: 16,
+                                              fontWeight: isSelected
+                                                  ? FontWeight.bold
+                                                  : FontWeight.normal,
+                                              color: Colors.black87,
+                                            ),
+                                          ),
+                                          trailing: isSelected
+                                              ? const Icon(Icons.check_circle,
+                                                  color: Color(0xFF213268))
+                                              : null,
+                                          onTap: () {
+                                            updatedController.selectRoom(room);
+                                            Navigator.pop(context);
+                                          },
+                                        );
+                                      },
+                                    ),
+                        ),
+                      ],
+                    );
+                  },
+                );
+              },
+            );
+          },
+        );
+      },
+    );
+  }
+
+  // Widget untuk menampilkan skeleton loading list ruangan
+  Widget _buildRoomSkeletonList() {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16.0),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 12.0),
+            child: Text(
+              'Mencari ruangan...',
+              style: GoogleFonts.inter(
+                fontSize: 14,
+                fontStyle: FontStyle.italic,
+                color: Colors.grey[600],
+              ),
+            ),
+          ),
+          Expanded(
+            child: Skeletonizer(
+              enabled: true,
+              effect: ShimmerEffect(
+                baseColor: Colors.grey.shade300,
+                highlightColor: const Color(0xFFE5EFFF),
+              ),
+              child: ListView.separated(
+                itemCount: 6,
+                separatorBuilder: (context, index) => const Divider(height: 1),
+                itemBuilder: (context, index) => ListTile(
+                  title: Container(
+                    height: 20,
+                    width: double.infinity,
+                    decoration: BoxDecoration(
+                      color: Colors.grey.shade300,
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // Widget untuk menampilkan hasil kosong untuk ruangan
+  Widget _buildEmptyRoomResults(String query) {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(Icons.search_off, size: 48, color: Colors.grey[400]),
+          const SizedBox(height: 16),
+          Text(
+            query.isEmpty
+                ? 'Tidak ada ruangan yang tersedia'
+                : 'Tidak ditemukan ruangan "$query"',
+            style: GoogleFonts.inter(
+              fontSize: 16,
+              color: Colors.grey[600],
+            ),
+            textAlign: TextAlign.center,
+          ),
+        ],
+      ),
+    );
+  }
+
+  // Menangani refresh dengan lebih efisien
+  Future<void> _handleRefresh() async {
+    // Reset pencarian terlebih dahulu
+    _stockOpnameController.resetSearch();
+
+    // Tidak perlu menggunakan Skeletonizer saat refresh
+    await _stockOpnameController.loadAllData(context);
+    _refreshController.refreshCompleted();
+  }
+
+  // Dialog bantuan troubleshooting
+  void _showTroubleshootingDialog(StockOpnameController controller) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Row(
+          children: [
+            const Icon(Icons.warning_amber_rounded, color: Colors.orange),
+            const SizedBox(width: 8),
+            Text(
+              'Bantuan',
+              style: GoogleFonts.poppins(
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Masalah terdeteksi:',
+              style: GoogleFonts.poppins(fontWeight: FontWeight.w600),
+            ),
+            const SizedBox(height: 8),
+            Text(controller.error ?? 'Tidak dapat memuat data',
+                style: GoogleFonts.poppins()),
+            const SizedBox(height: 16),
+            Text(
+              'Solusi yang bisa dicoba:',
+              style: GoogleFonts.poppins(fontWeight: FontWeight.w600),
+            ),
+            const SizedBox(height: 8),
+            _buildTroubleshootingStep('1. Pastikan koneksi internet aktif'),
+            _buildTroubleshootingStep(
+                '2. Pastikan Anda sudah login dengan benar'),
+            _buildTroubleshootingStep('3. Coba refresh halaman'),
+            _buildTroubleshootingStep('4. Restart aplikasi'),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: Text('Tutup', style: GoogleFonts.poppins()),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFF213268),
+            ),
+            onPressed: () {
+              Navigator.pop(context);
+              _handleRefresh();
+            },
+            child: Text('Coba Lagi',
+                style: GoogleFonts.poppins(color: Colors.white)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildTroubleshootingStep(String text) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8.0),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(text, style: GoogleFonts.poppins()),
+          ),
+        ],
       ),
     );
   }

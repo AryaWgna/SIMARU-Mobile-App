@@ -1,9 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:http/http.dart' as http;
-import 'dart:convert';
+import 'package:provider/provider.dart';
 import '../../core/config/api_config.dart';
-import '../../services/socket_service.dart' as socket_service;
+import '../../controllers/complaint_controller.dart';
 
 class ComplainDetailScreen extends StatefulWidget {
   final Map<String, dynamic> complaint;
@@ -18,96 +17,15 @@ class ComplainDetailScreen extends StatefulWidget {
 }
 
 class _ComplainDetailScreenState extends State<ComplainDetailScreen> {
-  bool _isLoading = true;
-  Map<String, dynamic>? _complaintDetail;
-  String? _errorMessage;
-  final bool _isApproving = false;
-
   @override
   void initState() {
     super.initState();
-    _fetchComplaintDetail();
-  }
-
-  Future<void> _fetchComplaintDetail() async {
-    try {
-      final accessToken = await socket_service.ApiService.getAccessToken();
-      if (accessToken == null) {
-        throw Exception('No access token available');
-      }
-
-      final response = await http.get(
-        Uri.parse('${ApiConfig.baseUrl}/complaints/${widget.complaint['id']}'),
-        headers: {
-          'Authorization': 'Bearer $accessToken',
-          'Content-Type': 'application/json',
-        },
-      );
-
-      if (response.statusCode == 200) {
-        final data = json.decode(response.body);
-        if (data['success'] == true) {
-          setState(() {
-            _complaintDetail = data['data'];
-            _isLoading = false;
-          });
-        } else {
-          throw Exception(
-              data['message'] ?? 'Failed to fetch complaint details');
-        }
-      } else {
-        throw Exception(
-            'Failed to load complaint details: ${response.statusCode}');
-      }
-    } catch (e) {
-      setState(() {
-        _errorMessage = e.toString();
-        _isLoading = false;
-      });
-    }
-  }
-
-  Future<void> _approveRepair() async {
-    try {
-      final accessToken = await socket_service.ApiService.getAccessToken();
-      if (accessToken == null) {
-        throw Exception('No access token available');
-      }
-
-      final repairId = _complaintDetail?['repair']['id'].toString();
-      if (repairId == null) {
-        throw Exception('Repair ID tidak ditemukan');
-      }
-
-      final response = await http.post(
-          Uri.parse('${ApiConfig.baseUrl}/repairs/$repairId/approve'),
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': 'Bearer $accessToken',
-          });
-
-      if (response.statusCode == 200) {
-        final responseData = jsonDecode(response.body);
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-              content: Text(
-                  responseData['message'] ?? 'Perbaikan berhasil disetujui')),
-        );
-
-        await _fetchComplaintDetail();
-      } else {
-        final responseData = jsonDecode(response.body);
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-              content: Text(
-                  responseData['message'] ?? 'Gagal menyetujui perbaikan')),
-        );
-      }
-    } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Terjadi kesalahan: $e')),
-      );
-    }
+    // Ambil controller dan load data
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final controller =
+          Provider.of<ComplaintController>(context, listen: false);
+      controller.fetchComplaintDetail(widget.complaint['id']);
+    });
   }
 
   String _formatDate(String? dateString) {
@@ -125,12 +43,15 @@ class _ComplainDetailScreenState extends State<ComplainDetailScreen> {
     Color textColor = Colors.white;
     String statusText = status?.toUpperCase() ?? 'UNKNOWN';
 
+    final complaintDetail =
+        Provider.of<ComplaintController>(context).complaintDetail;
+
     // Check if repair exists and has approval_by
-    if (_complaintDetail != null &&
-        _complaintDetail?['repair'] != null &&
-        _complaintDetail?['repair']['approval_by'] != null &&
-        _complaintDetail?['repair']['approval_by'].toString() != "null" &&
-        _complaintDetail?['repair']['approval_by'].toString() != "") {
+    if (complaintDetail != null &&
+        complaintDetail.repair != null &&
+        complaintDetail.repair!['approval_by'] != null &&
+        complaintDetail.repair!['approval_by'].toString() != "null" &&
+        complaintDetail.repair!['approval_by'].toString() != "") {
       backgroundColor = Colors.green;
       statusText = 'APPROVED';
     } else {
@@ -223,199 +144,204 @@ class _ComplainDetailScreenState extends State<ComplainDetailScreen> {
           onPressed: () => Navigator.pop(context),
         ),
       ),
-      body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
-          : _errorMessage != null
-              ? Center(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
+      body: Consumer<ComplaintController>(
+        builder: (context, controller, child) {
+          if (controller.isLoading) {
+            return const Center(child: CircularProgressIndicator());
+          } else if (controller.errorMessage != null) {
+            return Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Text(
+                    'Error: ${controller.errorMessage}',
+                    style: const TextStyle(color: Colors.red),
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: 16),
+                  ElevatedButton(
+                    onPressed: () =>
+                        controller.fetchComplaintDetail(widget.complaint['id']),
+                    child: const Text('Coba Lagi'),
+                  ),
+                ],
+              ),
+            );
+          }
+
+          final complaintDetail = controller.complaintDetail;
+          if (complaintDetail == null) {
+            return const Center(child: Text('Data tidak ditemukan'));
+          }
+
+          return RefreshIndicator(
+            onRefresh: () =>
+                controller.fetchComplaintDetail(widget.complaint['id']),
+            color: const Color(0xFF213268),
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Complaint Information
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
                       Text(
-                        'Error: $_errorMessage',
-                        style: const TextStyle(color: Colors.red),
-                        textAlign: TextAlign.center,
+                        'Detail Keluhan',
+                        style: GoogleFonts.inter(
+                          fontSize: 18,
+                          fontWeight: FontWeight.w600,
+                          color: const Color(0xFF213268),
+                        ),
                       ),
-                      const SizedBox(height: 16),
-                      ElevatedButton(
-                        onPressed: _fetchComplaintDetail,
-                        child: const Text('Coba Lagi'),
-                      ),
+                      _buildStatusBadge(complaintDetail.status),
                     ],
                   ),
-                )
-              : RefreshIndicator(
-                  onRefresh: _fetchComplaintDetail,
-                  color: const Color(0xFF213268),
-                  child: SingleChildScrollView(
-                    padding: const EdgeInsets.all(16),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        // Complaint Information
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            Text(
-                              'Detail Keluhan',
-                              style: GoogleFonts.inter(
-                                fontSize: 18,
-                                fontWeight: FontWeight.w600,
-                                color: const Color(0xFF213268),
+                  const SizedBox(height: 16),
+                  if (complaintDetail.complaintPicturePath != null)
+                    Container(
+                      width: double.infinity,
+                      height: 200,
+                      margin: const EdgeInsets.only(bottom: 16),
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: Colors.grey.shade200),
+                      ),
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(12),
+                        child: Image.network(
+                          '${ApiConfig.baseUrl}/public${complaintDetail.complaintPicturePath}',
+                          fit: BoxFit.cover,
+                          errorBuilder: (context, error, stackTrace) {
+                            return Center(
+                              child: Icon(
+                                Icons.error_outline,
+                                color: Colors.grey[400],
+                                size: 50,
                               ),
-                            ),
-                            _buildStatusBadge(_complaintDetail?['status']),
-                          ],
+                            );
+                          },
                         ),
-                        const SizedBox(height: 16),
-                        if (_complaintDetail?['complaint_picture_path'] != null)
-                          Container(
-                            width: double.infinity,
-                            height: 200,
-                            margin: const EdgeInsets.only(bottom: 16),
-                            decoration: BoxDecoration(
-                              borderRadius: BorderRadius.circular(12),
-                              border: Border.all(color: Colors.grey.shade200),
-                            ),
-                            child: ClipRRect(
-                              borderRadius: BorderRadius.circular(12),
-                              child: Image.network(
-                                '${ApiConfig.baseUrl}/public${_complaintDetail?['complaint_picture_path']}',
-                                fit: BoxFit.cover,
-                                errorBuilder: (context, error, stackTrace) {
-                                  return Center(
-                                    child: Icon(
-                                      Icons.error_outline,
-                                      color: Colors.grey[400],
-                                      size: 50,
-                                    ),
-                                  );
+                      ),
+                    ),
+                  _buildDetailItem('Tanggal Keluhan',
+                      _formatDate(complaintDetail.complaintDate)),
+                  _buildDetailItem('Asset Code', complaintDetail.assetCode),
+                  _buildDetailItem('Asset Name', complaintDetail.assetName),
+                  _buildDetailItem('Deskripsi', complaintDetail.description),
+                  _buildDetailItem('Pelapor',
+                      'ID: ${complaintDetail.reporterNumber ?? "-"}'),
+
+                  // Repair Information
+                  if (complaintDetail.repair != null) ...[
+                    const SizedBox(height: 24),
+                    _buildSectionTitle('Informasi Perbaikan'),
+                    if (complaintDetail.repair!['repair_picture_path'] != null)
+                      Container(
+                        width: double.infinity,
+                        height: 200,
+                        margin: const EdgeInsets.symmetric(vertical: 16),
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: Colors.grey.shade200),
+                        ),
+                        child: ClipRRect(
+                          borderRadius: BorderRadius.circular(12),
+                          child: Image.network(
+                            '${ApiConfig.baseUrl}/public${complaintDetail.repair!['repair_picture_path']}',
+                            fit: BoxFit.cover,
+                            errorBuilder: (context, error, stackTrace) {
+                              return Center(
+                                child: Icon(
+                                  Icons.error_outline,
+                                  color: Colors.grey[400],
+                                  size: 50,
+                                ),
+                              );
+                            },
+                          ),
+                        ),
+                      ),
+                    _buildDetailItem('Tanggal Perbaikan',
+                        _formatDate(complaintDetail.repair!['repair_date'])),
+                    _buildDetailItem('Hasil Akhir',
+                        complaintDetail.repair!['final_result'] ?? '-'),
+                    _buildDetailItem('Deskripsi Perbaikan',
+                        complaintDetail.repair!['repair_description'] ?? '-'),
+                    _buildDetailItem('Biaya Perbaikan',
+                        'Rp ${complaintDetail.repair!['repair_cost'] ?? '0'}'),
+                    _buildDetailItem('Teknisi',
+                        'ID: ${complaintDetail.repair!['technician_number'] ?? '-'}'),
+                    _buildDetailItem('Part yang Diganti',
+                        complaintDetail.repair!['parts_replaced'] ?? '-'),
+                    _buildDetailItem(
+                        'Tanggal Selesai',
+                        _formatDate(
+                            complaintDetail.repair!['completion_date'])),
+                    _buildDetailItem('Disetujui Oleh',
+                        'ID: ${complaintDetail.repair!['approver_number'] ?? '-'}'),
+                    _buildDetailItem('Tanggal Persetujuan',
+                        _formatDate(complaintDetail.repair!['approval_date'])),
+                  ],
+
+                  // Add Approve button if status is 'finished' and approval_by is null/empty
+                  if (complaintDetail.status.toLowerCase() == 'finished' &&
+                      complaintDetail.status.toLowerCase() != 'approved' &&
+                      complaintDetail.repair != null &&
+                      (complaintDetail.repair!['approval_by'] == null ||
+                          complaintDetail.repair!['approval_by'].toString() ==
+                              "null" ||
+                          complaintDetail.repair!['approval_by'].toString() ==
+                              ""))
+                    Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 16.0),
+                      child: SizedBox(
+                        width: double.infinity,
+                        height: 45,
+                        child: ElevatedButton(
+                          onPressed: controller.isApproving
+                              ? null
+                              : () async {
+                                  final success =
+                                      await controller.approveRepair();
+                                  if (success && mounted) {
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      const SnackBar(
+                                          content: Text(
+                                              'Perbaikan berhasil disetujui')),
+                                    );
+                                  }
                                 },
-                              ),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: const Color(0xFF213268),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(8),
                             ),
                           ),
-                        _buildDetailItem('Tanggal Keluhan',
-                            _formatDate(_complaintDetail?['complaint_date'])),
-                        _buildDetailItem('Asset Code',
-                            _complaintDetail?['asset_code'].toString() ?? '-'),
-                        _buildDetailItem('Asset Name',
-                            _complaintDetail?['asset_name'] ?? '-'),
-                        _buildDetailItem('Deskripsi',
-                            _complaintDetail?['description'] ?? '-'),
-                        _buildDetailItem('Pelapor',
-                            'ID: ${_complaintDetail?['reporter_number'] ?? '-'}'),
-
-                        // Repair Information
-                        if (_complaintDetail?['repair'] != null) ...[
-                          const SizedBox(height: 24),
-                          _buildSectionTitle('Informasi Perbaikan'),
-                          if (_complaintDetail?['repair']
-                                  ['repair_picture_path'] !=
-                              null)
-                            Container(
-                              width: double.infinity,
-                              height: 200,
-                              margin: const EdgeInsets.symmetric(vertical: 16),
-                              decoration: BoxDecoration(
-                                borderRadius: BorderRadius.circular(12),
-                                border: Border.all(color: Colors.grey.shade200),
-                              ),
-                              child: ClipRRect(
-                                borderRadius: BorderRadius.circular(12),
-                                child: Image.network(
-                                  '${ApiConfig.baseUrl}/public${_complaintDetail?['repair']['repair_picture_path']}',
-                                  fit: BoxFit.cover,
-                                  errorBuilder: (context, error, stackTrace) {
-                                    return Center(
-                                      child: Icon(
-                                        Icons.error_outline,
-                                        color: Colors.grey[400],
-                                        size: 50,
-                                      ),
-                                    );
-                                  },
-                                ),
-                              ),
-                            ),
-                          _buildDetailItem(
-                              'Tanggal Perbaikan',
-                              _formatDate(
-                                  _complaintDetail?['repair']['repair_date'])),
-                          _buildDetailItem(
-                              'Hasil Akhir',
-                              _complaintDetail?['repair']['final_result'] ??
-                                  '-'),
-                          _buildDetailItem(
-                              'Deskripsi Perbaikan',
-                              _complaintDetail?['repair']
-                                      ['repair_description'] ??
-                                  '-'),
-                          _buildDetailItem('Biaya Perbaikan',
-                              'Rp ${_complaintDetail?['repair']['repair_cost'] ?? '0'}'),
-                          _buildDetailItem('Teknisi',
-                              'ID: ${_complaintDetail?['repair']['technician_number'] ?? '-'}'),
-                          _buildDetailItem(
-                              'Part yang Diganti',
-                              _complaintDetail?['repair']['parts_replaced'] ??
-                                  '-'),
-                          _buildDetailItem(
-                              'Tanggal Selesai',
-                              _formatDate(_complaintDetail?['repair']
-                                  ['completion_date'])),
-                          _buildDetailItem('Disetujui Oleh',
-                              'ID: ${_complaintDetail?['repair']['approver_number'] ?? '-'}'),
-                          _buildDetailItem(
-                              'Tanggal Persetujuan',
-                              _formatDate(_complaintDetail?['repair']
-                                  ['approval_date'])),
-                        ],
-
-                        // Add Approve button if status is 'finished' and approval_by is null/empty
-                        if (_complaintDetail?['status']?.toLowerCase() == 'finished' &&
-                            _complaintDetail?['status']?.toLowerCase() !=
-                                'approved' &&
-                            _complaintDetail?['repair'] != null &&
-                            (_complaintDetail?['repair']['approval_by'] ==
-                                    null ||
-                                _complaintDetail?['repair']['approval_by']
-                                        .toString() ==
-                                    "null" ||
-                                _complaintDetail?['repair']['approval_by']
-                                        .toString() ==
-                                    ""))
-                          Padding(
-                            padding: const EdgeInsets.symmetric(vertical: 16.0),
-                            child: SizedBox(
-                              width: double.infinity,
-                              height: 45,
-                              child: ElevatedButton(
-                                onPressed: _isApproving ? null : _approveRepair,
-                                style: ElevatedButton.styleFrom(
-                                  backgroundColor: const Color(0xFF213268),
-                                  shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(8),
+                          child: controller.isApproving
+                              ? const CircularProgressIndicator(
+                                  color: Colors.white,
+                                )
+                              : const Text(
+                                  'Approve Repair',
+                                  style: TextStyle(
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.bold,
+                                    color: Colors.white,
                                   ),
                                 ),
-                                child: _isApproving
-                                    ? const CircularProgressIndicator(
-                                        color: Colors.white,
-                                      )
-                                    : const Text(
-                                        'Approve Repair',
-                                        style: TextStyle(
-                                          fontSize: 16,
-                                          fontWeight: FontWeight.bold,
-                                          color: Colors.white,
-                                        ),
-                                      ),
-                              ),
-                            ),
-                          ),
-                        // Add additional padding at the bottom for safe area
-                        const SizedBox(height: 20),
-                      ],
+                        ),
+                      ),
                     ),
-                  ),
-                ),
+                  // Add additional padding at the bottom for safe area
+                  const SizedBox(height: 20),
+                ],
+              ),
+            ),
+          );
+        },
+      ),
     );
   }
 }
