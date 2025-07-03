@@ -37,7 +37,6 @@ dependencies:
   flutter_secure_storage: ^9.0.0
   google_fonts: ^6.2.1
   flutter_svg: ^2.0.17
-  # intl: ^0.19.0
   shared_preferences: ^2.2.0
   mobile_scanner: ^6.0.10
   permission_handler: ^11.0.1
@@ -46,6 +45,7 @@ dependencies:
   qr_flutter: ^4.1.0
   syncfusion_flutter_calendar: ^24.1.45
   syncfusion_flutter_core: ^24.1.45
+  syncfusion_flutter_pdfviewer: ^24.2.8
   file_picker: ^8.3.2
   dotted_border: ^2.0.0+3
   image_picker: ^1.0.7
@@ -56,7 +56,6 @@ dependencies:
   firebase_messaging: ^15.2.7
   flutter_local_notifications: ^15.1.1
   flutter_pdfview: ^1.4.0+1
-  syncfusion_flutter_pdfviewer: ^24.2.8
   path_provider: ^2.1.5
   flutter_windowmanager: ^0.2.0
   no_screenshot: ^0.3.1
@@ -68,6 +67,9 @@ dependencies:
   logger: ^2.6.0
   connectivity_plus: ^6.1.4
   share_plus: ^11.0.0
+
+dependency_overrides:
+  intl: 0.20.2
 
 dev_dependencies:
   flutter_test:
