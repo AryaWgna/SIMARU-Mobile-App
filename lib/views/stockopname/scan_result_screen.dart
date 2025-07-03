@@ -29,6 +29,7 @@ class _ScanResultScreenState extends State<ScanResultScreen>
 
   // Controller untuk input catatan
   final TextEditingController _notesController = TextEditingController();
+  bool _isInitialized = false;
 
   @override
   void initState() {
@@ -37,7 +38,6 @@ class _ScanResultScreenState extends State<ScanResultScreen>
     _scanResultController =
         Provider.of<ScanResultController>(context, listen: false);
     _scanResultController.reset(); // Reset controller state
-    _scanResultController.loadScanResults(widget.opnameId);
 
     // Listener untuk mengubah tab
     _tabController.addListener(() {
@@ -45,6 +45,21 @@ class _ScanResultScreenState extends State<ScanResultScreen>
         setState(() {});
       }
     });
+
+    // Load data after widget is built
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _loadData();
+    });
+  }
+
+  Future<void> _loadData() async {
+    await _scanResultController.loadScanResults(widget.opnameId);
+    // Force refresh UI after data is loaded
+    if (mounted) {
+      setState(() {
+        _isInitialized = true;
+      });
+    }
   }
 
   @override
@@ -56,152 +71,212 @@ class _ScanResultScreenState extends State<ScanResultScreen>
 
   void _showAddNotesDialog(AssetScanDetail asset) {
     _notesController.text = asset.notes ?? '';
+    bool _isSaving = false;
 
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.white,
+      isDismissible: !_isSaving, // Tidak bisa ditutup saat menyimpan
+      enableDrag: !_isSaving, // Tidak bisa di-drag saat menyimpan
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
-      builder: (context) {
-        return Padding(
-          padding: EdgeInsets.only(
-              bottom: MediaQuery.of(context).viewInsets.bottom,
-              left: 16,
-              right: 16,
-              top: 16),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Catatan Aset',
-                        style: GoogleFonts.poppins(
-                          fontSize: 18,
-                          fontWeight: FontWeight.w600,
-                          color: const Color(0xFF213268),
+      builder: (dialogContext) {
+        return StatefulBuilder(builder: (context, setState) {
+          return Padding(
+            padding: EdgeInsets.only(
+                bottom: MediaQuery.of(context).viewInsets.bottom,
+                left: 16,
+                right: 16,
+                top: 16),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Catatan Aset',
+                          style: GoogleFonts.poppins(
+                            fontSize: 18,
+                            fontWeight: FontWeight.w600,
+                            color: const Color(0xFF213268),
+                          ),
                         ),
-                      ),
-                      Text(
-                        asset.assetCode,
-                        style: GoogleFonts.poppins(
-                          fontSize: 14,
-                          color: Colors.grey[600],
+                        Text(
+                          asset.assetCode,
+                          style: GoogleFonts.poppins(
+                            fontSize: 14,
+                            color: Colors.grey[600],
+                          ),
                         ),
-                      ),
-                    ],
-                  ),
-                  IconButton(
-                    icon: const Icon(Icons.close, color: Colors.grey),
-                    onPressed: () => Navigator.pop(context),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 16),
-              Text(
-                'Deskripsi Aset:',
-                style: GoogleFonts.poppins(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w500,
-                  color: Colors.grey[700],
-                ),
-              ),
-              const SizedBox(height: 4),
-              Text(
-                asset.assetDescription,
-                style: GoogleFonts.poppins(
-                  fontSize: 14,
-                  color: Colors.black87,
-                ),
-              ),
-              const SizedBox(height: 16),
-              Text(
-                'Catatan:',
-                style: GoogleFonts.poppins(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w500,
-                  color: Colors.grey[700],
-                ),
-              ),
-              const SizedBox(height: 8),
-              Container(
-                decoration: BoxDecoration(
-                  color: Colors.grey[50],
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: Colors.grey[300]!),
-                ),
-                child: TextField(
-                  controller: _notesController,
-                  decoration: InputDecoration(
-                    hintText: 'Tambahkan catatan untuk aset ini...',
-                    border: InputBorder.none,
-                    contentPadding: const EdgeInsets.all(12),
-                    hintStyle: GoogleFonts.poppins(
-                      fontSize: 14,
-                      color: Colors.grey[400],
+                      ],
                     ),
-                  ),
-                  maxLines: 4,
+                    if (!_isSaving)
+                      IconButton(
+                        icon: const Icon(Icons.close, color: Colors.grey),
+                        onPressed: () => Navigator.pop(dialogContext),
+                      ),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                Text(
+                  'Deskripsi Aset:',
                   style: GoogleFonts.poppins(
                     fontSize: 14,
+                    fontWeight: FontWeight.w500,
+                    color: Colors.grey[700],
                   ),
                 ),
-              ),
-              const SizedBox(height: 24),
-              Row(
-                children: [
-                  Expanded(
-                    child: ElevatedButton.icon(
-                      onPressed: () async {
-                        Navigator.pop(context);
-                        final success = await _scanResultController.saveNotes(
-                            asset.detailId, _notesController.text, context);
-
-                        if (success && mounted) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(
-                              content: Text('Catatan berhasil disimpan'),
-                              backgroundColor: Colors.green,
-                            ),
-                          );
-
-                          // Refresh data
-                          _scanResultController
-                              .loadScanResults(widget.opnameId);
-                        }
-                      },
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFF213268),
-                        foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(vertical: 12),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        elevation: 0,
+                const SizedBox(height: 4),
+                Text(
+                  asset.assetDescription,
+                  style: GoogleFonts.poppins(
+                    fontSize: 14,
+                    color: Colors.black87,
+                  ),
+                ),
+                const SizedBox(height: 16),
+                Row(
+                  children: [
+                    Text(
+                      'Catatan:',
+                      style: GoogleFonts.poppins(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w500,
+                        color: Colors.grey[700],
                       ),
-                      icon: const Icon(Icons.save),
-                      label: Text(
-                        'Simpan Catatan',
-                        style: GoogleFonts.poppins(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w500,
+                    ),
+                    const SizedBox(width: 8),
+                    Text(
+                      '(akan ditampilkan di detail aset)',
+                      style: GoogleFonts.poppins(
+                        fontSize: 12,
+                        fontStyle: FontStyle.italic,
+                        color: Colors.grey[500],
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                Container(
+                  decoration: BoxDecoration(
+                    color: Colors.grey[50],
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: Colors.grey[300]!),
+                  ),
+                  child: TextField(
+                    controller: _notesController,
+                    enabled: !_isSaving,
+                    decoration: InputDecoration(
+                      hintText: 'Tambahkan catatan untuk aset ini...',
+                      border: InputBorder.none,
+                      contentPadding: const EdgeInsets.all(12),
+                      hintStyle: GoogleFonts.poppins(
+                        fontSize: 14,
+                        color: Colors.grey[400],
+                      ),
+                    ),
+                    maxLines: 4,
+                    style: GoogleFonts.poppins(
+                      fontSize: 14,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 24),
+                Row(
+                  children: [
+                    Expanded(
+                      child: ElevatedButton.icon(
+                        onPressed: _isSaving
+                            ? null
+                            : () async {
+                                final notes = _notesController.text;
+
+                                // Atur status menyimpan
+                                setState(() {
+                                  _isSaving = true;
+                                });
+
+                                final success = await _scanResultController
+                                    .saveNotes(asset.detailId, notes, context);
+
+                                if (success && mounted) {
+                                  // Tutup dialog jika berhasil
+                                  Navigator.pop(dialogContext);
+
+                                  // Tampilkan pesan sukses
+                                  ScaffoldMessenger.of(this.context)
+                                      .showSnackBar(
+                                    const SnackBar(
+                                      content:
+                                          Text('Catatan berhasil disimpan'),
+                                      backgroundColor: Colors.green,
+                                    ),
+                                  );
+
+                                  // Perbarui UI
+                                  this.setState(() {
+                                    // Memaksa widget untuk memperbarui tampilan
+                                  });
+                                } else if (mounted) {
+                                  // Reset status menyimpan jika gagal
+                                  setState(() {
+                                    _isSaving = false;
+                                  });
+
+                                  // Tampilkan pesan error
+                                  ScaffoldMessenger.of(this.context)
+                                      .showSnackBar(
+                                    SnackBar(
+                                      content: Text(
+                                          _scanResultController.errorMessage ??
+                                              'Gagal menyimpan catatan'),
+                                      backgroundColor: Colors.red,
+                                    ),
+                                  );
+                                }
+                              },
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFF213268),
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(vertical: 12),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          elevation: 0,
+                        ),
+                        icon: _isSaving
+                            ? Container(
+                                width: 20,
+                                height: 20,
+                                child: const CircularProgressIndicator(
+                                  color: Colors.white,
+                                  strokeWidth: 2,
+                                ),
+                              )
+                            : const Icon(Icons.save),
+                        label: Text(
+                          _isSaving ? 'Menyimpan...' : 'Simpan Catatan',
+                          style: GoogleFonts.poppins(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w500,
+                          ),
                         ),
                       ),
                     ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 24),
-            ],
-          ),
-        );
+                  ],
+                ),
+                const SizedBox(height: 24),
+              ],
+            ),
+          );
+        });
       },
     );
   }
@@ -212,7 +287,7 @@ class _ScanResultScreenState extends State<ScanResultScreen>
       return Scaffold(
         appBar: AppBar(
           title: const Text(
-            'SCAN RESULT',
+            'HASIL OPNAME',
             style: TextStyle(
               fontSize: 16,
               fontWeight: FontWeight.w600,
@@ -239,6 +314,9 @@ class _ScanResultScreenState extends State<ScanResultScreen>
                       Expanded(
                         child: TabBarView(
                           controller: _tabController,
+                          physics: _isInitialized
+                              ? null
+                              : const NeverScrollableScrollPhysics(),
                           children: [
                             _buildFoundAssetsList(controller),
                             _buildMissingAssetsList(controller),
@@ -266,21 +344,21 @@ class _ScanResultScreenState extends State<ScanResultScreen>
             indicatorColor: const Color(0xFF213268),
             labelColor: const Color(0xFF213268),
             unselectedLabelColor: Colors.grey,
-            tabs: const [
+            tabs: [
               Tab(
-                icon: Icon(Icons.list_alt),
-                text: 'Semua',
-                iconMargin: EdgeInsets.only(bottom: 2),
+                icon: const Icon(Icons.list_alt),
+                text: 'Ditemukan (${controller.foundAssets.length})',
+                iconMargin: const EdgeInsets.only(bottom: 2),
               ),
               Tab(
-                icon: Icon(Icons.content_paste_search),
-                text: 'Aset Hilang',
-                iconMargin: EdgeInsets.only(bottom: 2),
+                icon: const Icon(Icons.content_paste_search),
+                text: 'Hilang (${controller.missingAssets.length})',
+                iconMargin: const EdgeInsets.only(bottom: 2),
               ),
               Tab(
-                icon: Icon(Icons.help_outline),
-                text: 'Aset Pindah',
-                iconMargin: EdgeInsets.only(bottom: 2),
+                icon: const Icon(Icons.help_outline),
+                text: 'Pindah (${controller.misplacedAssets.length})',
+                iconMargin: const EdgeInsets.only(bottom: 2),
               ),
             ],
             labelStyle: GoogleFonts.poppins(
@@ -312,14 +390,64 @@ class _ScanResultScreenState extends State<ScanResultScreen>
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
-              'Ringkasan Aset - ${controller.roomInfo?.roomName ?? widget.roomName ?? ""}',
-              style: GoogleFonts.poppins(
-                fontSize: 14,
-                fontWeight: FontWeight.w600,
-                color: const Color(0xFF213268),
-              ),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(
+                  flex: 3,
+                  child: Text(
+                    'Ringkasan Aset - ${controller.roomInfo?.roomName ?? widget.roomName ?? ""}',
+                    style: GoogleFonts.poppins(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                      color: const Color(0xFF213268),
+                    ),
+                    overflow: TextOverflow.ellipsis,
+                    maxLines: 2,
+                  ),
+                ),
+                const SizedBox(width: 8),
+                if (controller.opnameInfo != null)
+                  Expanded(
+                    flex: 2,
+                    child: Text(
+                      controller.opnameInfo!.opnameCode,
+                      style: GoogleFonts.poppins(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w500,
+                        color: Colors.grey[600],
+                      ),
+                      textAlign: TextAlign.right,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+              ],
             ),
+            if (controller.roomInfo?.building != null)
+              Padding(
+                padding: const EdgeInsets.only(top: 4),
+                child: Text(
+                  '${controller.roomInfo!.building} - Lantai ${controller.roomInfo!.floor ?? ""}',
+                  style: GoogleFonts.poppins(
+                    fontSize: 12,
+                    color: Colors.grey[600],
+                  ),
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            if (controller.opnameInfo != null)
+              Padding(
+                padding: const EdgeInsets.only(top: 4),
+                child: Text(
+                  'Tanggal: ${_formatDateTime(controller.opnameInfo!.opnameCreatedAt)}',
+                  style: GoogleFonts.poppins(
+                    fontSize: 12,
+                    color: Colors.grey[600],
+                  ),
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
             const SizedBox(height: 12),
             Row(
               children: [
@@ -546,6 +674,9 @@ class _ScanResultScreenState extends State<ScanResultScreen>
 
   Widget _buildAssetCard(String assetId, String description, String status,
       AssetScanDetail asset) {
+    // Periksa apakah aset memiliki catatan
+    final bool hasNotes = asset.notes != null && asset.notes!.isNotEmpty;
+
     return Card(
       margin: const EdgeInsets.only(bottom: 12),
       elevation: 0,
@@ -554,77 +685,124 @@ class _ScanResultScreenState extends State<ScanResultScreen>
         borderRadius: BorderRadius.circular(8),
         side: const BorderSide(color: Colors.black, width: 0.5),
       ),
-      child: ListTile(
-        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-        leading: Container(
-          width: 40,
-          height: 40,
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(8),
-            border:
-                Border.all(color: Colors.black.withOpacity(0.5), width: 0.5),
-          ),
-          child: const Icon(
-            Icons.qr_code,
-            color: Color(0xFF213268),
-          ),
-        ),
-        title: Text(
-          assetId,
-          style: GoogleFonts.poppins(
-            fontSize: 16,
-            fontWeight: FontWeight.w500,
-            color: const Color(0xFF213268),
-          ),
-        ),
-        subtitle: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              description,
-              style: GoogleFonts.poppins(
-                fontSize: 12,
-                color: Colors.grey[700],
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          ListTile(
+            contentPadding:
+                const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            leading: Container(
+              width: 40,
+              height: 40,
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(
+                    color: Colors.black.withOpacity(0.5), width: 0.5),
+              ),
+              child: const Icon(
+                Icons.qr_code,
+                color: Color(0xFF213268),
               ),
             ),
-            const SizedBox(height: 4),
-            Row(
+            title: Text(
+              assetId,
+              style: GoogleFonts.poppins(
+                fontSize: 15,
+                fontWeight: FontWeight.w500,
+                color: const Color(0xFF213268),
+              ),
+              overflow: TextOverflow.ellipsis,
+              maxLines: 1,
+            ),
+            subtitle: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Container(
-                  margin: const EdgeInsets.only(top: 4),
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(4),
-                    border: Border.all(
-                        color: Colors.black.withOpacity(0.3), width: 0.5),
+                Text(
+                  description,
+                  style: GoogleFonts.poppins(
+                    fontSize: 12,
+                    color: Colors.grey[700],
                   ),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                const SizedBox(height: 4),
+                Row(
+                  children: [
+                    Container(
+                      margin: const EdgeInsets.only(top: 4),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 8, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(4),
+                        border: Border.all(
+                            color: Colors.black.withOpacity(0.3), width: 0.5),
+                      ),
+                      child: Text(
+                        status,
+                        style: GoogleFonts.poppins(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w500,
+                          color: Colors.green,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+            trailing: IconButton(
+              icon: Icon(
+                hasNotes ? Icons.edit_note : Icons.add_comment,
+                color: const Color(0xFF213268),
+              ),
+              onPressed: () => _showAddNotesDialog(asset),
+            ),
+          ),
+          // Tampilkan catatan dalam format yang sama dengan detail
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                SizedBox(
+                  width: 24,
+                  child: Icon(
+                    Icons.note,
+                    size: 20,
+                    color: Colors.grey[600],
+                  ),
+                ),
+                const SizedBox(width: 12),
+                SizedBox(
+                  width: 70,
                   child: Text(
-                    status,
+                    "Catatan:",
                     style: GoogleFonts.poppins(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w500,
-                      color: Colors.green,
+                      fontSize: 14,
+                      color: Colors.grey[600],
                     ),
                   ),
                 ),
-                if (asset.notes != null && asset.notes!.isNotEmpty) ...[
-                  const SizedBox(width: 8),
-                  const Icon(Icons.note, size: 16, color: Colors.grey),
-                ],
+                Expanded(
+                  child: Text(
+                    hasNotes ? asset.notes! : "Tidak ada catatan",
+                    style: GoogleFonts.poppins(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w500,
+                      fontStyle: hasNotes ? FontStyle.normal : FontStyle.italic,
+                      color: hasNotes ? Colors.black87 : Colors.grey,
+                    ),
+                    overflow: TextOverflow.ellipsis,
+                    maxLines: 3,
+                  ),
+                ),
               ],
             ),
-          ],
-        ),
-        trailing: IconButton(
-          icon: const Icon(Icons.edit_note, color: Color(0xFF213268)),
-          onPressed: () => _showAddNotesDialog(asset),
-        ),
-        onTap: () {
-          // Open asset details if needed
-        },
+          ),
+        ],
       ),
     );
   }
@@ -643,17 +821,21 @@ class _ScanResultScreenState extends State<ScanResultScreen>
           Padding(
             padding: const EdgeInsets.all(16),
             child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Expanded(
-                  child: Row(
+                  flex: 3,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        "ID Tag Aset: ",
+                        "ID Tag Aset:",
                         style: GoogleFonts.poppins(
                           fontSize: 14,
                           fontWeight: FontWeight.w500,
                         ),
                       ),
+                      const SizedBox(height: 4),
                       Text(
                         asset.assetCode,
                         style: GoogleFonts.poppins(
@@ -661,10 +843,13 @@ class _ScanResultScreenState extends State<ScanResultScreen>
                           fontWeight: FontWeight.w600,
                           color: const Color(0xFF213268),
                         ),
+                        overflow: TextOverflow.ellipsis,
+                        maxLines: 2,
                       ),
                     ],
                   ),
                 ),
+                const SizedBox(width: 8),
                 Container(
                   padding:
                       const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
@@ -674,6 +859,7 @@ class _ScanResultScreenState extends State<ScanResultScreen>
                     border: Border.all(color: Colors.black, width: 0.5),
                   ),
                   child: Row(
+                    mainAxisSize: MainAxisSize.min,
                     children: [
                       Container(
                         width: 8,
@@ -703,13 +889,31 @@ class _ScanResultScreenState extends State<ScanResultScreen>
           ),
           _buildDetailRow(
               Icons.description, "Deskripsi:", asset.assetDescription),
+          if (asset.assetType != null)
+            _buildDetailRow(Icons.category, "Tipe Aset:", asset.assetType!),
+          if (asset.assetMasterCode != null)
+            _buildDetailRow(
+                Icons.qr_code, "Kode Master:", asset.assetMasterCode!),
           _buildDetailRow(Icons.room, "Lokasi Tercatat:",
               asset.expectedLocationName ?? "-"),
           if (asset.scanStatus == 'misplaced' && asset.actualLocationId != null)
-            _buildDetailRow(Icons.location_on, "Lokasi Sekarang:",
-                "Room ID: ${asset.actualLocationId}"),
-          if (asset.notes != null && asset.notes!.isNotEmpty)
-            _buildDetailRow(Icons.note, "Catatan:", asset.notes!),
+            _buildDetailRow(
+                Icons.location_on,
+                "Lokasi Sekarang:",
+                asset.actualLocationName ??
+                    "Room ID: ${asset.actualLocationId}"),
+          if (asset.scanDate != null)
+            _buildDetailRow(Icons.calendar_today, "Tanggal Scan:",
+                _formatScanDate(asset.scanDate!)),
+          if (asset.scannerName != null)
+            _buildDetailRow(Icons.person, "Dipindai Oleh:", asset.scannerName!),
+          // Tampilkan catatan sebagai bagian dari detail
+          _buildDetailRow(
+              Icons.note,
+              "Catatan:",
+              asset.notes != null && asset.notes!.isNotEmpty
+                  ? asset.notes!
+                  : "Tidak ada catatan"),
           Padding(
             padding: const EdgeInsets.all(16),
             child: ElevatedButton.icon(
@@ -723,7 +927,11 @@ class _ScanResultScreenState extends State<ScanResultScreen>
                   side: const BorderSide(color: Color(0xFF213268)),
                 ),
               ),
-              icon: const Icon(Icons.edit_note),
+              icon: Icon(
+                asset.notes == null || asset.notes!.isEmpty
+                    ? Icons.add_comment
+                    : Icons.edit_note,
+              ),
               label: Text(
                 asset.notes == null || asset.notes!.isEmpty
                     ? "Tambah Catatan"
@@ -738,9 +946,17 @@ class _ScanResultScreenState extends State<ScanResultScreen>
   }
 
   Widget _buildDetailRow(IconData icon, String label, String value) {
+    // Cek apakah ini adalah baris catatan
+    final bool isNoteRow = label == "Catatan:";
+    final bool isEmptyNote = value == "Tidak ada catatan";
+
+    // Cek apakah ini adalah baris opname ID
+    final bool isOpnameId = label.contains("Opname") || value.contains("OPN");
+
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           SizedBox(
             width: 24,
@@ -765,13 +981,42 @@ class _ScanResultScreenState extends State<ScanResultScreen>
             child: Text(
               value,
               style: GoogleFonts.poppins(
-                fontSize: 14,
+                fontSize: isOpnameId ? 13 : 14,
                 fontWeight: FontWeight.w500,
+                // Gunakan gaya khusus untuk catatan kosong
+                fontStyle: isNoteRow && isEmptyNote
+                    ? FontStyle.italic
+                    : FontStyle.normal,
+                color: isNoteRow && isEmptyNote ? Colors.grey : Colors.black87,
               ),
+              overflow: TextOverflow.ellipsis,
+              maxLines: isNoteRow ? 5 : 2,
             ),
           ),
         ],
       ),
     );
+  }
+
+  // Helper untuk memformat tanggal scan
+  String _formatScanDate(String scanDateStr) {
+    try {
+      final scanDate = DateTime.parse(scanDateStr).toLocal();
+      return "${scanDate.day}/${scanDate.month}/${scanDate.year} ${scanDate.hour}:${scanDate.minute.toString().padLeft(2, '0')}";
+    } catch (e) {
+      print('Error parsing scan date: $e');
+      return scanDateStr;
+    }
+  }
+
+  // Helper untuk memformat tanggal
+  String _formatDateTime(String dateTimeStr) {
+    try {
+      final dateTime = DateTime.parse(dateTimeStr).toLocal();
+      return "${dateTime.day}/${dateTime.month}/${dateTime.year} ${dateTime.hour}:${dateTime.minute.toString().padLeft(2, '0')}";
+    } catch (e) {
+      print('Error parsing date time: $e');
+      return dateTimeStr;
+    }
   }
 }

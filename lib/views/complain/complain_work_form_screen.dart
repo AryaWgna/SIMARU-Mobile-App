@@ -104,7 +104,7 @@ class _ComplainWorkFormScreenState extends State<ComplainWorkFormScreen> {
             padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
             child: Text(
               'Report Teknisi',
-              style: GoogleFonts.inter(
+              style: GoogleFonts.poppins(
                 fontSize: 18,
                 fontWeight: FontWeight.w600,
                 color: const Color(0xFF213268),
@@ -122,7 +122,7 @@ class _ComplainWorkFormScreenState extends State<ComplainWorkFormScreen> {
                     // MAINTENANCE DETAIL Header
                     Text(
                       'MAINTENANCE DETAIL',
-                      style: GoogleFonts.inter(
+                      style: GoogleFonts.poppins(
                         fontSize: 16,
                         fontWeight: FontWeight.w600,
                         color: const Color(0xFF213268),
@@ -186,7 +186,7 @@ class _ComplainWorkFormScreenState extends State<ComplainWorkFormScreen> {
                       children: [
                         Text(
                           'Next Maintenance Date',
-                          style: GoogleFonts.inter(
+                          style: GoogleFonts.poppins(
                             fontSize: 14,
                             fontWeight: FontWeight.w500,
                             color: Colors.black87,
@@ -210,7 +210,7 @@ class _ComplainWorkFormScreenState extends State<ComplainWorkFormScreen> {
                                       ? 'Choose Date'
                                       : DateFormat('dd MMM yyyy')
                                           .format(_nextMaintenanceDate!),
-                                  style: GoogleFonts.inter(
+                                  style: GoogleFonts.poppins(
                                     fontSize: 14,
                                     color: _nextMaintenanceDate == null
                                         ? Colors.grey.shade600
@@ -260,7 +260,7 @@ class _ComplainWorkFormScreenState extends State<ComplainWorkFormScreen> {
                 ),
                 child: Text(
                   'SUBMIT',
-                  style: GoogleFonts.inter(
+                  style: GoogleFonts.poppins(
                     fontSize: 16,
                     fontWeight: FontWeight.w600,
                     color: Colors.white,
@@ -285,7 +285,7 @@ class _ComplainWorkFormScreenState extends State<ComplainWorkFormScreen> {
       children: [
         Text(
           label,
-          style: GoogleFonts.inter(
+          style: GoogleFonts.poppins(
             fontSize: 14,
             fontWeight: FontWeight.w500,
             color: Colors.black87,
@@ -297,7 +297,7 @@ class _ComplainWorkFormScreenState extends State<ComplainWorkFormScreen> {
           keyboardType: keyboardType,
           decoration: InputDecoration(
             hintText: hintText,
-            hintStyle: GoogleFonts.inter(
+            hintStyle: GoogleFonts.poppins(
               fontSize: 14,
               color: Colors.grey.shade500,
             ),
@@ -316,7 +316,7 @@ class _ComplainWorkFormScreenState extends State<ComplainWorkFormScreen> {
               borderSide: const BorderSide(color: Color(0xFF213268)),
             ),
           ),
-          style: GoogleFonts.inter(fontSize: 14),
+          style: GoogleFonts.poppins(fontSize: 14),
         ),
       ],
     );

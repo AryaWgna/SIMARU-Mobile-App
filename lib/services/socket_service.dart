@@ -5,6 +5,7 @@ import 'package:http/http.dart' as http;
 import 'dart:convert';
 import '../core/config/api_config.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import '../utils/logger_util.dart';
 
 // Class untuk layanan WebSocket
 class SocketService extends ChangeNotifier {
@@ -18,8 +19,8 @@ class SocketService extends ChangeNotifier {
   // URL WebSocket, gunakan wss:// untuk HTTPS dan ws:// untuk HTTP
   String get _getWebSocketUrl {
     final baseUrl = kDebugMode
-        ? ApiConfig.devApiUrl.replaceFirst('http', 'ws')
-        : ApiConfig.prodApiUrl.replaceFirst('https', 'wss');
+        ? ApiConfig.baseUrl.replaceFirst('http', 'ws')
+        : ApiConfig.baseUrl.replaceFirst('https', 'wss');
     return '$baseUrl/ws';
   }
 
@@ -43,13 +44,13 @@ class SocketService extends ChangeNotifier {
           notifyListeners();
         },
         onError: (error) {
-          debugPrint('WebSocket Error: $error');
+          LoggerUtil.e('WebSocket Error', error, StackTrace.current);
           _isConnected = false;
           notifyListeners();
         },
       );
     } catch (e) {
-      debugPrint('Failed to connect to WebSocket: $e');
+      LoggerUtil.e('Failed to connect to WebSocket', e, StackTrace.current);
       _isConnected = false;
       notifyListeners();
     }
@@ -61,10 +62,10 @@ class SocketService extends ChangeNotifier {
       try {
         _channel!.sink.add(message);
       } catch (e) {
-        debugPrint('Error sending message: $e');
+        LoggerUtil.e('Error sending message', e, StackTrace.current);
       }
     } else {
-      debugPrint('WebSocket not connected!');
+      LoggerUtil.w('WebSocket not connected! Attempting to reconnect...');
       // Mencoba menghubungkan kembali
       connect();
     }
@@ -96,7 +97,7 @@ class ApiService {
     try {
       return await _storage.read(key: 'accessToken');
     } catch (e) {
-      debugPrint('Error getting access token: $e');
+      LoggerUtil.e('Error getting access token', e, StackTrace.current);
       return null;
     }
   }
@@ -117,26 +118,25 @@ class ApiService {
         headers['Authorization'] = 'Bearer $token';
       }
 
-      debugPrint('Making GET request to: $url');
+      LoggerUtil.d('Making GET request to: $url');
       final response = await http.get(url, headers: headers);
 
       // Log response for debugging
-      debugPrint('Response status: ${response.statusCode}');
-      debugPrint(
-          'Response body preview: ${response.body.substring(0, response.body.length > 100 ? 100 : response.body.length)}...');
+      LoggerUtil.d('Response status: ${response.statusCode}');
+      LoggerUtil.d('Response body length: ${response.body.length} bytes');
 
       // Handle 401 Unauthorized - Token expired or invalid
       if (response.statusCode == 401 &&
           context != null &&
           navigateToLogin != null) {
-        debugPrint('401 Unauthorized - Navigating to login');
+        LoggerUtil.w('401 Unauthorized - Navigating to login');
         navigateToLogin!(context);
         throw ApiException('Session expired. Please login again.');
       }
 
       return response;
     } catch (e) {
-      debugPrint('Error in GET request: $e');
+      LoggerUtil.e('Error in GET request', e, StackTrace.current);
       if (e is ApiException) {
         rethrow;
       }
@@ -160,7 +160,7 @@ class ApiService {
         headers['Authorization'] = 'Bearer $token';
       }
 
-      debugPrint('Making POST request to: $url');
+      LoggerUtil.d('Making POST request to: $url');
       final response = await http.post(
         url,
         headers: headers,
@@ -171,14 +171,14 @@ class ApiService {
       if (response.statusCode == 401 &&
           context != null &&
           navigateToLogin != null) {
-        debugPrint('401 Unauthorized - Navigating to login');
+        LoggerUtil.w('401 Unauthorized - Navigating to login');
         navigateToLogin!(context);
         throw ApiException('Session expired. Please login again.');
       }
 
       return response;
     } catch (e) {
-      debugPrint('Error in POST request: $e');
+      LoggerUtil.e('Error in POST request', e, StackTrace.current);
       if (e is ApiException) {
         rethrow;
       }
@@ -203,7 +203,8 @@ class WebSocketManager {
 
   // Memproses pesan masuk dan meneruskannya ke handler yang terdaftar
   static void processIncomingMessage(String message) {
-    debugPrint('WebSocketManager: Processing message: $message');
+    LoggerUtil.d(
+        'WebSocketManager: Processing message: ${message.length} bytes');
     try {
       final data = jsonDecode(message);
       final String type = data['type'] ?? 'unknown';
@@ -211,11 +212,12 @@ class WebSocketManager {
       if (_messageHandlers.containsKey(type)) {
         _messageHandlers[type]!(message);
       } else {
-        debugPrint(
+        LoggerUtil.w(
             'WebSocketManager: No handler registered for message type: $type');
       }
     } catch (e) {
-      debugPrint('WebSocketManager: Error processing message: $e');
+      LoggerUtil.e(
+          'WebSocketManager: Error processing message', e, StackTrace.current);
     }
   }
 }

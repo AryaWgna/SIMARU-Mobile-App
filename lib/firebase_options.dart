@@ -19,7 +19,9 @@ import 'package:flutter/foundation.dart'
 class DefaultFirebaseOptions {
   static FirebaseOptions get currentPlatform {
     if (kIsWeb) {
-      return web;
+      throw UnsupportedError(
+        'DefaultFirebaseOptions have been configured to not support web platform.',
+      );
     }
     switch (defaultTargetPlatform) {
       case TargetPlatform.android:
@@ -36,15 +38,6 @@ class DefaultFirebaseOptions {
   }
 
   // Values from google-services.json
-  static const FirebaseOptions web = FirebaseOptions(
-    apiKey: 'AIzaSyBnsq_2SDmRQ1CKeaQ4dbUTzPuHnjzfMJs',
-    appId: '1:28805510744:android:eb8a570ef3b74792a77c2d',
-    messagingSenderId: '28805510744',
-    projectId: 'magangummi',
-    authDomain: 'magangummi.firebaseapp.com',
-    storageBucket: 'magangummi.firebasestorage.app',
-  );
-
   static const FirebaseOptions android = FirebaseOptions(
     apiKey: 'AIzaSyBnsq_2SDmRQ1CKeaQ4dbUTzPuHnjzfMJs',
     appId: '1:28805510744:android:eb8a570ef3b74792a77c2d',

@@ -10,8 +10,11 @@ import '../dashboard/dashboard.dart';
 import '../../core/config/api_config.dart';
 import 'package:provider/provider.dart';
 import '../../controllers/asset_details_controller.dart';
+import '../../controllers/asset_complaint_controller.dart';
+import '../../controllers/dashboard_controller.dart';
 import 'package:pull_to_refresh_flutter3/pull_to_refresh_flutter3.dart';
 import 'package:skeletonizer/skeletonizer.dart';
+import '../../utils/logger_util.dart';
 
 class AssetDetails extends StatefulWidget {
   final String qrData;
@@ -28,31 +31,66 @@ class AssetDetails extends StatefulWidget {
   State<AssetDetails> createState() => _AssetDetailsState();
 }
 
-class _AssetDetailsState extends State<AssetDetails> {
+class _AssetDetailsState extends State<AssetDetails> with RouteAware {
   final RefreshController _refreshController =
       RefreshController(initialRefresh: false);
   late AssetDetailsController _assetDetailsController;
+  late DashboardController _dashboardController;
 
   @override
   void initState() {
     super.initState();
     _assetDetailsController =
         Provider.of<AssetDetailsController>(context, listen: false);
+    _dashboardController =
+        Provider.of<DashboardController>(context, listen: false);
 
     // Log data aset yang diterima untuk debugging
-    print('[ASSET_DETAILS] Widget dimuat dengan data: ${widget.assetData}');
-    print('[ASSET_DETAILS] QR Data: ${widget.qrData}');
-    print('[ASSET_DETAILS] Previous screen: ${widget.previousScreen}');
+    LoggerUtil.d(
+        '[ASSET_DETAILS] Widget dimuat dengan data: ${widget.assetData}');
+    LoggerUtil.d('[ASSET_DETAILS] QR Data: ${widget.qrData}');
+    LoggerUtil.d('[ASSET_DETAILS] Previous screen: ${widget.previousScreen}');
+
+    // Add this screen to navigation history
+    _dashboardController.pushToHistory('asset_details_${widget.qrData}');
 
     // Jika ada data aset yang diberikan, set ke controller
     if (widget.assetData != null) {
       _assetDetailsController
           .setAssetData(Map<String, dynamic>.from(widget.assetData!));
-    }
 
-    // Coba ambil data aset dari API berdasarkan QR code atau asset_code
-    String assetCode = widget.assetData?['asset_code'] ?? widget.qrData;
-    _assetDetailsController.fetchAssetData(assetCode, context: context);
+      // Cek apakah data aset sudah lengkap (memiliki asset_master)
+      bool hasCompleteData = widget.assetData!['asset_master'] != null ||
+          _assetDetailsController.masterAssetData != null;
+
+      // Jika data belum lengkap, fetch dari API
+      if (!hasCompleteData) {
+        String assetCode = widget.assetData!['asset_code'] ?? widget.qrData;
+        _assetDetailsController.fetchAssetData(assetCode, context: context);
+      } else {
+        // Data sudah lengkap, pastikan loading state di-reset
+        _assetDetailsController.setLoading(false);
+      }
+    } else {
+      // Tidak ada data aset, ambil dari API berdasarkan QR code
+      _assetDetailsController.fetchAssetData(widget.qrData, context: context);
+    }
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // Subscribe to route observer
+    final route = ModalRoute.of(context);
+    if (route is PageRoute) {
+      routeObserver.subscribe(this, route);
+    }
+  }
+
+  @override
+  void dispose() {
+    routeObserver.unsubscribe(this);
+    super.dispose();
   }
 
   void _onRefresh() async {
@@ -91,31 +129,59 @@ class _AssetDetailsState extends State<AssetDetails> {
 
   // Fungsi untuk navigasi kembali ke layar sebelumnya
   void _navigateBack() {
-    // Cek previousScreen untuk menentukan tab dashboard yang akan dibuka
-    int dashboardIndex = 0;
+    // Pop this screen from navigation history
+    _dashboardController.popFromHistory();
+    Navigator.pop(context);
+  }
 
-    switch (widget.previousScreen) {
-      case 'home':
-        dashboardIndex = 0;
-        break;
-      case 'stockopname':
-        dashboardIndex = 1;
-        break;
-      case 'repair':
-        dashboardIndex = 3;
-        break;
-      case 'profile':
-        dashboardIndex = 4;
-        break;
-      default:
-        dashboardIndex = 0;
-    }
+  // Navigate to asset history screen with proper navigation tracking
+  void _navigateToAssetHistory(Map<String, dynamic> assetData) {
+    // Add history screen to navigation stack
+    _dashboardController
+        .pushToHistory('asset_history_${assetData['asset_code']}');
 
-    // Navigasi kembali ke DashboardScreen dengan tab yang sesuai
-    Navigator.pushReplacement(
+    Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (context) => DashboardScreen(initialIndex: dashboardIndex),
+        builder: (context) => AssetHistory(
+          assetData: assetData,
+          qrData: widget.qrData,
+          previousScreen: widget.previousScreen,
+        ),
+      ),
+    );
+  }
+
+  // Navigate to asset document screen with proper navigation tracking
+  void _navigateToAssetDocument(Map<String, dynamic> assetData) {
+    // Add document screen to navigation stack
+    _dashboardController
+        .pushToHistory('asset_document_${assetData['asset_code']}');
+
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => AssetDocument(
+          assetData: assetData,
+          previousScreen: widget.previousScreen,
+        ),
+      ),
+    );
+  }
+
+  // Navigate to asset mutation screen with proper navigation tracking
+  void _navigateToAssetMutation(Map<String, dynamic> assetData) {
+    // Add mutation screen to navigation stack
+    _dashboardController
+        .pushToHistory('asset_mutation_${assetData['asset_code']}');
+
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => AssetMutation(
+          assetData: assetData,
+          previousScreen: widget.previousScreen,
+        ),
       ),
     );
   }
@@ -144,7 +210,10 @@ class _AssetDetailsState extends State<AssetDetails> {
         print('[DETAIL DEBUG] Status yang akan digunakan: $assetStatus');
 
         // Informasi tambahan dengan format yang diperbaiki hanya untuk Condition dan Asset Type
-        final brand = assetData['brand']?['brand_name'] ?? '-';
+        final brand = assetData['brand']?['brand_name'] ??
+            assetData['asset_master']?['brand']?['brand_name'] ??
+            controller.masterAssetData?['brand_name'] ??
+            '-';
         final modelNumber = assetData['model_number'] ?? '-';
 
         // Ambil data kondisi langsung dari API dan terjemahkan
@@ -153,18 +222,26 @@ class _AssetDetailsState extends State<AssetDetails> {
 
         final warrantyDate = assetData['warranty_end_date'] ?? '-';
         final serialNumber = assetData['serial_number'] ?? '-';
-        final purchasePrice = assetData['purchase_price'] != null
-            ? controller.formatCurrency(assetData['purchase_price'])
-            : '-';
+        final purchasePrice = assetData['purchase_cost'] != null
+            ? controller.formatCurrency(assetData['purchase_cost'])
+            : assetData['purchase_price'] != null
+                ? controller.formatCurrency(assetData['purchase_price'])
+                : '-';
         final purchaseDate = assetData['purchase_date'] != null
             ? controller.formatDate(assetData['purchase_date'])
             : '-';
         final disposalDate = assetData['disposal_date'] != null
             ? controller.formatDate(assetData['disposal_date'])
             : '-';
-        final userInCharge = assetData['responsible_user'] != null
-            ? 'User ID: ${assetData['responsible_user']['user_id'] ?? '-'}'
-            : '-';
+
+        // Gunakan employee_number untuk penanggung jawab
+        final userInCharge = assetData['employee_number'] != null &&
+                assetData['employee_number'].toString().isNotEmpty
+            ? assetData['employee_number'].toString()
+            : assetData['responsible_user'] != null
+                ? assetData['responsible_user']['name'] ??
+                    'User ID: ${assetData['responsible_user']['user_id'] ?? '-'}'
+                : '-';
 
         // Kategori dan subcategori
         final subCategory =
@@ -181,8 +258,11 @@ class _AssetDetailsState extends State<AssetDetails> {
 
         // Mengambil jalur gambar dan membangun URL lengkap
         final imagePath = assetData['picture_path'];
-        final imageUrl = imagePath != null && imagePath.toString().isNotEmpty
-            ? '${ApiConfig.baseUrl}/public/images/$imagePath'
+        final qrCode = assetData['picture_path'] ?? assetData['qr_code'];
+        final imageUrl = qrCode != null && qrCode.toString().isNotEmpty
+            ? qrCode.toString().startsWith('http')
+                ? qrCode
+                : '${ApiConfig.baseUrl}/public/images/$qrCode'
             : '${ApiConfig.baseUrl}/public/images/placeholder.png';
 
         print('[DETAIL DEBUG] Image URL: $imageUrl');
@@ -300,31 +380,37 @@ class _AssetDetailsState extends State<AssetDetails> {
                                     crossAxisAlignment:
                                         CrossAxisAlignment.start,
                                     children: [
-                                      Column(
-                                        crossAxisAlignment:
-                                            CrossAxisAlignment.start,
-                                        children: [
-                                          Text(
-                                            assetCode,
-                                            style: const TextStyle(
-                                              fontFamily: 'Inter',
-                                              fontSize: 16,
-                                              fontWeight: FontWeight.w500,
-                                              color: Color(0xFF213268),
+                                      Flexible(
+                                        child: Column(
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.start,
+                                          children: [
+                                            Text(
+                                              assetCode,
+                                              style: const TextStyle(
+                                                fontFamily: 'Poppins',
+                                                fontSize: 16,
+                                                fontWeight: FontWeight.w500,
+                                                color: Color(0xFF213268),
+                                              ),
+                                              overflow: TextOverflow.ellipsis,
                                             ),
-                                          ),
-                                          const SizedBox(height: 2),
-                                          Text(
-                                            assetName,
-                                            style: const TextStyle(
-                                              fontFamily: 'Inter',
-                                              fontSize: 16,
-                                              fontWeight: FontWeight.w500,
-                                              color: Color(0xFF213268),
+                                            const SizedBox(height: 2),
+                                            Text(
+                                              assetName,
+                                              style: const TextStyle(
+                                                fontFamily: 'Poppins',
+                                                fontSize: 16,
+                                                fontWeight: FontWeight.w500,
+                                                color: Color(0xFF213268),
+                                              ),
+                                              overflow: TextOverflow.ellipsis,
+                                              maxLines: 2,
                                             ),
-                                          ),
-                                        ],
+                                          ],
+                                        ),
                                       ),
+                                      const SizedBox(width: 8),
                                       Container(
                                         padding: const EdgeInsets.symmetric(
                                           horizontal: 10,
@@ -402,9 +488,15 @@ class _AssetDetailsState extends State<AssetDetails> {
                                   ),
                                   _buildActionButton(
                                     icon: Icons.report_problem_outlined,
-                                    label: 'Komplain',
-                                    onTap: () {
-                                      Navigator.push(
+                                    label: 'Keluhan',
+                                    onTap: () async {
+                                      // Reset complaint form state first via provider
+                                      Provider.of<AssetComplaintController>(
+                                              context,
+                                              listen: false)
+                                          .resetState();
+
+                                      final result = await Navigator.push(
                                         context,
                                         MaterialPageRoute(
                                             builder: (context) =>
@@ -413,6 +505,10 @@ class _AssetDetailsState extends State<AssetDetails> {
                                                   assetCode: assetCode,
                                                 )),
                                       );
+                                      if (result != null &&
+                                          result is Map<String, dynamic>) {
+                                        controller.setAssetData(result);
+                                      }
                                     },
                                   ),
                                   _buildActionButton(
@@ -494,7 +590,7 @@ class _AssetDetailsState extends State<AssetDetails> {
                                   child: Text(
                                     'Informasi Master Asset',
                                     style: TextStyle(
-                                      fontFamily: 'Inter',
+                                      fontFamily: 'Poppins',
                                       fontSize: 18,
                                       fontWeight: FontWeight.w600,
                                       color: Color(0xFF213268),
@@ -514,7 +610,7 @@ class _AssetDetailsState extends State<AssetDetails> {
                                   ),
                                   children: [
                                     _buildTableRow(
-                                        'Asset Master Code',
+                                        'Kode Master Asset',
                                         controller.masterAssetData?[
                                                 'asset_master_code'] ??
                                             assetData['asset_master']
@@ -590,7 +686,7 @@ class _AssetDetailsState extends State<AssetDetails> {
                                   child: Text(
                                     'Informasi Asset',
                                     style: TextStyle(
-                                      fontFamily: 'Inter',
+                                      fontFamily: 'Poppins',
                                       fontSize: 18,
                                       fontWeight: FontWeight.w600,
                                       color: Color(0xFF213268),
@@ -612,16 +708,16 @@ class _AssetDetailsState extends State<AssetDetails> {
                                     _buildTableRow('Ruangan', locationName),
                                     _buildTableRow('Gedung', buildingName),
                                     _buildTableRow('Kondisi', condition),
-                                    _buildTableRow('Tanggal Berakhir Garansi',
-                                        warrantyDate),
+                                    _buildTableRow(
+                                        'Garansi Berakhir', warrantyDate),
                                     _buildTableRow('Nomor Seri', serialNumber),
-                                    _buildTableRow('Karyawan Penanggung Jawab',
-                                        userInCharge),
+                                    _buildTableRow(
+                                        'Penanggung Jawab', userInCharge),
                                     _buildTableRow('Harga Beli', purchasePrice),
                                     _buildTableRow(
                                         'Tanggal Beli', purchaseDate),
                                     _buildTableRow(
-                                        'Tanggal Dimusnahkan', disposalDate),
+                                        'Tanggal Dihapuskan', disposalDate),
                                   ],
                                 ),
 
@@ -898,7 +994,7 @@ class _AssetDetailsState extends State<AssetDetails> {
           Text(
             label,
             style: const TextStyle(
-              fontFamily: 'Inter',
+              fontFamily: 'Poppins',
               fontSize: 12,
               fontWeight: FontWeight.w500,
               color: Color(0xFF213268),
@@ -917,7 +1013,7 @@ class _AssetDetailsState extends State<AssetDetails> {
           child: Text(
             label,
             style: const TextStyle(
-              fontFamily: 'Inter',
+              fontFamily: 'Poppins',
               fontSize: 12,
               color: Color(0xFF3D3D3D),
             ),
@@ -928,7 +1024,7 @@ class _AssetDetailsState extends State<AssetDetails> {
           child: Text(
             value,
             style: const TextStyle(
-              fontFamily: 'Inter',
+              fontFamily: 'Poppins',
               fontSize: 12,
               color: Color(0xFF3D3D3D),
             ),
@@ -959,43 +1055,19 @@ class _AssetDetailsState extends State<AssetDetails> {
             Icons.folder,
             'Dokumen',
             false,
-            () => Navigator.push(
-              context,
-              MaterialPageRoute(
-                  builder: (context) => AssetDocument(
-                        assetData: widget.assetData,
-                        qrData: widget.qrData,
-                        previousScreen: widget.previousScreen,
-                      )),
-            ),
+            () => _navigateToAssetDocument(widget.assetData ?? {}),
           ),
           _buildNavItem(
             Icons.history,
             'Riwayat',
             false,
-            () => Navigator.push(
-              context,
-              MaterialPageRoute(
-                  builder: (context) => AssetHistory(
-                        assetData: widget.assetData,
-                        qrData: widget.qrData,
-                        previousScreen: widget.previousScreen,
-                      )),
-            ),
+            () => _navigateToAssetHistory(widget.assetData ?? {}),
           ),
           _buildNavItem(
             Icons.swap_horiz,
             'Mutasi',
             false,
-            () => Navigator.push(
-              context,
-              MaterialPageRoute(
-                  builder: (context) => AssetMutation(
-                        assetData: widget.assetData,
-                        qrData: widget.qrData,
-                        previousScreen: widget.previousScreen,
-                      )),
-            ),
+            () => _navigateToAssetMutation(widget.assetData ?? {}),
           ),
         ],
       ),
@@ -1020,7 +1092,7 @@ class _AssetDetailsState extends State<AssetDetails> {
             Text(
               label,
               style: TextStyle(
-                fontFamily: 'Inter',
+                fontFamily: 'Poppins',
                 fontSize: 12,
                 color: isActive
                     ? const Color(0xFF213268)

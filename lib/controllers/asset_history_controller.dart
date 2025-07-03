@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'dart:convert';
 import '../controllers/auth_controller.dart' as auth;
 import '../models/asset_history_item_model.dart';
+import '../utils/logger_util.dart';
+import 'package:intl/intl.dart';
 
 class HistoryPagination {
   final int currentPage;
@@ -68,7 +70,7 @@ class AssetHistoryController extends ChangeNotifier {
     if (_isLoading != loading) {
       _isLoading = loading;
       notifyListeners();
-      print('AssetHistoryController loading state set to: $_isLoading');
+      LoggerUtil.d('AssetHistoryController loading state set to: $_isLoading');
     }
   }
 
@@ -93,9 +95,9 @@ class AssetHistoryController extends ChangeNotifier {
       return historyDateStr == selectedDateStr;
     }).toList();
 
-    print('Tanggal terpilih: $selectedDateStr');
-    print('Total riwayat: ${_histories.length}');
-    print('Riwayat terfilter: ${_filteredHistories.length}');
+    LoggerUtil.d('Tanggal terpilih: $selectedDateStr');
+    LoggerUtil.d('Total riwayat: ${_histories.length}');
+    LoggerUtil.d('Riwayat terfilter: ${_filteredHistories.length}');
 
     // Pastikan notifyListeners dipanggil agar UI diperbarui
     notifyListeners();
@@ -110,6 +112,18 @@ class AssetHistoryController extends ChangeNotifier {
   String formatAPIDateParam(DateTime date) {
     // Format tanggal yang diharapkan API: DD-MM-YYYY
     return '${date.day.toString().padLeft(2, '0')}-${date.month.toString().padLeft(2, '0')}-${date.year}';
+  }
+
+  // Format tanggal dari API ke format lokal
+  String formatAPIDate(String dateString) {
+    try {
+      final date = DateTime.parse(dateString);
+      // Format tanggal dan waktu (HH:MM) dalam waktu lokal
+      final formatter = DateFormat('HH:mm');
+      return formatter.format(date.toLocal());
+    } catch (e) {
+      return '';
+    }
   }
 
   // Mengambil riwayat aset berdasarkan asset_id
@@ -137,15 +151,15 @@ class AssetHistoryController extends ChangeNotifier {
 
       // Menggunakan endpoint dengan parameter tanggal
       final endpoint = '/asset-histories/$assetIdStr?date=$selectedDateStr';
-      print('Memanggil API endpoint: $endpoint');
-      print('Tanggal yang dipilih: $selectedDateStr');
+      LoggerUtil.d('Memanggil API endpoint: $endpoint');
+      LoggerUtil.d('Tanggal yang dipilih: $selectedDateStr');
 
       final response = await auth.ApiService.get(endpoint, context: context);
-      print('Response status: ${response.statusCode}');
+      LoggerUtil.d('Response status: ${response.statusCode}');
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
-        print('Response data: $data');
+        LoggerUtil.d('Response data received');
 
         if (data['success'] == true) {
           List<dynamic> allHistories = [];
@@ -164,7 +178,7 @@ class AssetHistoryController extends ChangeNotifier {
             }
           }
 
-          print('Jumlah riwayat dari API: ${allHistories.length}');
+          LoggerUtil.d('Jumlah riwayat dari API: ${allHistories.length}');
 
           // Konversi ke model AssetHistoryItem
           _histories = allHistories
@@ -177,22 +191,23 @@ class AssetHistoryController extends ChangeNotifier {
           // Tidak perlu filter lagi karena API sudah mengembalikan data sesuai tanggal
           _filteredHistories = _histories;
 
-          print('Berhasil mendapatkan ${_histories.length} riwayat aset');
+          LoggerUtil.i(
+              'Berhasil mendapatkan ${_histories.length} riwayat aset');
         } else {
           _error = data['message'] ?? 'Gagal mengambil riwayat aset';
-          print('Error dari API: $_error');
+          LoggerUtil.w('Error dari API: $_error');
           _histories = [];
           _filteredHistories = [];
         }
       } else {
         _error = 'HTTP Error: ${response.statusCode}';
-        print('HTTP Error: ${response.statusCode}');
+        LoggerUtil.w('HTTP Error: ${response.statusCode}');
         _histories = [];
         _filteredHistories = [];
       }
     } catch (e) {
       _error = e.toString();
-      print('Error fetching asset history: $e');
+      LoggerUtil.e('Error fetching asset history', e, StackTrace.current);
       _histories = [];
       _filteredHistories = [];
     } finally {

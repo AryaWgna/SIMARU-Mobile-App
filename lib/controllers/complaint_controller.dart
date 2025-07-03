@@ -5,6 +5,7 @@ import 'package:http/http.dart' as http;
 import '../core/config/api_config.dart';
 import '../models/complaint_model.dart';
 import 'auth_controller.dart';
+import '../utils/logger_util.dart';
 
 class ComplaintController extends ChangeNotifier {
   final _storage = const FlutterSecureStorage();
@@ -31,7 +32,7 @@ class ComplaintController extends ChangeNotifier {
     if (_isLoading != loading) {
       _isLoading = loading;
       notifyListeners();
-      print('ComplaintController loading state set to: $_isLoading');
+      LoggerUtil.d('ComplaintController loading state set to: $_isLoading');
     }
   }
 
@@ -40,17 +41,22 @@ class ComplaintController extends ChangeNotifier {
     notifyListeners();
   }
 
+  void clearComplaintDetail() {
+    _complaintDetail = null;
+    notifyListeners();
+  }
+
   Future<String?> _getUserId() async {
     try {
       // Ambil user_id dari Flutter Secure Storage
       final userId = await _storage.read(key: 'user_id');
-      print('Retrieved user_id from storage: $userId');
+      LoggerUtil.d('Retrieved user_id from storage: $userId');
 
       if (userId == null || userId.isEmpty) {
         // Coba ambil dari token
         final token = await ApiService.getAccessToken();
         if (token != null) {
-          print('Trying to decode token: $token');
+          LoggerUtil.d('Trying to decode token: ${token.substring(0, 10)}...');
           // Decode token untuk mendapatkan user_id
           final parts = token.split('.');
           if (parts.length == 3) {
@@ -61,13 +67,13 @@ class ComplaintController extends ChangeNotifier {
                 normalized.length + (4 - normalized.length % 4) % 4, '=');
             final decoded = utf8.decode(base64Url.decode(padded));
             final decodedPayload = json.decode(decoded);
-            print('Token payload: $decodedPayload');
+            LoggerUtil.d('Token payload decoded successfully');
 
             if (decodedPayload['user_id'] != null) {
               final userIdFromToken = decodedPayload['user_id'].toString();
-              print('Found user_id in token: $userIdFromToken');
+              LoggerUtil.d('Found user_id in token: $userIdFromToken');
               await _storage.write(key: 'user_id', value: userIdFromToken);
-              print('Saved user_id from token to storage');
+              LoggerUtil.d('Saved user_id from token to storage');
 
               return userIdFromToken;
             }
@@ -78,7 +84,7 @@ class ComplaintController extends ChangeNotifier {
 
       return userId;
     } catch (e) {
-      print('Error getting user ID: $e');
+      LoggerUtil.e('Error getting user ID', e, StackTrace.current);
       return null;
     }
   }
@@ -107,11 +113,12 @@ class ComplaintController extends ChangeNotifier {
         },
       );
 
-      print('Complaint API response status code: ${response.statusCode}');
+      LoggerUtil.d(
+          'Complaint API response status code: ${response.statusCode}');
 
       if (response.statusCode == 200) {
         final jsonResponse = json.decode(response.body);
-        print('Complaint API response body: ${response.body}');
+        LoggerUtil.d('Complaint API response received successfully');
 
         if (jsonResponse['success'] == true) {
           if (jsonResponse['data'] != null) {
@@ -120,33 +127,35 @@ class ComplaintController extends ChangeNotifier {
                 .map((json) => ComplaintModel.fromJson(json))
                 .toList();
 
-            print('Loaded ${_complaints.length} complaints');
+            LoggerUtil.i('Loaded ${_complaints.length} complaints');
 
             // Parse pagination if available
             if (jsonResponse['pagination'] != null) {
               _pagination =
                   ComplaintPagination.fromJson(jsonResponse['pagination']);
-              print('Pagination: ${_pagination?.totalItems} total items');
+              LoggerUtil.d(
+                  'Pagination: ${_pagination?.totalItems} total items');
             }
 
             _isSuccess = true;
           } else {
             _complaints = [];
-            print('No complaints data in response');
+            LoggerUtil.i('No complaints data in response');
           }
         } else {
           _errorMessage =
               jsonResponse['message'] ?? 'Failed to load complaints';
-          print('API error: $_errorMessage');
+          LoggerUtil.w('API error: $_errorMessage');
         }
       } else {
         _errorMessage = 'Server error: ${response.statusCode}';
-        print('API status code error: $_errorMessage');
+        LoggerUtil.w('API status code error: $_errorMessage');
       }
     } catch (e) {
       _errorMessage = e.toString();
-      print('Error loading complaints: $e');
+      LoggerUtil.e('Error loading complaints', e, StackTrace.current);
     } finally {
+      // Explicitly ensure loading state is set to false
       setLoading(false);
     }
   }
@@ -185,7 +194,7 @@ class ComplaintController extends ChangeNotifier {
     } catch (e) {
       _errorMessage = e.toString();
       _isSuccess = false;
-      print('Error fetching complaint detail: $e');
+      LoggerUtil.e('Error fetching complaint detail', e, StackTrace.current);
     } finally {
       setLoading(false);
     }
@@ -227,7 +236,7 @@ class ComplaintController extends ChangeNotifier {
       }
     } catch (e) {
       _errorMessage = e.toString();
-      print('Error approving repair: $e');
+      LoggerUtil.e('Error approving repair', e, StackTrace.current);
       return false;
     } finally {
       _isApproving = false;

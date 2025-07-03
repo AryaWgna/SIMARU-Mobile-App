@@ -35,7 +35,8 @@ class _AssetComplaintScreenState extends State<AssetComplaintScreen> {
     // Mengambil controller
     _complaintController =
         Provider.of<AssetComplaintController>(context, listen: false);
-    _complaintController.clearError();
+    // Reset all state when entering complaint screen
+    _complaintController.resetState();
   }
 
   Future<void> _showImageSourceDialog() async {
@@ -55,7 +56,7 @@ class _AssetComplaintScreenState extends State<AssetComplaintScreen> {
                 const Text(
                   'Pilih Sumber Gambar',
                   style: TextStyle(
-                    fontFamily: 'Inter',
+                    fontFamily: 'Poppins',
                     fontSize: 18,
                     fontWeight: FontWeight.w600,
                     color: Color(0xFF213268),
@@ -122,7 +123,7 @@ class _AssetComplaintScreenState extends State<AssetComplaintScreen> {
             Text(
               label,
               style: const TextStyle(
-                fontFamily: 'Inter',
+                fontFamily: 'Poppins',
                 fontSize: 14,
                 color: Color(0xFF213268),
               ),
@@ -195,14 +196,25 @@ class _AssetComplaintScreenState extends State<AssetComplaintScreen> {
     );
 
     if (success && mounted) {
-      // Menampilkan pesan sukses dan kembali ke halaman sebelumnya
+      // Menampilkan pesan sukses
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Komplain berhasil dikirim'),
+          content: Text('Keluhan berhasil dikirim'),
           backgroundColor: Color(0xFF213268),
         ),
       );
-      Navigator.pop(context);
+
+      // Modifikasi data asset untuk diupdate di halaman detail
+      if (widget.assetData != null) {
+        final updatedAssetData = Map<String, dynamic>.from(widget.assetData!);
+        // Status aset tidak perlu diubah untuk komplain, tetapi kita tetap mengembalikan data
+        // untuk konsistensi dengan fitur lainnya
+
+        // Kembali ke halaman detail dengan data yang diperbarui
+        Navigator.pop(context, updatedAssetData);
+      } else {
+        Navigator.pop(context);
+      }
     }
   }
 
@@ -283,9 +295,9 @@ class _AssetComplaintScreenState extends State<AssetComplaintScreen> {
                     children: [
                       // Header
                       const Text(
-                        'Formulir Komplain Aset',
+                        'Formulir Keluhan Aset',
                         style: TextStyle(
-                          fontFamily: 'Inter',
+                          fontFamily: 'Poppins',
                           fontSize: 24,
                           fontWeight: FontWeight.w600,
                           color: Color(0xFF213268),
@@ -316,7 +328,7 @@ class _AssetComplaintScreenState extends State<AssetComplaintScreen> {
                                 Text(
                                   'Informasi Aset',
                                   style: TextStyle(
-                                    fontFamily: 'Inter',
+                                    fontFamily: 'Poppins',
                                     fontSize: 16,
                                     fontWeight: FontWeight.w600,
                                     color: Color(0xFF213268),
@@ -334,7 +346,7 @@ class _AssetComplaintScreenState extends State<AssetComplaintScreen> {
                                   child: Text(
                                     'Kode Aset:',
                                     style: TextStyle(
-                                      fontFamily: 'Inter',
+                                      fontFamily: 'Poppins',
                                       fontSize: 14,
                                       color: Color(0xFF666666),
                                     ),
@@ -345,7 +357,7 @@ class _AssetComplaintScreenState extends State<AssetComplaintScreen> {
                                     widget.assetData?['asset_code'] ??
                                         widget.assetCode,
                                     style: const TextStyle(
-                                      fontFamily: 'Inter',
+                                      fontFamily: 'Poppins',
                                       fontSize: 14,
                                       fontWeight: FontWeight.w500,
                                       color: Color(0xFF213268),
@@ -364,7 +376,7 @@ class _AssetComplaintScreenState extends State<AssetComplaintScreen> {
                                   child: Text(
                                     'Nama Aset:',
                                     style: TextStyle(
-                                      fontFamily: 'Inter',
+                                      fontFamily: 'Poppins',
                                       fontSize: 14,
                                       color: Color(0xFF666666),
                                     ),
@@ -373,9 +385,11 @@ class _AssetComplaintScreenState extends State<AssetComplaintScreen> {
                                 Expanded(
                                   child: Text(
                                     widget.assetData?['asset_name'] ??
+                                        widget.assetData?['asset_master']
+                                            ?['asset_name'] ??
                                         'Tidak diketahui',
                                     style: const TextStyle(
-                                      fontFamily: 'Inter',
+                                      fontFamily: 'Poppins',
                                       fontSize: 14,
                                       fontWeight: FontWeight.w500,
                                       color: Color(0xFF213268),
@@ -396,7 +410,7 @@ class _AssetComplaintScreenState extends State<AssetComplaintScreen> {
                           const Text(
                             'Deskripsi Masalah',
                             style: TextStyle(
-                              fontFamily: 'Inter',
+                              fontFamily: 'Poppins',
                               fontSize: 16,
                               fontWeight: FontWeight.w600,
                               color: Color(0xFF666666),
@@ -455,7 +469,7 @@ class _AssetComplaintScreenState extends State<AssetComplaintScreen> {
                               Text(
                                 'Lampirkan Foto',
                                 style: TextStyle(
-                                  fontFamily: 'Inter',
+                                  fontFamily: 'Poppins',
                                   fontSize: 16,
                                   fontWeight: FontWeight.w600,
                                   color: Color(0xFF666666),
@@ -465,7 +479,7 @@ class _AssetComplaintScreenState extends State<AssetComplaintScreen> {
                               Text(
                                 '(Opsional)',
                                 style: TextStyle(
-                                  fontFamily: 'Inter',
+                                  fontFamily: 'Poppins',
                                   fontSize: 14,
                                   fontWeight: FontWeight.w400,
                                   color: Color(0xFF999999),
@@ -500,7 +514,7 @@ class _AssetComplaintScreenState extends State<AssetComplaintScreen> {
                                     Text(
                                       'Tambahkan Foto',
                                       style: TextStyle(
-                                        fontFamily: 'Inter',
+                                        fontFamily: 'Poppins',
                                         fontSize: 14,
                                         color: Color(0xFF213268),
                                       ),
@@ -638,9 +652,9 @@ class _AssetComplaintScreenState extends State<AssetComplaintScreen> {
                                   ),
                                 )
                               : const Text(
-                                  'Kirim Komplain',
+                                  'Buat Keluhan',
                                   style: TextStyle(
-                                    fontFamily: 'Inter',
+                                    fontFamily: 'Poppins',
                                     fontSize: 16,
                                     fontWeight: FontWeight.w500,
                                   ),

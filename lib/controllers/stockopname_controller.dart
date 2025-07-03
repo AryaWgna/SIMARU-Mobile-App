@@ -5,6 +5,7 @@ import 'dart:convert';
 import 'dart:async';
 import 'dart:math' as math;
 import 'package:http/http.dart' as http;
+import '../utils/logger_util.dart';
 
 class StockOpnameController extends ChangeNotifier {
   List<StockOpnameItem> _scannedItems = [];
@@ -78,7 +79,7 @@ class StockOpnameController extends ChangeNotifier {
     if (_isLoading != loading) {
       _isLoading = loading;
       notifyListeners();
-      print('StockOpnameController loading state set to: $_isLoading');
+      LoggerUtil.d('StockOpnameController loading state set to: $_isLoading');
     }
   }
 
@@ -198,18 +199,18 @@ class StockOpnameController extends ChangeNotifier {
         return false;
       }
 
-      // Kirim data scan ke API
+      // Menggunakan endpoint dari dokumentasi API
       final response = await auth.ApiService.post(
         '/asset-opname-details',
         body: {
           'opname_id': opnameId,
-          'actual_location_id': roomId,
           'asset_code': assetCode,
+          'actual_location_id': roomId,
         },
         context: context,
       );
 
-      print('API response: ${response.statusCode} - ${response.body}');
+      LoggerUtil.d('API response: ${response.statusCode} - ${response.body}');
 
       if (response.statusCode == 200 || response.statusCode == 201) {
         final data = jsonDecode(response.body);
@@ -217,15 +218,17 @@ class StockOpnameController extends ChangeNotifier {
         // Set as last scanned code
         setLastScannedCode(assetCode);
 
-        if (data['success'] == true) {
+        if (data['success'] == true && data['data'] != null) {
           // Tambahkan aset ke daftar aset yang dipindai
+          final assetData = data['data'];
+
           final asset = StockOpnameItem(
-            assetId: data['data']['asset_id'],
+            assetId: assetData['asset_id'],
             assetCode: assetCode,
-            assetName: data['data']['asset_name'] ?? 'Tidak diketahui',
-            location: data['data']['location'] ?? 'Tidak diketahui',
-            condition: data['data']['condition'] ?? 'Tidak diketahui',
-            currentStatus: data['data']['status'] ?? 'Tidak diketahui',
+            assetName: assetData['asset_name'] ?? 'Tidak diketahui',
+            location: assetData['actual_location_name'] ?? 'Tidak diketahui',
+            condition: assetData['asset_type'] ?? 'Tidak diketahui',
+            currentStatus: assetData['scan_status'] ?? 'Tidak diketahui',
             scanTime: DateTime.now(),
           );
 
@@ -242,13 +245,34 @@ class StockOpnameController extends ChangeNotifier {
         }
       } else {
         final errorData = jsonDecode(response.body);
-        _error = errorData['message'] ?? 'Error ${response.statusCode}';
+
+        // Handle specific HTTP status codes with user-friendly messages
+        if (response.statusCode == 404) {
+          _error =
+              'Aset dengan kode ${assetCode} tidak ditemukan. Pastikan kode QR valid.';
+        } else if (response.statusCode == 401) {
+          _error = 'Sesi telah berakhir. Silakan login kembali.';
+        } else if (response.statusCode == 403) {
+          _error = 'Anda tidak memiliki akses untuk memindai aset ini.';
+        } else if (response.statusCode == 400) {
+          _error = errorData['message'] ??
+              'Format permintaan tidak valid. Coba lagi.';
+        } else if (response.statusCode == 500) {
+          _error = 'Terjadi kesalahan pada server. Silakan coba lagi nanti.';
+        } else {
+          _error = errorData['message'] ??
+              'Error ${response.statusCode}: Gagal memindai aset';
+        }
+
+        LoggerUtil.e(
+            'HTTP Error: ${response.statusCode}', _error, StackTrace.current);
         _isLoading = false;
         notifyListeners();
         return false;
       }
     } catch (e) {
-      _error = e.toString();
+      _error = 'Gagal memindai aset: ${e.toString()}';
+      LoggerUtil.e('Exception during processScannedQR', e, StackTrace.current);
       _isLoading = false;
       notifyListeners();
       return false;
@@ -328,7 +352,7 @@ class StockOpnameController extends ChangeNotifier {
       _error = null;
       notifyListeners();
 
-      // Kirim data ke server untuk menyelesaikan stockopname
+      // Menggunakan endpoint dari dokumentasi API
       final response = await auth.ApiService.post(
         '/asset-opnames/$opnameId/complete',
         body: {},
@@ -391,9 +415,16 @@ class StockOpnameController extends ChangeNotifier {
   // Memuat data gedung dengan parameter pencarian
   Future<void> fetchBuildings(BuildContext context,
       {String searchQuery = '', bool resetList = true}) async {
+    LoggerUtil.d(
+        'fetchBuildings called with searchQuery: "$searchQuery", resetList: $resetList');
+
+    // Guard clause to prevent duplicate requests
     if (_isLoadingBuildings &&
         searchQuery == _lastBuildingSearchQuery &&
-        resetList) return;
+        resetList) {
+      LoggerUtil.d('Skipping duplicate building fetch request');
+      return;
+    }
 
     // Jika ini adalah request baru (bukan load more), reset pagination
     if (resetList) {
@@ -402,9 +433,17 @@ class StockOpnameController extends ChangeNotifier {
       _isLoadingBuildings = true;
       _buildings = [];
       _hasMoreBuildings = true;
+      LoggerUtil.d('Reset building list and pagination for new search');
     } else {
-      if (!_hasMoreBuildings || _isLoadingMoreBuildings) return;
+      // Double-check to prevent duplicate load-more requests
+      if (!_hasMoreBuildings || _isLoadingMoreBuildings) {
+        LoggerUtil.d(
+            'Skipping load more: hasMore=$_hasMoreBuildings, isLoadingMore=$_isLoadingMoreBuildings');
+        return;
+      }
       _isLoadingMoreBuildings = true;
+      LoggerUtil.d(
+          'Loading more buildings, current page: $_currentBuildingPage');
     }
 
     _error = null;
@@ -415,7 +454,7 @@ class StockOpnameController extends ChangeNotifier {
       final token = await auth.ApiService.getAccessToken();
       if (token == null || token.isEmpty) {
         _error = 'Anda tidak memiliki akses. Silakan login kembali.';
-        print('Error: Token tidak ditemukan, pengguna belum login');
+        LoggerUtil.e('Error: Token tidak ditemukan, pengguna belum login');
         _isLoadingBuildings = false;
         _isLoadingMoreBuildings = false;
         notifyListeners();
@@ -427,16 +466,17 @@ class StockOpnameController extends ChangeNotifier {
           '/buildings?sort_order=asc&page=$_currentBuildingPage&limit=$_buildingLimit';
       if (searchQuery.isNotEmpty) {
         endpoint = '$endpoint&search=${Uri.encodeComponent(searchQuery)}';
+        LoggerUtil.d('Search query added to endpoint: $endpoint');
       }
 
       // Log URL lengkap untuk debugging
       final fullUrl = '${auth.ApiService.baseUrl}$endpoint';
-      print('Base URL yang digunakan: ${auth.ApiService.baseUrl}');
-      print('Full URL for request: $fullUrl');
-      print('Fetching buildings with endpoint: $endpoint');
-      print(
+      LoggerUtil.d('Base URL yang digunakan: ${auth.ApiService.baseUrl}');
+      LoggerUtil.d('Full URL for request: $fullUrl');
+      LoggerUtil.d('Fetching buildings with endpoint: $endpoint');
+      LoggerUtil.d(
           'Using token: ${token.substring(0, math.min(10, token.length))}...');
-      print(
+      LoggerUtil.d(
           'Current page: $_currentBuildingPage, Has more: $_hasMoreBuildings');
 
       try {
@@ -444,7 +484,7 @@ class StockOpnameController extends ChangeNotifier {
         final client = http.Client();
         final uri = Uri.parse(fullUrl);
 
-        print('Trying direct HTTP request to: $uri');
+        LoggerUtil.d('Trying direct HTTP request to: $uri');
         final directResponse = await client.get(
           uri,
           headers: {
@@ -455,18 +495,18 @@ class StockOpnameController extends ChangeNotifier {
         ).timeout(
           const Duration(seconds: 15),
           onTimeout: () {
-            print('Direct HTTP request timed out after 15 seconds');
+            LoggerUtil.e('Direct HTTP request timed out after 15 seconds');
             throw TimeoutException('Connection timeout');
           },
         );
 
-        print(
+        LoggerUtil.d(
             'Direct HTTP response: ${directResponse.statusCode} - ${directResponse.body}');
 
         // Kemudian coba dengan ApiService
-        print('Now trying with ApiService');
+        LoggerUtil.d('Now trying with ApiService');
         final response = await auth.ApiService.get(endpoint, context: context);
-        print(
+        LoggerUtil.d(
             'Building API response: ${response.statusCode} - ${response.body}');
 
         if (response.statusCode == 200) {
@@ -480,22 +520,30 @@ class StockOpnameController extends ChangeNotifier {
               _totalBuildingPages = data['pagination']['total_pages'] ?? 1;
               _hasMoreBuildings = data['pagination']['has_next'] ?? false;
               _currentBuildingPage = data['pagination']['current_page'] ?? 1;
-              print(
+              LoggerUtil.d(
                   'Pagination info: Page $_currentBuildingPage of $_totalBuildingPages, Has more: $_hasMoreBuildings');
             }
 
             final List<dynamic> buildingsJson = data['data'] ?? [];
-            print('Building data count: ${buildingsJson.length}');
+            LoggerUtil.d('Building data count: ${buildingsJson.length}');
+
+            // Log raw data for debugging
+            LoggerUtil.d('Raw building data: ${jsonEncode(buildingsJson)}');
 
             // Parse gedung dari JSON
             final newBuildings = buildingsJson
                 .map((json) {
                   try {
                     // Print detail JSON untuk debugging
-                    print('Building JSON item: $json');
-                    return Building.fromJson(json);
+                    LoggerUtil.d('Building JSON item: $json');
+                    final building = Building.fromJson(json);
+                    LoggerUtil.d(
+                        'Successfully parsed building: id=${building.id}, name=${building.name}');
+                    return building;
                   } catch (e) {
-                    print('Error parsing building: $e for item: $json');
+                    LoggerUtil.e(
+                        'Error parsing building', e, StackTrace.current);
+                    LoggerUtil.e('Error item: $json');
                     return null;
                   }
                 })
@@ -509,7 +557,7 @@ class StockOpnameController extends ChangeNotifier {
               _buildings.addAll(newBuildings);
             }
 
-            print(
+            LoggerUtil.i(
                 'Successfully parsed ${newBuildings.length} buildings, total now: ${_buildings.length}');
 
             // Increment page for next load if there are more buildings
@@ -518,16 +566,16 @@ class StockOpnameController extends ChangeNotifier {
             }
           } else {
             _error = data['message'] ?? 'Gagal memuat data gedung';
-            print('Error dari API: $_error');
+            LoggerUtil.w('Error dari API: $_error');
           }
         } else {
           _error = 'Error ${response.statusCode}: Gagal memuat data gedung';
-          print('Error status code: ${response.statusCode}');
+          LoggerUtil.e('Error status code: ${response.statusCode}');
           // Coba cetak body untuk melihat detail error
-          print('Error body: ${response.body}');
+          LoggerUtil.e('Error body: ${response.body}');
         }
       } catch (e) {
-        print('HTTP request error: $e');
+        LoggerUtil.e('HTTP request error', e, StackTrace.current);
         throw e; // Re-throw untuk ditangkap di catch luar
       } finally {
         // Tutup koneksi client
@@ -535,78 +583,194 @@ class StockOpnameController extends ChangeNotifier {
       }
     } catch (e, stackTrace) {
       _error = 'Gagal memuat data gedung: ${e.toString()}';
-      print('Exception saat memuat gedung: $e');
-      print('Stack trace: $stackTrace');
+      LoggerUtil.e('Exception saat memuat gedung', e, stackTrace);
     } finally {
+      // Reset loading flags appropriately based on request type
       if (resetList) {
         _isLoadingBuildings = false;
+        LoggerUtil.d('Reset _isLoadingBuildings flag');
       } else {
         _isLoadingMoreBuildings = false;
+        LoggerUtil.d('Reset _isLoadingMoreBuildings flag');
       }
+
+      // Always notify listeners about state changes
       notifyListeners();
+
+      // Log final state
+      LoggerUtil.d(
+          'Buildings fetch completed. Total buildings: ${_buildings.length}, hasMore: $_hasMoreBuildings, currentPage: $_currentBuildingPage');
     }
   }
 
   // Load more buildings
   Future<void> loadMoreBuildings(BuildContext context) async {
-    if (!_hasMoreBuildings || _isLoadingMoreBuildings || _isLoadingBuildings)
+    // Avoid duplicate requests or loading when we don't have more data
+    if (!_hasMoreBuildings || _isLoadingMoreBuildings || _isLoadingBuildings) {
+      LoggerUtil.d(
+          'Load more buildings skipped: hasMore=$_hasMoreBuildings, loadingMore=$_isLoadingMoreBuildings, loading=$_isLoadingBuildings');
       return;
+    }
 
-    print('Loading more buildings, page: $_currentBuildingPage');
-    await fetchBuildings(context,
-        searchQuery: _lastBuildingSearchQuery, resetList: false);
+    LoggerUtil.d(
+        'Loading more buildings, current page: $_currentBuildingPage, total pages: $_totalBuildingPages');
+
+    try {
+      // Set loading flag and notify listeners immediately
+      _isLoadingMoreBuildings = true;
+      notifyListeners();
+
+      // Cek apakah sudah login/ada token
+      final token = await auth.ApiService.getAccessToken();
+      if (token == null || token.isEmpty) {
+        _error = 'Anda tidak memiliki akses. Silakan login kembali.';
+        LoggerUtil.e('Error: Token tidak ditemukan, pengguna belum login');
+        _isLoadingMoreBuildings = false;
+        notifyListeners();
+        return;
+      }
+
+      // Perbaiki format URL, pastikan tidak ada karakter khusus yang tidak di-encode
+      String endpoint =
+          '/buildings?sort_order=asc&page=$_currentBuildingPage&limit=$_buildingLimit';
+      if (_lastBuildingSearchQuery.isNotEmpty) {
+        endpoint =
+            '$endpoint&search=${Uri.encodeComponent(_lastBuildingSearchQuery)}';
+        LoggerUtil.d('Search query added to endpoint: $endpoint');
+      }
+
+      // Log URL lengkap untuk debugging
+      final fullUrl = '${auth.ApiService.baseUrl}$endpoint';
+      LoggerUtil.d('Base URL yang digunakan: ${auth.ApiService.baseUrl}');
+      LoggerUtil.d('Full URL for request: $fullUrl');
+      LoggerUtil.d('Fetching more buildings with endpoint: $endpoint');
+      LoggerUtil.d(
+          'Current page: $_currentBuildingPage, Has more: $_hasMoreBuildings');
+
+      final response = await auth.ApiService.get(endpoint);
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        if (data['success'] == true) {
+          // Process pagination info
+          if (data['pagination'] != null) {
+            _totalBuildingPages = data['pagination']['total_pages'] ?? 1;
+            _hasMoreBuildings = data['pagination']['has_next'] ?? false;
+            _currentBuildingPage = data['pagination']['current_page'] ?? 1;
+            LoggerUtil.d(
+                'Pagination info: Page $_currentBuildingPage of $_totalBuildingPages, Has more: $_hasMoreBuildings');
+          }
+
+          final List<dynamic> buildingsJson = data['data'] ?? [];
+          LoggerUtil.d('Building data count: ${buildingsJson.length}');
+
+          // Parse gedung dari JSON
+          final newBuildings = buildingsJson
+              .map((json) {
+                try {
+                  final building = Building.fromJson(json);
+                  LoggerUtil.d(
+                      'Successfully parsed building: id=${building.id}, name=${building.name}');
+                  return building;
+                } catch (e) {
+                  LoggerUtil.e('Error parsing building', e, StackTrace.current);
+                  return null;
+                }
+              })
+              .whereType<Building>()
+              .toList(); // Filter null values
+
+          // Tambahkan gedung baru ke daftar yang ada
+          _buildings.addAll(newBuildings);
+          LoggerUtil.i(
+              'Successfully added ${newBuildings.length} more buildings, total now: ${_buildings.length}');
+
+          // Increment page for next load if there are more buildings
+          if (_hasMoreBuildings) {
+            _currentBuildingPage++;
+          }
+        } else {
+          _error = data['message'] ?? 'Gagal memuat data gedung tambahan';
+          LoggerUtil.w('Error dari API: $_error');
+        }
+      } else {
+        _error =
+            'Error ${response.statusCode}: Gagal memuat data gedung tambahan';
+        LoggerUtil.e('Error status code: ${response.statusCode}');
+        LoggerUtil.e('Error body: ${response.body}');
+      }
+    } catch (e, stackTrace) {
+      _error = 'Gagal memuat data gedung tambahan: ${e.toString()}';
+      LoggerUtil.e('Exception saat memuat gedung tambahan', e, stackTrace);
+    } finally {
+      // Reset loading flag
+      _isLoadingMoreBuildings = false;
+      notifyListeners();
+      LoggerUtil.d(
+          'Buildings load more completed. Total buildings: ${_buildings.length}, hasMore: $_hasMoreBuildings, currentPage: $_currentBuildingPage');
+    }
   }
 
   // Fungsi debugging untuk struktur JSON
   void _debugJsonStructure(dynamic data, String label) {
     try {
-      print('===== DEBUG $label =====');
+      LoggerUtil.d('===== DEBUG $label =====');
 
       if (data == null) {
-        print('Data adalah null');
+        LoggerUtil.d('Data adalah null');
         return;
       }
 
       if (data is List) {
-        print('Data adalah List dengan ${data.length} item');
+        LoggerUtil.d('Data adalah List dengan ${data.length} item');
         if (data.isNotEmpty) {
-          print('Item pertama:');
-          print(jsonEncode(data.first));
+          LoggerUtil.d('Item pertama:');
+          LoggerUtil.d(jsonEncode(data.first));
 
           // Cetak semua keys di item pertama untuk debugging
           if (data.first is Map<String, dynamic>) {
             Map<String, dynamic> firstItem = data.first;
-            print('Keys dari item pertama: ${firstItem.keys.toList()}');
-            print('Nilai untuk setiap key:');
+            LoggerUtil.d('Keys dari item pertama: ${firstItem.keys.toList()}');
+            LoggerUtil.d('Nilai untuk setiap key:');
             firstItem.forEach((key, value) {
-              print('$key: $value (${value?.runtimeType})');
+              LoggerUtil.d('$key: $value (${value?.runtimeType})');
             });
           }
         }
       } else if (data is Map) {
-        print('Data adalah Map dengan ${data.length} pasang key-value');
-        print('Keys: ${data.keys.toList()}');
-        print('Nilai untuk setiap key:');
+        LoggerUtil.d('Data adalah Map dengan ${data.length} pasang key-value');
+        LoggerUtil.d('Keys: ${data.keys.toList()}');
+        LoggerUtil.d('Nilai untuk setiap key:');
         data.forEach((key, value) {
-          print('$key: $value (${value?.runtimeType})');
+          LoggerUtil.d('$key: $value (${value?.runtimeType})');
         });
       } else {
-        print('Data bertipe: ${data.runtimeType}');
-        print('Nilai: $data');
+        LoggerUtil.d('Data bertipe: ${data.runtimeType}');
+        LoggerUtil.d('Nilai: $data');
       }
 
-      print('========================');
+      LoggerUtil.d('========================');
     } catch (e) {
-      print('Error saat debugging JSON: $e');
+      LoggerUtil.e('Error saat debugging JSON', e, StackTrace.current);
     }
   }
 
-  // Set gedung terpilih
+  // Set gedung terpilih dan preload ruangan
   void selectBuilding(Building building) {
     _selectedBuilding = building;
     _rooms = [];
     _filteredRooms = [];
     notifyListeners();
+  }
+
+  // Preload semua ruangan untuk gedung tertentu
+  Future<void> preloadRoomsForBuilding(
+      int buildingId, BuildContext context) async {
+    // Fetch rooms for this building immediately
+    await fetchRoomsByBuilding(buildingId, context);
+
+    // Cache the rooms data so it's immediately available when needed
+    LoggerUtil.d('Preloaded ${_rooms.length} rooms for building $buildingId');
   }
 
   // Reset pencarian gedung dan ruangan
@@ -657,7 +821,7 @@ class StockOpnameController extends ChangeNotifier {
       final token = await auth.ApiService.getAccessToken();
       if (token == null || token.isEmpty) {
         _error = 'Anda tidak memiliki akses. Silakan login kembali.';
-        print('Error: Token tidak ditemukan, pengguna belum login');
+        LoggerUtil.e('Error: Token tidak ditemukan, pengguna belum login');
         _isLoadingRooms = false;
         notifyListeners();
         return;
@@ -671,10 +835,10 @@ class StockOpnameController extends ChangeNotifier {
 
       // Log URL lengkap untuk debugging
       final fullUrl = '${auth.ApiService.baseUrl}$endpoint';
-      print('Base URL yang digunakan: ${auth.ApiService.baseUrl}');
-      print('Full URL for request: $fullUrl');
-      print('Fetching rooms with endpoint: $endpoint');
-      print(
+      LoggerUtil.d('Base URL yang digunakan: ${auth.ApiService.baseUrl}');
+      LoggerUtil.d('Full URL for request: $fullUrl');
+      LoggerUtil.d('Fetching rooms with endpoint: $endpoint');
+      LoggerUtil.d(
           'Using token: ${token.substring(0, math.min(10, token.length))}...');
 
       try {
@@ -682,7 +846,7 @@ class StockOpnameController extends ChangeNotifier {
         final client = http.Client();
         final uri = Uri.parse(fullUrl);
 
-        print('Trying direct HTTP request to: $uri');
+        LoggerUtil.d('Trying direct HTTP request to: $uri');
         final directResponse = await client.get(
           uri,
           headers: {
@@ -693,18 +857,19 @@ class StockOpnameController extends ChangeNotifier {
         ).timeout(
           const Duration(seconds: 15),
           onTimeout: () {
-            print('Direct HTTP request timed out after 15 seconds');
+            LoggerUtil.e('Direct HTTP request timed out after 15 seconds');
             throw TimeoutException('Connection timeout');
           },
         );
 
-        print(
+        LoggerUtil.d(
             'Direct HTTP response: ${directResponse.statusCode} - ${directResponse.body}');
 
         // Kemudian coba dengan ApiService
-        print('Now trying with ApiService');
+        LoggerUtil.d('Now trying with ApiService');
         final response = await auth.ApiService.get(endpoint, context: context);
-        print('Rooms API response: ${response.statusCode} - ${response.body}');
+        LoggerUtil.d(
+            'Rooms API response: ${response.statusCode} - ${response.body}');
 
         if (response.statusCode == 200) {
           final data = jsonDecode(response.body);
@@ -713,7 +878,7 @@ class StockOpnameController extends ChangeNotifier {
             _debugJsonStructure(data['data'], 'Room data');
 
             final List<dynamic> roomsJson = data['data'];
-            print('Room data count: ${roomsJson.length}');
+            LoggerUtil.d('Room data count: ${roomsJson.length}');
 
             // Hapus daftar ruangan yang sudah ada sebelumnya
             _rooms = [];
@@ -723,35 +888,36 @@ class StockOpnameController extends ChangeNotifier {
                 .map((json) {
                   try {
                     // Print detail JSON untuk debugging
-                    print('Room JSON item: $json');
+                    LoggerUtil.d('Room JSON item: $json');
                     return Room.fromJson(json);
                   } catch (e) {
-                    print('Error parsing room: $e for item: $json');
+                    LoggerUtil.e('Error parsing room', e, StackTrace.current);
+                    LoggerUtil.e('Error item: $json');
                     return null;
                   }
                 })
                 .whereType<Room>()
                 .toList(); // Filter null values
 
-            print('Successfully parsed ${_rooms.length} rooms');
+            LoggerUtil.i('Successfully parsed ${_rooms.length} rooms');
             // Debug print parsed rooms
             for (var room in _rooms) {
-              print(
+              LoggerUtil.d(
                   'Room parsed: id=${room.id}, name=${room.name}, buildingId=${room.buildingId}');
             }
 
             _filteredRooms = List.from(_rooms);
           } else {
             _error = data['message'] ?? 'Gagal memuat data ruangan';
-            print('Error dari API: $_error');
+            LoggerUtil.w('Error dari API: $_error');
           }
         } else {
           _error = 'Error ${response.statusCode}: Gagal memuat data ruangan';
-          print('Error status code: ${response.statusCode}');
-          print('Error body: ${response.body}');
+          LoggerUtil.e('Error status code: ${response.statusCode}');
+          LoggerUtil.e('Error body: ${response.body}');
         }
       } catch (e) {
-        print('HTTP request error: $e');
+        LoggerUtil.e('HTTP request error', e, StackTrace.current);
         throw e; // Re-throw untuk ditangkap di catch luar
       } finally {
         // Tutup koneksi client
@@ -759,8 +925,7 @@ class StockOpnameController extends ChangeNotifier {
       }
     } catch (e, stackTrace) {
       _error = 'Gagal memuat data ruangan: ${e.toString()}';
-      print('Exception saat memuat ruangan: $e');
-      print('Stack trace: $stackTrace');
+      LoggerUtil.e('Exception saat memuat ruangan', e, stackTrace);
     } finally {
       _isLoadingRooms = false;
       notifyListeners();
@@ -820,7 +985,7 @@ class StockOpnameController extends ChangeNotifier {
       }
     } catch (e) {
       _error = e.toString();
-      print('Error saat memuat pending opnames: $e');
+      LoggerUtil.e('Error saat memuat pending opnames', e, StackTrace.current);
     }
     notifyListeners();
   }
@@ -859,7 +1024,7 @@ class StockOpnameController extends ChangeNotifier {
       }
     } catch (e) {
       _error = e.toString();
-      print('Error saat membuat stock opname: $e');
+      LoggerUtil.e('Error saat membuat stock opname', e, StackTrace.current);
       return null;
     } finally {
       _isCreatingOpname = false;
@@ -879,24 +1044,24 @@ class StockOpnameController extends ChangeNotifier {
       ]);
     } catch (e) {
       _error = e.toString();
-      print('Error saat memuat data: $e');
+      LoggerUtil.e('Error saat memuat data', e, StackTrace.current);
       notifyListeners();
     }
   }
 
   // Fungsi untuk menguji koneksi ke server API
   Future<void> testApiConnection(BuildContext context) async {
-    print('====== DEBUG INFO ======');
-    print('Base URL API: ${auth.ApiService.baseUrl}');
+    LoggerUtil.d('====== DEBUG INFO ======');
+    LoggerUtil.d('Base URL API: ${auth.ApiService.baseUrl}');
 
     try {
       // Coba ambil token autentikasi
       final token = await auth.ApiService.getAccessToken();
-      print(
+      LoggerUtil.d(
           'Access Token: ${token != null ? (token.length > 10 ? "${token.substring(0, 10)}..." : token) : "null"}');
 
       // Coba lakukan ping ke server
-      print('Testing API connection...');
+      LoggerUtil.d('Testing API connection...');
       final pingUrl = Uri.parse('${auth.ApiService.baseUrl}/ping');
 
       try {
@@ -906,22 +1071,22 @@ class StockOpnameController extends ChangeNotifier {
             throw TimeoutException('Connection timeout');
           },
         );
-        print(
+        LoggerUtil.d(
             'Ping response: ${pingResponse.statusCode} - ${pingResponse.body}');
       } catch (e) {
-        print('Ping error: $e');
+        LoggerUtil.e('Ping error', e, StackTrace.current);
       }
 
-      print('========================');
+      LoggerUtil.d('========================');
     } catch (e) {
-      print('Test API connection error: $e');
-      print('========================');
+      LoggerUtil.e('Test API connection error', e, StackTrace.current);
+      LoggerUtil.d('========================');
     }
   }
 
   // Pencarian gedung dengan debounce
   void searchBuildings(String query, BuildContext context) {
-    print('Search buildings called with query: $query');
+    LoggerUtil.d('Search buildings called with query: $query');
 
     // Batalkan timer debounce sebelumnya jika masih aktif
     if (_buildingSearchDebounce?.isActive ?? false) {
@@ -934,17 +1099,22 @@ class StockOpnameController extends ChangeNotifier {
       notifyListeners();
     }
 
+    // Reset pagination untuk pencarian baru
+    _currentBuildingPage = 1;
+    _hasMoreBuildings = true;
+    _buildings = [];
+
     // Buat timer debounce baru
     _buildingSearchDebounce = Timer(const Duration(milliseconds: 500), () {
-      print(
+      LoggerUtil.d(
           'Debounce timer expired, now fetching buildings with query: $query');
-      fetchBuildings(context, searchQuery: query);
+      fetchBuildings(context, searchQuery: query, resetList: true);
     });
   }
 
   // Pencarian ruangan dengan debounce
   void searchRooms(String query, BuildContext context) {
-    print('Search rooms called with query: $query');
+    LoggerUtil.d('Search rooms called with query: $query');
 
     if (selectedBuilding == null) return;
 
@@ -961,7 +1131,8 @@ class StockOpnameController extends ChangeNotifier {
 
     // Buat timer debounce baru
     _roomSearchDebounce = Timer(const Duration(milliseconds: 500), () {
-      print('Debounce timer expired, now fetching rooms with query: $query');
+      LoggerUtil.d(
+          'Debounce timer expired, now fetching rooms with query: $query');
       fetchRoomsByBuilding(selectedBuilding!.id, context, searchQuery: query);
     });
   }

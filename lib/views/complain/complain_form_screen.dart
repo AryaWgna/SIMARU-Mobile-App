@@ -170,7 +170,7 @@ class _ComplainFormScreenState extends State<ComplainFormScreen> {
             children: [
               Text(
                 'Submit Complaint',
-                style: GoogleFonts.inter(
+                style: GoogleFonts.poppins(
                   fontSize: 18,
                   fontWeight: FontWeight.w600,
                   color: const Color(0xFF213268),
@@ -221,7 +221,7 @@ class _ComplainFormScreenState extends State<ComplainFormScreen> {
                 children: [
                   Text(
                     'Upload Image',
-                    style: GoogleFonts.inter(
+                    style: GoogleFonts.poppins(
                       fontSize: 16,
                       fontWeight: FontWeight.w600,
                       color: const Color(0xFF213268),

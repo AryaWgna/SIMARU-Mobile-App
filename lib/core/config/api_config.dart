@@ -1,21 +1,7 @@
 class ApiConfig {
-  // URL API untuk lingkungan pengembangan
-  static const String devApiUrl = 'https://web-magangunbin2025.rsummi.co.id/api/';
-
-  // URL API untuk lingkungan produksi
-  static const String prodApiUrl = 'https://web-magangunbin2025.rsummi.co.id/api/';
-
   // Base URL untuk API lokal di emulator
   static const String baseUrl =
       'https://web-magangunbin2025.rsummi.co.id/api/'; // Special IP for Android Emulator
-
-  // API URL aktif berdasarkan mode (development/production)
-  static String get activeApiUrl {
-    // Untuk pengembangan, gunakan localhost
-    // Dalam produksi, ganti dengan URL server yang sebenarnya
-    const bool isProduction = false;
-    return isProduction ? prodApiUrl : baseUrl;
-  }
 
   // Endpoint API untuk autentikasi yang sudah diperbarui
   static const String loginEndpoint = '/auth/login';

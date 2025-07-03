@@ -5,6 +5,7 @@ import 'package:http_parser/http_parser.dart';
 import 'dart:convert';
 import '../core/config/api_config.dart';
 import 'auth_controller.dart';
+import '../utils/logger_util.dart';
 
 class AssetComplaintController extends ChangeNotifier {
   bool _isLoading = false;
@@ -17,24 +18,35 @@ class AssetComplaintController extends ChangeNotifier {
   File? get selectedImage => _selectedImage;
   bool get isSuccess => _isSuccess;
 
+  // Method to reset all state when entering complaint screen
+  void resetState() {
+    _isLoading = false;
+    _errorMessage = null;
+    _selectedImage = null;
+    _isSuccess = false;
+    notifyListeners();
+    LoggerUtil.d('AssetComplaintController: State reset');
+  }
+
   void setImage(File? image) {
     _selectedImage = image;
     _errorMessage = null;
     notifyListeners();
-    print('AssetComplaintController: Image set');
+    LoggerUtil.d('AssetComplaintController: Image set');
   }
 
   void clearImage() {
     _selectedImage = null;
     notifyListeners();
-    print('AssetComplaintController: Image cleared');
+    LoggerUtil.d('AssetComplaintController: Image cleared');
   }
 
   void setLoading(bool loading) {
     if (_isLoading != loading) {
       _isLoading = loading;
       notifyListeners();
-      print('AssetComplaintController: Loading state set to $_isLoading');
+      LoggerUtil.d(
+          'AssetComplaintController: Loading state set to $_isLoading');
     }
   }
 
@@ -47,7 +59,7 @@ class AssetComplaintController extends ChangeNotifier {
     try {
       // Validasi format file
       final String extension = image.path.split('.').last.toLowerCase();
-      print('[COMPLAINT DEBUG] Image extension: $extension');
+      LoggerUtil.d('[COMPLAINT DEBUG] Image extension: $extension');
 
       if (!['jpg', 'jpeg', 'png'].contains(extension)) {
         _errorMessage =
@@ -59,7 +71,7 @@ class AssetComplaintController extends ChangeNotifier {
       // Validasi ukuran file
       final int fileSize = await image.length();
       final double fileSizeInMB = fileSize / (1024 * 1024);
-      print(
+      LoggerUtil.d(
           '[COMPLAINT DEBUG] Image size: ${fileSizeInMB.toStringAsFixed(2)} MB');
 
       if (fileSizeInMB > 5) {
@@ -72,7 +84,8 @@ class AssetComplaintController extends ChangeNotifier {
     } catch (e) {
       _errorMessage = 'Error memvalidasi gambar: $e';
       notifyListeners();
-      print('[COMPLAINT DEBUG] Error in validateImageFile: $e');
+      LoggerUtil.e('[COMPLAINT DEBUG] Error in validateImageFile', e,
+          StackTrace.current);
       return false;
     }
   }
@@ -93,7 +106,7 @@ class AssetComplaintController extends ChangeNotifier {
 
     try {
       var complaintUrl = ApiConfig.complaintsUrl;
-      print('[COMPLAINT DEBUG] Using complaint URL: $complaintUrl');
+      LoggerUtil.d('[COMPLAINT DEBUG] Using complaint URL: $complaintUrl');
 
       var request = http.MultipartRequest(
         'POST',
@@ -120,7 +133,7 @@ class AssetComplaintController extends ChangeNotifier {
             mimeType = 'application/octet-stream';
           }
 
-          print(
+          LoggerUtil.d(
               '[COMPLAINT DEBUG] File MIME type: $mimeType, extension: $extension');
 
           // Membaca file sebagai bytes
@@ -136,10 +149,11 @@ class AssetComplaintController extends ChangeNotifier {
           );
 
           request.files.add(multipartFile);
-          print(
+          LoggerUtil.d(
               '[COMPLAINT DEBUG] Added file $filename with MIME type $mimeType');
         } catch (e) {
-          print('[COMPLAINT DEBUG] Error adding file: $e');
+          LoggerUtil.e(
+              '[COMPLAINT DEBUG] Error adding file', e, StackTrace.current);
           _errorMessage = 'Error saat mengunggah gambar: $e';
           setLoading(false);
           return false;
@@ -153,13 +167,13 @@ class AssetComplaintController extends ChangeNotifier {
       }
 
       // Log request
-      print('[COMPLAINT DEBUG] Request headers: ${request.headers}');
-      print('[COMPLAINT DEBUG] Request fields: ${request.fields}');
+      LoggerUtil.d('[COMPLAINT DEBUG] Request headers: ${request.headers}');
+      LoggerUtil.d('[COMPLAINT DEBUG] Request fields: ${request.fields}');
       if (request.files.isNotEmpty) {
-        print(
+        LoggerUtil.d(
             '[COMPLAINT DEBUG] Request files: ${request.files.length} file(s)');
         for (var file in request.files) {
-          print(
+          LoggerUtil.d(
               '[COMPLAINT DEBUG] File: ${file.filename}, field: ${file.field}, contentType: ${file.contentType}');
         }
       }
@@ -167,8 +181,8 @@ class AssetComplaintController extends ChangeNotifier {
       // Mengirim request
       var streamedResponse = await request.send();
       var response = await http.Response.fromStream(streamedResponse);
-      print('Submit complaint response: ${response.statusCode}');
-      print('Response body: ${response.body}');
+      LoggerUtil.d('Submit complaint response: ${response.statusCode}');
+      LoggerUtil.d('Response body: ${response.body}');
 
       // Parse response
       var jsonResponse = json.decode(response.body);
@@ -232,7 +246,8 @@ class AssetComplaintController extends ChangeNotifier {
       }
     } catch (e) {
       _errorMessage = 'Error: $e';
-      print('Exception during complaint submission: $e');
+      LoggerUtil.e(
+          'Exception during complaint submission', e, StackTrace.current);
     } finally {
       setLoading(false);
     }

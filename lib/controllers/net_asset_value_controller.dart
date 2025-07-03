@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'auth_controller.dart';
 import '../models/net_asset_model.dart';
 import '../core/config/api_config.dart';
+import '../utils/logger_util.dart';
 
 class NetAssetValueController extends ChangeNotifier {
   NetAssetModel? _netAssetValue;
@@ -18,7 +19,7 @@ class NetAssetValueController extends ChangeNotifier {
     if (_isLoading != loading) {
       _isLoading = loading;
       notifyListeners();
-      print('NetAssetValueController loading state set to: $_isLoading');
+      LoggerUtil.d('NetAssetValueController loading state set to: $_isLoading');
     }
   }
 
@@ -33,39 +34,41 @@ class NetAssetValueController extends ChangeNotifier {
       final year = now.year;
       final month = now.month;
 
-      print('Loading depreciation data for year: $year, month: $month');
+      LoggerUtil.i('Loading depreciation data for year: $year, month: $month');
 
       // Use the ApiConfig URL
       final url = ApiConfig.getDepreciationTotalUrl(year: year, month: month);
-      print('Using depreciation URL: $url');
+      LoggerUtil.d('Using depreciation URL: $url');
 
       // Extract endpoint from full URL
       final endpoint = url.replaceAll(ApiConfig.baseUrl, '');
-      print('Extracted endpoint: $endpoint');
+      LoggerUtil.d('Extracted endpoint: $endpoint');
 
       final response = await ApiService.get(endpoint);
 
-      print('Depreciation API response status code: ${response.statusCode}');
-      print('Depreciation API response body: ${response.body}');
+      LoggerUtil.d(
+          'Depreciation API response status code: ${response.statusCode}');
+      LoggerUtil.d(
+          'Depreciation API response received with ${response.body.length} bytes');
 
       if (response.statusCode == 200) {
         final jsonResponse = json.decode(response.body);
         if (jsonResponse['success'] == true) {
           _netAssetValue = NetAssetModel.fromJson(jsonResponse['data']);
-          print('Loaded net asset value: $_netAssetValue');
-          print(
+          LoggerUtil.d('Loaded net asset value: $_netAssetValue');
+          LoggerUtil.i(
               'Formatted book value: ${_netAssetValue?.formattedTotalBookValue}');
         } else {
           _error = jsonResponse['message'] ?? 'Failed to load net asset value';
-          print('API returned error: $_error');
+          LoggerUtil.w('API returned error: $_error');
         }
       } else {
         _error = 'API Error: ${response.statusCode}';
-        print('API status code error: $_error');
+        LoggerUtil.w('API status code error: $_error');
       }
     } catch (e) {
       _error = e.toString();
-      print('Error loading net asset value: $e');
+      LoggerUtil.e('Error loading net asset value', e, StackTrace.current);
     } finally {
       _isLoading = false;
       notifyListeners();

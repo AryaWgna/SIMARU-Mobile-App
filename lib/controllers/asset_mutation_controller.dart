@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'dart:convert';
 import '../controllers/auth_controller.dart' as auth;
 import '../models/asset_mutation_model.dart';
+import '../utils/logger_util.dart';
+import 'package:intl/intl.dart';
 
 class AssetMutationController extends ChangeNotifier {
   List<AssetMutationItem> _mutations = [];
@@ -49,7 +51,7 @@ class AssetMutationController extends ChangeNotifier {
     if (_isLoading != loading) {
       _isLoading = loading;
       notifyListeners();
-      print('AssetMutationController loading state set to: $_isLoading');
+      LoggerUtil.d('AssetMutationController loading state set to: $_isLoading');
     }
   }
 
@@ -79,7 +81,7 @@ class AssetMutationController extends ChangeNotifier {
       }
     } catch (e) {
       _error = e.toString();
-      print('Error fetching asset mutations: $e');
+      LoggerUtil.e('Error fetching asset mutations', e, StackTrace.current);
     } finally {
       _isLoading = false;
       notifyListeners();
@@ -111,7 +113,7 @@ class AssetMutationController extends ChangeNotifier {
       }
     } catch (e) {
       _error = e.toString();
-      print('Error fetching buildings: $e');
+      LoggerUtil.e('Error fetching buildings', e, StackTrace.current);
     } finally {
       _isLoading = false;
       notifyListeners();
@@ -188,7 +190,7 @@ class AssetMutationController extends ChangeNotifier {
       }
     } catch (e) {
       _error = e.toString();
-      print('Error creating mutation: $e');
+      LoggerUtil.e('Error creating mutation', e, StackTrace.current);
       notifyListeners();
       return false;
     } finally {
@@ -230,19 +232,19 @@ class AssetMutationController extends ChangeNotifier {
     }
 
     try {
-      print('Mengambil riwayat status untuk aset dengan ID: $assetId');
+      LoggerUtil.i('Mengambil riwayat status untuk aset dengan ID: $assetId');
 
       // Gunakan endpoint untuk riwayat status aset
       final endpoint = '/asset-histories/status/$assetId';
-      print('Endpoint yang digunakan: $endpoint');
+      LoggerUtil.d('Endpoint yang digunakan: $endpoint');
 
       final response = await auth.ApiService.get(
         endpoint,
         context: context,
       );
 
-      print('Response status: ${response.statusCode}');
-      print('Response body: ${response.body}');
+      LoggerUtil.d('Response status: ${response.statusCode}');
+      LoggerUtil.d('Response body: ${response.body}');
 
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
@@ -261,7 +263,8 @@ class AssetMutationController extends ChangeNotifier {
               // Struktur data dengan items
               histories = data['data']['items'];
             }
-            print('Jumlah riwayat status ditemukan: ${histories.length}');
+            LoggerUtil.d(
+                'Jumlah riwayat status ditemukan: ${histories.length}');
           }
 
           _statusHistories = histories;
@@ -287,14 +290,11 @@ class AssetMutationController extends ChangeNotifier {
           serverError = 'Terjadi kesalahan pada server (500)';
         }
 
-        print('Error 500: $serverError');
+        LoggerUtil.e('Error 500: $serverError', null, StackTrace.current);
         _isLoading = false;
         _error =
             'Kesalahan server: $serverError. Silakan coba dengan ID aset yang benar.';
         notifyListeners();
-
-        // Coba endpoint alternatif jika error 500
-        await _tryAlternativeEndpoint(assetId, context: context);
       } else {
         _isLoading = false;
         _error =
@@ -302,55 +302,50 @@ class AssetMutationController extends ChangeNotifier {
         notifyListeners();
       }
     } catch (e) {
-      print('Exception saat mengambil riwayat status: $e');
+      LoggerUtil.e(
+          'Exception saat mengambil riwayat status', e, StackTrace.current);
       _isLoading = false;
       _error = 'Terjadi kesalahan: $e';
       notifyListeners();
     }
   }
 
-  Future<void> _tryAlternativeEndpoint(String assetId,
-      {BuildContext? context}) async {
-    try {
-      print('Mencoba endpoint alternatif untuk aset dengan ID: $assetId');
+  // Fungsi untuk mendapatkan warna status
+  Color getStatusColor(String status) {
+    // Debug - tampilkan status yang diterima
+    LoggerUtil.d('[MUTATION DEBUG] Mendapatkan warna untuk status: $status');
 
-      // Gunakan endpoint alternatif untuk riwayat status aset
-      final endpoint = '/assets/$assetId/status-history';
-      print('Endpoint alternatif yang digunakan: $endpoint');
-
-      final response = await auth.ApiService.get(
-        endpoint,
-        context: context,
-      );
-
-      print('Response status (alternatif): ${response.statusCode}');
-      print('Response body (alternatif): ${response.body}');
-
-      if (response.statusCode == 200) {
-        final data = json.decode(response.body);
-        if (data['success'] == true) {
-          List<dynamic> histories = [];
-          if (data['data'] != null) {
-            if (data['data'] is List) {
-              histories = data['data'];
-            } else if (data['data']['histories'] != null &&
-                data['data']['histories'] is List) {
-              histories = data['data']['histories'];
-            } else if (data['data']['items'] != null &&
-                data['data']['items'] is List) {
-              histories = data['data']['items'];
-            }
-          }
-
-          _statusHistories = histories;
-          _isLoading = false;
-          _error = null;
-          notifyListeners();
-        }
-      }
-    } catch (e) {
-      print('Exception saat menggunakan endpoint alternatif: $e');
-      // Tidak mengubah state di sini karena ini hanya upaya cadangan
+    // Gunakan status yang sudah dinormalisasi ke uppercase
+    switch (status.toUpperCase()) {
+      case 'AVAILABLE':
+      case 'TERSEDIA':
+        return const Color(0xFF7CB60C); // Hijau
+      case 'CHECK OUT':
+      case 'CHECKED OUT':
+      case 'DIPINJAM':
+      case 'DIPINJAM KE LOKASI':
+      case 'DIPINJAM KE KARYAWAN':
+        return const Color(0xFFDAAE0F); // Kuning
+      case 'UNDER REPAIR':
+      case 'PERBAIKAN':
+        return const Color(0xFF25B1FF); // Biru
+      case 'DISPOSE':
+      case 'DIHAPUSKAN':
+        return const Color(0xFFACC3EF); // Abu-abu
+      case 'LOSS':
+      case 'LOST':
+      case 'HILANG':
+        return const Color(0xFFFF4A2B); // Merah
+      case 'FOUND':
+      case 'DITEMUKAN':
+        return const Color(0xFF7CB60C); // Hijau (sama seperti available)
+      case 'RETURN':
+      case 'DIKEMBALIKAN':
+        return const Color(0xFF659B09); // Hijau tua
+      default:
+        LoggerUtil.w(
+            '[MUTATION DEBUG] Status tidak dikenal: $status, menggunakan default');
+        return const Color(0xFF7A7A7A); // Default Abu-abu
     }
   }
 
@@ -393,11 +388,9 @@ class AssetMutationController extends ChangeNotifier {
   String formatAPIDate(String dateString) {
     try {
       final date = DateTime.parse(dateString);
-      // Format hanya waktu (jam:menit)
-      final hour = date.hour.toString().padLeft(2, '0');
-      final minute = date.minute.toString().padLeft(2, '0');
-
-      return '$hour:$minute';
+      // Format tanggal dan waktu (DD MMM YYYY, HH:MM) dalam waktu lokal
+      final formatter = DateFormat('dd MMM yyyy, HH:mm');
+      return formatter.format(date.toLocal());
     } catch (e) {
       return '';
     }

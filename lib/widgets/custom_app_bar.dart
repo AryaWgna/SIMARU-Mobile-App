@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import '../views/notification/notification_screen.dart';
 import 'package:provider/provider.dart';
 import '../controllers/notification_badge_controller.dart';
+import '../controllers/notification_controller.dart';
+import 'package:google_fonts/google_fonts.dart';
 
 class CustomAppBar extends StatefulWidget implements PreferredSizeWidget {
   final VoidCallback? onNotificationTap;
@@ -12,7 +14,7 @@ class CustomAppBar extends StatefulWidget implements PreferredSizeWidget {
   });
 
   @override
-  Size get preferredSize => const Size.fromHeight(82);
+  Size get preferredSize => const Size.fromHeight(88);
 
   @override
   State<CustomAppBar> createState() => _CustomAppBarState();
@@ -31,7 +33,7 @@ class _CustomAppBarState extends State<CustomAppBar> {
   @override
   Widget build(BuildContext context) {
     return Container(
-      height: 82 + MediaQuery.of(context).padding.top,
+      height: 88 + MediaQuery.of(context).padding.top,
       padding: EdgeInsets.only(top: MediaQuery.of(context).padding.top),
       decoration: BoxDecoration(
         color: Colors.white,
@@ -57,77 +59,91 @@ class _CustomAppBarState extends State<CustomAppBar> {
             Image.asset(
               'images/Logo_RS_UMMI.png',
               width: 150,
-              height: 40,
+              height: 48,
             ),
 
-            // Ikon notifikasi di sebelah kanan
-            GestureDetector(
-              onTap: widget.onNotificationTap ??
-                  () {
-                    // Navigasi ke halaman notifikasi jika tidak ada custom handler
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) => const NotificationScreen(),
-                      ),
-                    ).then((_) {
-                      // Refresh jumlah notifikasi setelah kembali dari halaman notifikasi
-                      _controller.loadUnreadNotificationCount(context: context);
-                    });
-                  },
-              child: Consumer<NotificationBadgeController>(
-                  builder: (context, controller, _) {
-                return Stack(
-                  alignment: Alignment.center,
-                  children: [
-                    const Icon(
-                      Icons.notifications_outlined,
-                      color: Color(0xFF213268),
-                      size: 28,
-                    ),
-                    if (controller.isLoading)
-                      const Positioned(
-                        right: 0,
-                        top: 0,
-                        child: SizedBox(
-                          width: 10,
-                          height: 10,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2,
-                            color: Color(0xFF25B1FF),
-                          ),
+            // Ikon notifikasi di sebelah kanan dengan area tap lebih besar
+            Material(
+              color: Colors.transparent,
+              child: InkWell(
+                onTap: widget.onNotificationTap ??
+                    () {
+                      // Reset notification controller state before navigating
+                      final notificationController =
+                          Provider.of<NotificationController>(context,
+                              listen: false);
+                      notificationController.reset();
+
+                      // Navigasi ke halaman notifikasi jika tidak ada custom handler
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => const NotificationScreen(),
                         ),
-                      )
-                    else if (controller.notificationCount > 0)
-                      Positioned(
-                        right: 0,
-                        top: 0,
-                        child: Container(
-                          padding: const EdgeInsets.all(2),
-                          decoration: const BoxDecoration(
-                            color: Color(0xFF25B1FF),
-                            shape: BoxShape.circle,
-                          ),
-                          constraints: const BoxConstraints(
-                            minWidth: 16,
-                            minHeight: 16,
-                          ),
-                          child: Text(
-                            controller.notificationCount > 9
-                                ? '9+'
-                                : controller.notificationCount.toString(),
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontSize: 10,
-                              fontWeight: FontWeight.bold,
+                      ).then((_) {
+                        // Refresh jumlah notifikasi setelah kembali dari halaman notifikasi
+                        _controller.loadUnreadNotificationCount(
+                            context: context);
+                      });
+                    },
+                borderRadius: BorderRadius.circular(24),
+                child: Padding(
+                  padding: const EdgeInsets.all(8.0),
+                  child: Consumer<NotificationBadgeController>(
+                      builder: (context, controller, _) {
+                    return Stack(
+                      alignment: Alignment.center,
+                      children: [
+                        const Icon(
+                          Icons.notifications_outlined,
+                          color: Color(0xFF213268),
+                          size: 32,
+                        ),
+                        if (controller.isLoading)
+                          const Positioned(
+                            right: 0,
+                            top: 0,
+                            child: SizedBox(
+                              width: 12,
+                              height: 12,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                color: Color(0xFF25B1FF),
+                              ),
                             ),
-                            textAlign: TextAlign.center,
+                          )
+                        else if (controller.notificationCount > 0)
+                          Positioned(
+                            right: 0,
+                            top: 0,
+                            child: Container(
+                              padding: const EdgeInsets.all(2),
+                              decoration: const BoxDecoration(
+                                color: Color(0xFF25B1FF),
+                                shape: BoxShape.circle,
+                              ),
+                              constraints: const BoxConstraints(
+                                minWidth: 18,
+                                minHeight: 18,
+                              ),
+                              child: Text(
+                                controller.notificationCount > 99
+                                    ? '99+'
+                                    : controller.notificationCount.toString(),
+                                style: GoogleFonts.poppins(
+                                  color: Colors.white,
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                                textAlign: TextAlign.center,
+                              ),
+                            ),
                           ),
-                        ),
-                      ),
-                  ],
-                );
-              }),
+                      ],
+                    );
+                  }),
+                ),
+              ),
             ),
           ],
         ),

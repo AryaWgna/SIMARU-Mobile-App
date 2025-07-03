@@ -12,6 +12,7 @@ class NotificationModel {
   final String? assetCode;
   final int? assetId;
   final String? imageUrl;
+  final String? employeeNumber;
 
   NotificationModel({
     required this.id,
@@ -24,20 +25,53 @@ class NotificationModel {
     this.assetCode,
     this.assetId,
     this.imageUrl,
+    this.employeeNumber,
   });
 
   factory NotificationModel.fromJson(Map<String, dynamic> json) {
+    // Handle different formats of isRead from the API
+    bool isRead = false;
+    if (json['is_read'] != null) {
+      if (json['is_read'] is bool) {
+        isRead = json['is_read'];
+      } else if (json['is_read'] is String) {
+        isRead =
+            json['is_read'].toLowerCase() == 'true' || json['is_read'] == '1';
+      } else if (json['is_read'] is int) {
+        isRead = json['is_read'] == 1;
+      }
+    }
+
+    // Ensure we have a readAt timestamp if the notification is marked as read
+    DateTime? readAt;
+    if (json['read_at'] != null) {
+      try {
+        readAt = DateTime.parse(json['read_at']);
+      } catch (e) {
+        // If parsing fails, use null
+        readAt = null;
+      }
+    } else if (isRead) {
+      // If notification is read but no read_at timestamp, use created_at as fallback
+      try {
+        readAt = DateTime.parse(json['created_at']);
+      } catch (e) {
+        readAt = null;
+      }
+    }
+
     return NotificationModel(
       id: json['id'],
       title: json['title'],
       message: json['detail'] ?? '',
       createdAt: DateTime.parse(json['created_at']),
-      isRead: json['is_read'] ?? false,
-      readAt: json['read_at'] != null ? DateTime.parse(json['read_at']) : null,
+      isRead: isRead,
+      readAt: readAt,
       type: json['type'] ?? 'system',
       assetCode: json['asset_code'],
       assetId: json['asset_id'],
       imageUrl: json['image_url'],
+      employeeNumber: json['employee_number'],
     );
   }
 
@@ -47,12 +81,13 @@ class NotificationModel {
       'title': title,
       'detail': message,
       'created_at': createdAt.toIso8601String(),
-      'is_read': isRead,
+      'is_read': isRead.toString(),
       'read_at': readAt?.toIso8601String(),
       'type': type,
       'asset_code': assetCode,
       'asset_id': assetId,
       'image_url': imageUrl,
+      'employee_number': employeeNumber,
     };
   }
 

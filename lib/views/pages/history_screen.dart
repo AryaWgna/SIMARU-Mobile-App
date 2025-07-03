@@ -2,13 +2,13 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:pull_to_refresh_flutter3/pull_to_refresh_flutter3.dart';
 import 'package:skeletonizer/skeletonizer.dart';
 import '../../controllers/recent_activity_controller.dart';
 import '../../controllers/total_asset_controller.dart';
 import '../../controllers/asset_under_repair_controller.dart';
 import '../../controllers/net_asset_value_controller.dart';
 import '../../models/history_model.dart';
+import '../../utils/logger_util.dart';
 
 class HistoryScreen extends StatefulWidget {
   const HistoryScreen({super.key});
@@ -18,8 +18,8 @@ class HistoryScreen extends StatefulWidget {
 }
 
 class _HistoryScreenState extends State<HistoryScreen> {
-  final RefreshController _refreshController =
-      RefreshController(initialRefresh: false);
+  final ScrollController _scrollController = ScrollController();
+  bool _isLoadingMore = false;
   final GlobalKey _contentKey = GlobalKey();
 
   @override
@@ -31,74 +31,83 @@ class _HistoryScreenState extends State<HistoryScreen> {
     });
 
     // Setup scroll listener for pagination
-    final controller = context.read<RecentActivityController>();
-    controller.initScrollController();
-    controller.scrollController.addListener(_onScroll);
+    _scrollController.addListener(() {
+      if (!_scrollController.hasClients) return;
+
+      final maxScroll = _scrollController.position.maxScrollExtent;
+      final currentScroll = _scrollController.position.pixels;
+      final loadThreshold = maxScroll * 0.8;
+
+      LoggerUtil.d(
+          "Scroll position: $currentScroll / $maxScroll (threshold: $loadThreshold)");
+
+      if (currentScroll >= loadThreshold) {
+        _loadMoreData();
+      }
+    });
   }
 
   @override
   void dispose() {
-    final controller = context.read<RecentActivityController>();
-    controller.scrollController.removeListener(_onScroll);
-    // Biarkan controller yang dispose scrollController
-    _refreshController.dispose();
+    _scrollController.removeListener(() {
+      if (!_scrollController.hasClients) return;
+
+      // Debug print scroll position
+      final maxScroll = _scrollController.position.maxScrollExtent;
+      final currentScroll = _scrollController.position.pixels;
+      final loadThreshold = maxScroll * 0.8;
+
+      LoggerUtil.d(
+          "Scroll position: $currentScroll / $maxScroll (threshold: $loadThreshold)");
+    });
+    _scrollController.dispose();
     super.dispose();
   }
 
   Future<void> _loadData() async {
     try {
       final controller = context.read<RecentActivityController>();
-
-      // Set flag loading dan clear dahulu agar terlihat efek visual refresh
       controller.setLoading(true);
-
-      // Reset state dan muat ulang data
       controller.resetState();
       await controller.loadRecentActivities();
 
-      if (_refreshController.isRefresh) {
-        _refreshController.refreshCompleted();
-
-        // Berikan jeda kecil sebelum set loading false agar UX pull-to-refresh terasa
-        Future.delayed(const Duration(milliseconds: 200), () {
-          if (mounted) {
-            controller.setLoading(false);
-          }
-        });
-      } else {
-        controller.setLoading(false);
-      }
-    } catch (e) {
-      print("Error loading data: $e");
-      final controller = context.read<RecentActivityController>();
       controller.setLoading(false);
-      if (_refreshController.isRefresh) {
-        _refreshController.refreshFailed();
-      }
-    }
-  }
-
-  void _onScroll() {
-    final controller = context.read<RecentActivityController>();
-    if (!controller.scrollController.hasClients) return;
-
-    if (controller.scrollController.position.pixels >=
-        controller.scrollController.position.maxScrollExtent * 0.8) {
-      _loadMoreData();
+    } catch (e) {
+      LoggerUtil.e("Error loading data", e, StackTrace.current);
+      context.read<RecentActivityController>().setLoading(false);
     }
   }
 
   Future<void> _loadMoreData() async {
     final controller = context.read<RecentActivityController>();
-    if (controller.isLoadingMore) return;
-    controller.setLoadingMore(true);
-    await controller.loadMoreActivities();
-    controller.setLoadingMore(false);
+
+    LoggerUtil.d(
+        "_loadMoreData called - isLoadingMore: $_isLoadingMore, hasMoreData: ${controller.hasMoreData}");
+
+    if (_isLoadingMore || !controller.hasMoreData) {
+      return;
+    }
+
+    setState(() => _isLoadingMore = true);
+
+    try {
+      await controller.loadMoreActivities();
+      LoggerUtil.i(
+          "Loaded more data - total activities: ${controller.activities.length}");
+    } catch (e) {
+      LoggerUtil.e("Error loading more data", e, StackTrace.current);
+    } finally {
+      if (mounted) {
+        setState(() => _isLoadingMore = false);
+      }
+    }
   }
 
   Widget _buildHistoryItem(HistoryModel activity) {
-    final formattedDate = DateFormat('dd/MM/yyyy').format(activity.actionDate);
-    final formattedTime = DateFormat('HH:mm').format(activity.actionDate);
+    final formattedDate =
+        DateFormat('dd/MM/yyyy').format(activity.actionDate.toLocal());
+    final formattedTime =
+        DateFormat('HH:mm').format(activity.actionDate.toLocal());
 
     return Container(
       width: double.infinity,
@@ -138,18 +147,18 @@ class _HistoryScreenState extends State<HistoryScreen> {
               children: [
                 Text(
                   formattedDate,
-                  style: GoogleFonts.inter(
+                  style: GoogleFonts.poppins(
                     fontSize: 16,
-                    fontWeight: FontWeight.w500,
+                    fontWeight: FontWeight.bold,
                     color: Colors.black,
                   ),
                 ),
                 const SizedBox(height: 4),
                 Text(
                   formattedTime,
-                  style: GoogleFonts.inter(
+                  style: GoogleFonts.poppins(
                     fontSize: 14,
-                    fontWeight: FontWeight.w500,
+                    fontWeight: FontWeight.bold,
                     color: Color(0xFF757575),
                   ),
                 ),
@@ -174,7 +183,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
                   Text(
                     'ID Aset: ${activity.assetInfo.assetCode}',
                     textAlign: TextAlign.left,
-                    style: GoogleFonts.inter(
+                    style: GoogleFonts.poppins(
                       fontSize: 12,
                       fontWeight: FontWeight.w400,
                       color: Color(0xFF757575),
@@ -182,9 +191,9 @@ class _HistoryScreenState extends State<HistoryScreen> {
                   ),
                   Text(
                     activity.assetInfo.assetName,
-                    style: GoogleFonts.inter(
+                    style: GoogleFonts.poppins(
                       fontSize: 14,
-                      fontWeight: FontWeight.w600,
+                      fontWeight: FontWeight.bold,
                       color: Color(0xFF213268),
                     ),
                   ),
@@ -211,9 +220,9 @@ class _HistoryScreenState extends State<HistoryScreen> {
       ),
       child: Text(
         badgeText,
-        style: GoogleFonts.inter(
+        style: GoogleFonts.poppins(
           fontSize: 14,
-          fontWeight: FontWeight.w600,
+          fontWeight: FontWeight.bold,
           color: Colors.white,
         ),
       ),
@@ -221,11 +230,24 @@ class _HistoryScreenState extends State<HistoryScreen> {
   }
 
   Widget _buildStatusMessage(HistoryModel activity) {
+    // Get the current user's employee number from controller
+    final controller =
+        Provider.of<RecentActivityController>(context, listen: false);
+    final currentEmployeeNumber = controller.employeeNumber;
+
     // Cek apakah pesan berisi perubahan status
     if (activity.message.contains('mengubah status dari')) {
       // Ekstrak status lama dan baru dari pesan
       final parts = activity.message.split(' ');
-      final employeeId = parts[0];
+      String employeeId = parts[0];
+
+      // If this activity matches the current user, change to "Anda"
+      final isCurrentUser =
+          currentEmployeeNumber != null && employeeId == currentEmployeeNumber;
+
+      if (isCurrentUser) {
+        employeeId = "Anda";
+      }
 
       // Cari posisi kata "dari" dan "menjadi"
       final dariIndex = parts.indexOf('dari');
@@ -263,12 +285,18 @@ class _HistoryScreenState extends State<HistoryScreen> {
 
         return RichText(
           text: TextSpan(
-            style: GoogleFonts.inter(
+            style: GoogleFonts.poppins(
               fontSize: 12,
               color: Colors.black,
+              fontWeight: isCurrentUser ? FontWeight.bold : FontWeight.normal,
             ),
             children: [
-              TextSpan(text: '$employeeId mengubah status dari '),
+              TextSpan(
+                text: '$employeeId mengubah status dari ',
+                style: TextStyle(
+                  color: isCurrentUser ? const Color(0xFF213268) : Colors.black,
+                ),
+              ),
               _buildInlineStatusBadge(oldStatus),
               TextSpan(text: ' ke '),
               _buildInlineStatusBadge(newStatus),
@@ -281,7 +309,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
     // Jika tidak berisi perubahan status, tampilkan pesan biasa
     return Text(
       activity.message,
-      style: GoogleFonts.inter(
+      style: GoogleFonts.poppins(
         fontSize: 12,
         fontWeight: FontWeight.w400,
         color: Colors.black,
@@ -298,16 +326,16 @@ class _HistoryScreenState extends State<HistoryScreen> {
     return WidgetSpan(
       alignment: PlaceholderAlignment.middle,
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 2),
         decoration: BoxDecoration(
           color: badgeColor,
           borderRadius: BorderRadius.circular(4),
         ),
         child: Text(
           badgeText,
-          style: GoogleFonts.inter(
+          style: GoogleFonts.poppins(
             fontSize: 10,
-            fontWeight: FontWeight.w600,
+            fontWeight: FontWeight.bold,
             color: Colors.white,
           ),
         ),
@@ -326,6 +354,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
       case 'dipinjam':
       case 'borrowed':
       case 'checked out':
+      case 'checked':
         return "DIPINJAM";
       case 'dalam perbaikan':
       case 'perbaikan':
@@ -334,8 +363,9 @@ class _HistoryScreenState extends State<HistoryScreen> {
       case 'rusak':
       case 'damaged':
         return "PERBAIKAN";
-      case 'dimusnahkan':
+      case 'dihapuskan':
       case 'disposed':
+        return "DIHAPUSKAN";
       case 'hilang':
       case 'lost':
         return "HILANG";
@@ -346,14 +376,16 @@ class _HistoryScreenState extends State<HistoryScreen> {
 
   Color _getStatusColor(String status) {
     switch (status) {
-      case 'HILANG':
-        return const Color(0xFFFF5252); // Merah
-      case 'PERBAIKAN':
-        return const Color(0xFF29B6F6); // Biru
       case 'TERSEDIA':
-        return const Color(0xFF8BC34A); // Hijau
+        return const Color(0xFF7CB60C); // Hijau
+      case 'PERBAIKAN':
+        return const Color(0xFF25B1FF); // Biru
       case 'DIPINJAM':
-        return const Color(0xFFFFB74D); // Oranye
+        return const Color(0xFFDAAE0F); // Kuning
+      case 'DIHAPUSKAN':
+        return const Color(0xFFACC3EF); // Abu-abu
+      case 'HILANG':
+        return const Color(0xFFFF4A2B); // Merah
       default:
         return Colors.grey;
     }
@@ -368,10 +400,10 @@ class _HistoryScreenState extends State<HistoryScreen> {
           padding: const EdgeInsets.only(bottom: 10, top: 16),
           child: Text(
             monthYear,
-            style: GoogleFonts.inter(
+            style: GoogleFonts.poppins(
               fontSize: 24,
-              fontWeight: FontWeight.w600,
-              color: Color(0xFF213268),
+              fontWeight: FontWeight.bold,
+              color: const Color(0xFF213268),
               height: 0.75,
             ),
           ),
@@ -549,13 +581,16 @@ class _HistoryScreenState extends State<HistoryScreen> {
         });
       });
     } catch (e) {
-      print("Error saat navigasi kembali: $e");
+      LoggerUtil.e("Error saat navigasi kembali", e, StackTrace.current);
       Navigator.pop(context);
     }
   }
 
   @override
   Widget build(BuildContext context) {
+    final controller =
+        Provider.of<RecentActivityController>(context, listen: false);
+
     return Scaffold(
       backgroundColor: Colors.white,
       appBar: AppBar(
@@ -563,246 +598,270 @@ class _HistoryScreenState extends State<HistoryScreen> {
         elevation: 0,
         title: Text(
           'Riwayat Aktivitas',
-          style: GoogleFonts.inter(color: Colors.white),
+          style: GoogleFonts.poppins(color: Colors.white),
         ),
         leading: IconButton(
           icon: const Icon(Icons.arrow_back, color: Colors.white),
           onPressed: () => _navigateBack(context),
         ),
       ),
-      body: Consumer<RecentActivityController>(
-        builder: (context, controller, _) {
-          return SmartRefresher(
-            enablePullDown: true,
-            enablePullUp: false,
-            controller: _refreshController,
-            onRefresh: _loadData,
-            scrollController: controller.scrollController,
-            physics: const BouncingScrollPhysics(
-                parent: AlwaysScrollableScrollPhysics()),
-            footer: ClassicFooter(
-              loadStyle: LoadStyle.ShowWhenLoading,
-              completeDuration: const Duration(milliseconds: 500),
+      body: Column(
+        children: [
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.fromLTRB(24, 16, 24, 8),
+            child: Consumer<RecentActivityController>(
+              builder: (context, controller, child) {
+                return Text(
+                  controller.employeeNumber != null
+                      ? 'Menampilkan aktivitas untuk Pegawai ${controller.employeeNumber}'
+                      : 'Menampilkan semua aktivitas Anda',
+                  style: GoogleFonts.poppins(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w400,
+                    color: const Color(0xFF757575),
+                  ),
+                );
+              },
             ),
-            header: const WaterDropMaterialHeader(
-              backgroundColor: Color(0xFF213268),
-              color: Colors.white,
-              distance: 40.0,
-            ),
-            child: Column(
+          ),
+          Expanded(
+            child: Stack(
               children: [
-                Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.fromLTRB(24, 16, 24, 8),
-                  child: Text(
-                    'Menampilkan semua aktivitas Anda',
-                    style: GoogleFonts.inter(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w400,
-                      color: const Color(0xFF757575),
-                    ),
+                RefreshIndicator(
+                  onRefresh: _loadData,
+                  color: const Color(0xFF213268),
+                  child: Consumer<RecentActivityController>(
+                    builder: (context, controller, child) {
+                      // Show loading skeleton
+                      if (controller.isLoading &&
+                          controller.activities.isEmpty) {
+                        return Skeletonizer(
+                          enabled: true,
+                          effect: ShimmerEffect(
+                            baseColor: Colors.grey.shade300,
+                            highlightColor: const Color(0xFFE5EFFF),
+                          ),
+                          child: Padding(
+                            padding: const EdgeInsets.fromLTRB(24, 9, 24, 0),
+                            child: ListView(
+                              physics: const AlwaysScrollableScrollPhysics(),
+                              children: List.generate(
+                                  3, (index) => _buildSkeletonMonthSection()),
+                            ),
+                          ),
+                        );
+                      }
+
+                      // Show error message
+                      if (controller.error != null &&
+                          controller.activities.isEmpty) {
+                        return ListView(
+                          physics: const AlwaysScrollableScrollPhysics(),
+                          children: [
+                            SizedBox(
+                              height: MediaQuery.of(context).size.height / 3,
+                            ),
+                            Center(
+                              child: Column(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Text(
+                                    controller.error!,
+                                    style: GoogleFonts.poppins(
+                                      color: Colors.red,
+                                      fontSize: 14,
+                                    ),
+                                    textAlign: TextAlign.center,
+                                  ),
+                                  const SizedBox(height: 16),
+                                  ElevatedButton(
+                                    onPressed: () {
+                                      controller.clearError();
+                                      _loadData();
+                                    },
+                                    style: ElevatedButton.styleFrom(
+                                      backgroundColor: const Color(0xFF213268),
+                                      foregroundColor: Colors.white,
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(8),
+                                      ),
+                                    ),
+                                    child: const Text('Coba Lagi'),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        );
+                      }
+
+                      // Show empty state
+                      if (controller.activities.isEmpty) {
+                        return ListView(
+                          physics: const AlwaysScrollableScrollPhysics(),
+                          children: [
+                            SizedBox(
+                              height: MediaQuery.of(context).size.height / 3,
+                            ),
+                            Center(
+                              child: Column(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  const Icon(
+                                    Icons.history_outlined,
+                                    size: 64,
+                                    color: Color(0xFFCACFD8),
+                                  ),
+                                  const SizedBox(height: 16),
+                                  Text(
+                                    'Tidak ada aktivitas ditemukan',
+                                    style: GoogleFonts.poppins(
+                                      fontSize: 16,
+                                      color: const Color(0xFF757575),
+                                      fontWeight: FontWeight.w500,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 8),
+                                  Text(
+                                    'Tarik ke bawah untuk refresh data',
+                                    style: GoogleFonts.poppins(
+                                      fontSize: 14,
+                                      color: const Color(0xFFA4A4A4),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        );
+                      }
+
+                      // Build the list of activities
+                      final List<String> sortedMonths = controller
+                          .activitiesByMonth.keys
+                          .toList()
+                        ..sort((a, b) {
+                          // Sort months in descending order (newest first)
+                          final List<String> monthsId = [
+                            'Januari',
+                            'Februari',
+                            'Maret',
+                            'April',
+                            'Mei',
+                            'Juni',
+                            'Juli',
+                            'Agustus',
+                            'September',
+                            'Oktober',
+                            'November',
+                            'Desember'
+                          ];
+
+                          final aParts = a.split(' ');
+                          final bParts = b.split(' ');
+
+                          // Compare years first
+                          final int aYear = int.parse(aParts[1]);
+                          final int bYear = int.parse(bParts[1]);
+                          if (aYear != bYear) return bYear.compareTo(aYear);
+
+                          // If years are the same, compare months
+                          final int aMonthIndex = monthsId.indexOf(aParts[0]);
+                          final int bMonthIndex = monthsId.indexOf(bParts[0]);
+                          return bMonthIndex.compareTo(aMonthIndex);
+                        });
+
+                      return ListView.builder(
+                        controller: _scrollController,
+                        physics: const AlwaysScrollableScrollPhysics(),
+                        padding: const EdgeInsets.fromLTRB(24, 9, 24,
+                            70), // Added bottom padding for the pagination indicator
+                        itemCount: sortedMonths.length +
+                            1, // +1 for the loading indicator
+                        itemBuilder: (context, index) {
+                          // Show activity groups
+                          if (index < sortedMonths.length) {
+                            final month = sortedMonths[index];
+                            return _buildMonthSection(
+                                month, controller.activitiesByMonth[month]!);
+                          }
+
+                          // Show loading indicator or pagination info at the bottom
+                          return Container(
+                            padding: const EdgeInsets.symmetric(vertical: 16),
+                            alignment: Alignment.center,
+                            child: Column(
+                              children: [
+                                if (_isLoadingMore)
+                                  const CircularProgressIndicator(
+                                      color: Color(0xFF213268))
+                                else if (controller.hasMoreData)
+                                  Text(
+                                    'Scroll untuk memuat lebih banyak',
+                                    style: GoogleFonts.poppins(
+                                      fontSize: 12,
+                                      color: Colors.grey,
+                                    ),
+                                  )
+                                else
+                                  const SizedBox(),
+                              ],
+                            ),
+                          );
+                        },
+                      );
+                    },
                   ),
                 ),
-                // Tampilkan skeleton saat loading pertama kali
-                if (controller.isLoading && controller.activities.isEmpty)
-                  Expanded(
-                    child: Skeletonizer(
-                      enabled: true,
-                      effect: ShimmerEffect(
-                        baseColor: Colors.grey.shade300,
-                        highlightColor: const Color(0xFFE5EFFF),
-                      ),
-                      child: Padding(
-                        padding: const EdgeInsets.fromLTRB(24, 9, 24, 0),
-                        child: ListView(
-                          physics: const NeverScrollableScrollPhysics(),
-                          children: [
-                            ...List.generate(
-                                3, (index) => _buildSkeletonMonthSection()),
+
+                // Persistent pagination indicator at the bottom
+                Positioned(
+                  left: 0,
+                  right: 0,
+                  bottom: 0,
+                  child: Consumer<RecentActivityController>(
+                    builder: (context, controller, _) {
+                      final currentPage =
+                          controller.pagination?.currentPage ?? 1;
+                      final totalPages = controller.pagination?.totalPages ?? 1;
+                      final totalItems = controller.pagination?.totalItems ?? 0;
+
+                      return Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.symmetric(vertical: 8),
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          border: Border.all(color: const Color(0xFFCAC4D0)),
+                          borderRadius: const BorderRadius.only(
+                            topLeft: Radius.circular(8),
+                            topRight: Radius.circular(8),
+                          ),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withOpacity(0.05),
+                              blurRadius: 4,
+                              offset: const Offset(0, -2),
+                            ),
                           ],
                         ),
-                      ),
-                    ),
-                  )
-                // Tampilkan pesan error jika ada
-                else if (controller.error != null &&
-                    controller.activities.isEmpty)
-                  Expanded(
-                    child: Center(
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Text(
-                            controller.error!,
-                            style: GoogleFonts.inter(
-                              color: Colors.red,
-                              fontSize: 14,
-                            ),
-                            textAlign: TextAlign.center,
+                        child: Text(
+                          'Halaman $currentPage dari $totalPages ($totalItems item)',
+                          style: GoogleFonts.poppins(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w500,
+                            color: const Color(0xFF213268),
                           ),
-                          const SizedBox(height: 16),
-                          ElevatedButton(
-                            onPressed: () {
-                              controller.clearError();
-                              _loadData();
-                            },
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: const Color(0xFF213268),
-                              foregroundColor: Colors.white,
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(8),
-                              ),
-                            ),
-                            child: const Text('Coba Lagi'),
-                          ),
-                        ],
-                      ),
-                    ),
-                  )
-                // Tampilkan daftar aktivitas kosong
-                else if (controller.activities.isEmpty)
-                  Expanded(
-                    child: Center(
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          const Icon(
-                            Icons.history_outlined,
-                            size: 64,
-                            color: Color(0xFFCACFD8),
-                          ),
-                          const SizedBox(height: 16),
-                          Text(
-                            'Tidak ada aktivitas ditemukan',
-                            style: GoogleFonts.inter(
-                              fontSize: 16,
-                              color: const Color(0xFF757575),
-                              fontWeight: FontWeight.w500,
-                            ),
-                          ),
-                          const SizedBox(height: 8),
-                          Text(
-                            'Tarik ke bawah untuk refresh data',
-                            style: GoogleFonts.inter(
-                              fontSize: 14,
-                              color: const Color(0xFFA4A4A4),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  )
-                // Tampilkan daftar aktivitas
-                else
-                  Expanded(
-                    child: Padding(
-                      padding: const EdgeInsets.fromLTRB(24, 9, 24, 0),
-                      child: Stack(
-                        children: [
-                          ListView.builder(
-                            // Gunakan controller.scrollController
-                            controller:
-                                null, // Tidak perlu controller di sini karena sudah digunakan di SmartRefresher
-                            physics: const AlwaysScrollableScrollPhysics(),
-                            itemCount: controller.activitiesByMonth.length + 1,
-                            itemBuilder: (context, index) {
-                              if (index < controller.activitiesByMonth.length) {
-                                final List<String> sortedMonths = controller
-                                    .activitiesByMonth.keys
-                                    .toList()
-                                  ..sort((a, b) {
-                                    // Sort bulan secara descending (terbaru dulu)
-                                    final List<String> monthsId = [
-                                      'Januari',
-                                      'Februari',
-                                      'Maret',
-                                      'April',
-                                      'Mei',
-                                      'Juni',
-                                      'Juli',
-                                      'Agustus',
-                                      'September',
-                                      'Oktober',
-                                      'November',
-                                      'Desember'
-                                    ];
-
-                                    final aParts = a.split(' ');
-                                    final bParts = b.split(' ');
-
-                                    // Bandingkan tahun terlebih dahulu
-                                    final int aYear = int.parse(aParts[1]);
-                                    final int bYear = int.parse(bParts[1]);
-                                    if (aYear != bYear)
-                                      return bYear.compareTo(aYear);
-
-                                    // Jika tahun sama, bandingkan bulan
-                                    final int aMonthIndex =
-                                        monthsId.indexOf(aParts[0]);
-                                    final int bMonthIndex =
-                                        monthsId.indexOf(bParts[0]);
-                                    return bMonthIndex.compareTo(aMonthIndex);
-                                  });
-
-                                final month = sortedMonths[index];
-                                return _buildMonthSection(month,
-                                    controller.activitiesByMonth[month]!);
-                              } else {
-                                if (controller.hasMoreData) {
-                                  return Padding(
-                                    padding: const EdgeInsets.symmetric(
-                                        vertical: 16.0),
-                                    child: Center(
-                                      child: controller.isLoading
-                                          ? const CircularProgressIndicator(
-                                              color: Color(0xFF213268),
-                                            )
-                                          : const SizedBox.shrink(),
-                                    ),
-                                  );
-                                }
-                                return const SizedBox(height: 20);
-                              }
-                            },
-                          ),
-                          if (controller.isLoadingMore && !controller.isLoading)
-                            Positioned(
-                              bottom: 0,
-                              left: 0,
-                              right: 0,
-                              child: Container(
-                                color: Colors.white.withOpacity(0.7),
-                                padding: const EdgeInsets.all(8.0),
-                                child: const Center(
-                                  child: CircularProgressIndicator(
-                                    color: Color(0xFF213268),
-                                  ),
-                                ),
-                              ),
-                            ),
-                        ],
-                      ),
-                    ),
+                          textAlign: TextAlign.center,
+                        ),
+                      );
+                    },
                   ),
-                // Footer dengan informasi pagination
-                if (controller.pagination != null)
-                  Container(
-                    padding:
-                        const EdgeInsets.symmetric(vertical: 8, horizontal: 24),
-                    color: Colors.grey[100],
-                    child: Text(
-                      'Halaman ${controller.pagination!.currentPage} dari ${controller.pagination!.totalPages} (${controller.pagination!.totalItems} item)',
-                      style: GoogleFonts.inter(
-                        fontSize: 12,
-                        color: Colors.grey,
-                      ),
-                      textAlign: TextAlign.center,
-                    ),
-                  ),
+                ),
               ],
             ),
-          );
-        },
+          ),
+        ],
       ),
     );
   }

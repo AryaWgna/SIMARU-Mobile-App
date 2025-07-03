@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'total_asset_controller.dart';
+import '../utils/logger_util.dart';
 
 class AssetUnderRepairController extends ChangeNotifier {
   TotalAssetController? _totalAssetController;
@@ -14,7 +15,8 @@ class AssetUnderRepairController extends ChangeNotifier {
     if (_isLoading != loading) {
       _isLoading = loading;
       notifyListeners();
-      print('AssetUnderRepairController loading state set to: $_isLoading');
+      LoggerUtil.d(
+          'AssetUnderRepairController loading state set to: $_isLoading');
     }
   }
 
@@ -39,8 +41,12 @@ class AssetUnderRepairController extends ChangeNotifier {
       return "0";
     }
 
-    final calibrations = _totalAssetController!.upcomingCalibrations;
-    return calibrations.isEmpty ? "0" : calibrations;
+    // Get the "under repair" value from assetsByStatus instead of upcoming calibrations
+    final status = _totalAssetController!.dashboardSummary!.assetsByStatus;
+    final underRepairCount = status['under repair'] ?? 0;
+
+    // Convert to string and return
+    return underRepairCount.toString();
   }
 
   Future<void> loadAssetUnderRepair() async {

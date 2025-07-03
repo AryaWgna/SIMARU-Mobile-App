@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'dart:convert';
 import 'auth_controller.dart';
+import '../utils/logger_util.dart';
 
 class AssetCheckoutController extends ChangeNotifier {
   bool _isLoading = false;
@@ -33,7 +34,7 @@ class AssetCheckoutController extends ChangeNotifier {
     if (_isLoading != loading) {
       _isLoading = loading;
       notifyListeners();
-      print('AssetCheckoutController loading state set to: $_isLoading');
+      LoggerUtil.d('AssetCheckoutController loading state set to: $_isLoading');
     }
   }
 
@@ -54,8 +55,8 @@ class AssetCheckoutController extends ChangeNotifier {
       clearError();
 
       final response = await ApiService.get('/rooms', context: context);
-      print('Room response: ${response.statusCode}');
-      print('Room body: ${response.body}');
+      LoggerUtil.d('Room response: ${response.statusCode}');
+      LoggerUtil.d('Room body received with ${response.body.length} bytes');
 
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
@@ -65,7 +66,7 @@ class AssetCheckoutController extends ChangeNotifier {
         if (isSuccess && data['data'] != null) {
           if (data['data'] is List) {
             _roomList = List<Map<String, dynamic>>.from(data['data']);
-            print('Rooms loaded: ${_roomList.length}');
+            LoggerUtil.i('Rooms loaded: ${_roomList.length}');
           }
         } else {
           setError('Gagal memuat daftar ruangan: ${data['message']}');
@@ -75,7 +76,7 @@ class AssetCheckoutController extends ChangeNotifier {
       }
     } catch (e) {
       setError('Error: ${e.toString()}');
-      print('Error fetching rooms: $e');
+      LoggerUtil.e('Error fetching rooms', e, StackTrace.current);
     } finally {
       setLoading(false);
     }
@@ -118,7 +119,7 @@ class AssetCheckoutController extends ChangeNotifier {
         };
       }
 
-      print('Sending checkout request: $requestBody');
+      LoggerUtil.i('Sending checkout request for asset ID: ${assetId}');
 
       final response = await ApiService.post(
         '/asset-transfers/checkout',
@@ -126,8 +127,8 @@ class AssetCheckoutController extends ChangeNotifier {
         context: context,
       );
 
-      print('Response status: ${response.statusCode}');
-      print('Response body: ${response.body}');
+      LoggerUtil.d('Response status: ${response.statusCode}');
+      LoggerUtil.d('Response received with ${response.body.length} bytes');
 
       if (response.statusCode == 200 || response.statusCode == 201) {
         final data = json.decode(response.body);

@@ -145,7 +145,7 @@ class _AssetDepreciationState extends State<AssetDepreciation> {
             child: const Text(
               'Asset Information',
               style: TextStyle(
-                fontFamily: 'Inter',
+                fontFamily: 'Poppins',
                 fontSize: 14,
                 fontWeight: FontWeight.w500,
                 color: Colors.white,
@@ -179,7 +179,7 @@ class _AssetDepreciationState extends State<AssetDepreciation> {
             child: Text(
               label,
               style: const TextStyle(
-                fontFamily: 'Inter',
+                fontFamily: 'Poppins',
                 fontSize: 13,
                 color: Color(0xFF3D3D3D),
               ),
@@ -190,7 +190,7 @@ class _AssetDepreciationState extends State<AssetDepreciation> {
             child: Text(
               value,
               style: const TextStyle(
-                fontFamily: 'Inter',
+                fontFamily: 'Poppins',
                 fontSize: 13,
                 color: Color(0xFF3D3D3D),
                 fontWeight: FontWeight.w500,
@@ -232,7 +232,7 @@ class _AssetDepreciationState extends State<AssetDepreciation> {
             child: const Text(
               'Depreciation Monthly Status',
               style: TextStyle(
-                fontFamily: 'Inter',
+                fontFamily: 'Poppins',
                 fontSize: 14,
                 fontWeight: FontWeight.w500,
                 color: Colors.white,
@@ -273,7 +273,7 @@ class _AssetDepreciationState extends State<AssetDepreciation> {
                               style: const TextStyle(
                                 color: Color(0xFF4F4F4F),
                                 fontSize: 10,
-                                fontFamily: 'Inter',
+                                fontFamily: 'Poppins',
                               ),
                             ),
                           );
@@ -290,7 +290,7 @@ class _AssetDepreciationState extends State<AssetDepreciation> {
                             style: const TextStyle(
                               color: Color(0xFF4F4F4F),
                               fontSize: 10,
-                              fontFamily: 'Inter',
+                              fontFamily: 'Poppins',
                             ),
                           );
                         },
@@ -368,7 +368,7 @@ class _AssetDepreciationState extends State<AssetDepreciation> {
             child: const Text(
               'Depreciation Schedule',
               style: TextStyle(
-                fontFamily: 'Inter',
+                fontFamily: 'Poppins',
                 fontSize: 14,
                 fontWeight: FontWeight.w500,
                 color: Colors.white,
@@ -388,7 +388,7 @@ class _AssetDepreciationState extends State<AssetDepreciation> {
                   label: Text(
                     '#',
                     style: TextStyle(
-                      fontFamily: 'Inter',
+                      fontFamily: 'Poppins',
                       fontSize: 13,
                       fontWeight: FontWeight.w600,
                       color: Color(0xFF3D3D3D),
@@ -399,7 +399,7 @@ class _AssetDepreciationState extends State<AssetDepreciation> {
                   label: Text(
                     'Month',
                     style: TextStyle(
-                      fontFamily: 'Inter',
+                      fontFamily: 'Poppins',
                       fontSize: 13,
                       fontWeight: FontWeight.w600,
                       color: Color(0xFF3D3D3D),
@@ -410,7 +410,7 @@ class _AssetDepreciationState extends State<AssetDepreciation> {
                   label: Text(
                     'Depreciation\nExpense',
                     style: TextStyle(
-                      fontFamily: 'Inter',
+                      fontFamily: 'Poppins',
                       fontSize: 13,
                       fontWeight: FontWeight.w600,
                       color: Color(0xFF3D3D3D),
@@ -421,7 +421,7 @@ class _AssetDepreciationState extends State<AssetDepreciation> {
                   label: Text(
                     'Accumulated\nDepreciation',
                     style: TextStyle(
-                      fontFamily: 'Inter',
+                      fontFamily: 'Poppins',
                       fontSize: 13,
                       fontWeight: FontWeight.w600,
                       color: Color(0xFF3D3D3D),
@@ -432,7 +432,7 @@ class _AssetDepreciationState extends State<AssetDepreciation> {
                   label: Text(
                     'Book Value\n(End of Year)',
                     style: TextStyle(
-                      fontFamily: 'Inter',
+                      fontFamily: 'Poppins',
                       fontSize: 13,
                       fontWeight: FontWeight.w600,
                       color: Color(0xFF3D3D3D),
@@ -464,7 +464,7 @@ class _AssetDepreciationState extends State<AssetDepreciation> {
         DataCell(Text(
           no,
           style: const TextStyle(
-            fontFamily: 'Inter',
+            fontFamily: 'Poppins',
             fontSize: 13,
             color: Color(0xFF3D3D3D),
           ),
@@ -472,7 +472,7 @@ class _AssetDepreciationState extends State<AssetDepreciation> {
         DataCell(Text(
           month,
           style: const TextStyle(
-            fontFamily: 'Inter',
+            fontFamily: 'Poppins',
             fontSize: 13,
             color: Color(0xFF3D3D3D),
           ),
@@ -480,7 +480,7 @@ class _AssetDepreciationState extends State<AssetDepreciation> {
         DataCell(Text(
           expense,
           style: const TextStyle(
-            fontFamily: 'Inter',
+            fontFamily: 'Poppins',
             fontSize: 13,
             color: Color(0xFF3D3D3D),
           ),
@@ -488,7 +488,7 @@ class _AssetDepreciationState extends State<AssetDepreciation> {
         DataCell(Text(
           accumulated,
           style: const TextStyle(
-            fontFamily: 'Inter',
+            fontFamily: 'Poppins',
             fontSize: 13,
             color: Color(0xFF3D3D3D),
           ),
@@ -496,7 +496,7 @@ class _AssetDepreciationState extends State<AssetDepreciation> {
         DataCell(Text(
           bookValue,
           style: const TextStyle(
-            fontFamily: 'Inter',
+            fontFamily: 'Poppins',
             fontSize: 13,
             color: Color(0xFF3D3D3D),
           ),
@@ -587,7 +587,7 @@ class _AssetDepreciationState extends State<AssetDepreciation> {
             Text(
               label,
               style: TextStyle(
-                fontFamily: 'Inter',
+                fontFamily: 'Poppins',
                 fontSize: 12,
                 color: isActive
                     ? const Color(0xFF213268)

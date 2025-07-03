@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'dart:convert';
 import 'auth_controller.dart';
+import '../utils/logger_util.dart';
 
 class AssetLostController extends ChangeNotifier {
   bool _isLoading = false;
@@ -15,7 +16,7 @@ class AssetLostController extends ChangeNotifier {
     if (_isLoading != loading) {
       _isLoading = loading;
       notifyListeners();
-      print('AssetLostController loading state set to: $_isLoading');
+      LoggerUtil.d('AssetLostController loading state set to: $_isLoading');
     }
   }
 
@@ -49,7 +50,7 @@ class AssetLostController extends ChangeNotifier {
         "loss_reason": notes,
       };
 
-      print('Sending lost report: $requestBody');
+      LoggerUtil.i('Sending lost report for asset ID: ${assetId}');
 
       final response = await ApiService.post(
         '/asset-transfers/loss',
@@ -57,8 +58,8 @@ class AssetLostController extends ChangeNotifier {
         context: context,
       );
 
-      print('Response status: ${response.statusCode}');
-      print('Response body: ${response.body}');
+      LoggerUtil.d('Response status: ${response.statusCode}');
+      LoggerUtil.d('Response received with ${response.body.length} bytes');
 
       if (response.statusCode == 200 || response.statusCode == 201) {
         final data = json.decode(response.body);
@@ -85,7 +86,7 @@ class AssetLostController extends ChangeNotifier {
             errorMsg = data['error'];
           }
         } catch (e) {
-          print('Failed to parse error response: $e');
+          LoggerUtil.e('Failed to parse error response', e, StackTrace.current);
         }
 
         throw Exception(errorMsg);

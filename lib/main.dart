@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_assets_monitoring/auth/login.dart';
 import 'package:provider/provider.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'views/dashboard/dashboard.dart';
 import 'controllers/recent_activity_controller.dart';
 import 'controllers/total_asset_controller.dart';
@@ -22,6 +23,7 @@ import 'controllers/qr_scanner_controller.dart';
 import 'controllers/dashboard_controller.dart';
 import 'controllers/notification_settings_controller.dart';
 import 'controllers/notification_badge_controller.dart';
+import 'controllers/auth_controller.dart' as auth; // Import untuk ApiService
 import 'dart:developer' as developer;
 import 'services/socket_service.dart';
 import 'services/firebase_messaging_service.dart';
@@ -32,6 +34,8 @@ import 'firebase_options.dart';
 import 'dart:io';
 import 'package:no_screenshot/no_screenshot.dart';
 import 'controllers/scan_result_controller.dart';
+import 'utils/logger_util.dart'; // Import LoggerUtil
+import 'package:google_fonts/google_fonts.dart'; // Import for Google Fonts
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -40,28 +44,36 @@ void main() async {
   await _disableGlobalScreenshotProtection();
 
   // Log untuk debugging
-  developer.log('Starting app...', name: 'APP_LIFECYCLE');
+  LoggerUtil.i('Starting app...', 'APP_LIFECYCLE');
 
-  // Inisialisasi Firebase dengan detail logging dan error handling
-  try {
-    await Firebase.initializeApp(
-      options: DefaultFirebaseOptions.currentPlatform,
-    );
-    developer.log('Firebase initialized successfully', name: 'FIREBASE');
-  } catch (e) {
-    developer.log('Failed to initialize Firebase: $e', name: 'FIREBASE');
+  // Inisialisasi Firebase hanya jika bukan di web
+  FirebaseMessagingService? messagingService;
+
+  if (!kIsWeb) {
+    // Inisialisasi Firebase dengan detail logging dan error handling
+    try {
+      await Firebase.initializeApp(
+        options: DefaultFirebaseOptions.currentPlatform,
+      );
+      LoggerUtil.i('Firebase initialized successfully', 'FIREBASE');
+
+      // Buat instance tapi jangan initialize dulu
+      messagingService = FirebaseMessagingService();
+      await messagingService.initialize();
+    } catch (e) {
+      LoggerUtil.e('Failed to initialize Firebase', e, StackTrace.current);
+    }
+  } else {
+    LoggerUtil.i('Running on web platform, skipping Firebase initialization',
+        'FIREBASE');
   }
-
-  // Buat instance tapi jangan initialize dulu
-  FirebaseMessagingService messagingService = FirebaseMessagingService();
 
   // Tambahkan error handler untuk Flutter
   FlutterError.onError = (FlutterErrorDetails details) {
-    developer.log(
-      'Flutter error caught in main error handler:',
-      name: 'APP_ERROR',
-      error: details.exception,
-      stackTrace: details.stack,
+    LoggerUtil.e(
+      'Flutter error caught in main error handler',
+      details.exception,
+      details.stack,
     );
 
     // Lanjutkan ke handler error default
@@ -69,14 +81,12 @@ void main() async {
   };
 
   // Set callback untuk navigasi ke login screen
-  ApiService.navigateToLogin = (BuildContext context) {
+  auth.ApiService.navigateToLogin = (BuildContext context) {
     Navigator.of(context).pushAndRemoveUntil(
       MaterialPageRoute(builder: (context) => const LoginScreen()),
       (route) => false,
     );
   };
-
-  await messagingService.initialize();
 
   runApp(
     MultiProvider(
@@ -95,7 +105,7 @@ void main() async {
         ChangeNotifierProvider(create: (_) => StockOpnameController()),
         ChangeNotifierProvider(create: (_) => AssetMutationController()),
         ChangeNotifierProvider(create: (_) => SocketService()),
-        Provider.value(value: messagingService),
+        if (messagingService != null) Provider.value(value: messagingService),
         ChangeNotifierProvider(create: (_) => AssetDetailsController()),
         // Controllers untuk checkin dan checkout
         ChangeNotifierProvider(create: (_) => AssetCheckinController()),
@@ -121,71 +131,190 @@ void main() async {
 Future<void> _disableGlobalScreenshotProtection() async {
   try {
     if (Platform.isAndroid || Platform.isIOS) {
-      print(
+      LoggerUtil.i(
           "App Start: Memastikan anti-screenshot dinonaktifkan secara global");
       final noScreenshot = NoScreenshot();
       await noScreenshot.screenshotOn();
-      print("App Start: Anti-screenshot berhasil dinonaktifkan");
+      LoggerUtil.i("App Start: Anti-screenshot berhasil dinonaktifkan");
     }
   } catch (e) {
-    print("App Start: Error saat menonaktifkan anti-screenshot: $e");
+    LoggerUtil.e("App Start: Error saat menonaktifkan anti-screenshot", e,
+        StackTrace.current);
   }
 }
 
-class MyApp extends StatelessWidget {
+class MyApp extends StatefulWidget {
   const MyApp({super.key});
 
   @override
+  State<MyApp> createState() => _MyAppState();
+}
+
+class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
+  bool _isInitialized = false;
+  bool _hasValidToken = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _checkForExistingToken();
+
+    // Register as an observer to handle app lifecycle changes
+    WidgetsBinding.instance.addObserver(this);
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    // Log app lifecycle state changes
+    LoggerUtil.i('App lifecycle state changed to: $state', 'APP_LIFECYCLE');
+
+    if (state == AppLifecycleState.resumed) {
+      // The app has become visible and interactive
+      LoggerUtil.i('App resumed - checking token validity', 'APP_LIFECYCLE');
+      _checkForExistingToken();
+    }
+  }
+
+  Future<void> _checkForExistingToken() async {
+    try {
+      LoggerUtil.i(
+          'Checking for existing token on app start...', 'APP_LIFECYCLE');
+
+      // Check if user is already logged in
+      final isLoggedIn = await auth.ApiService.isLoggedIn();
+
+      if (isLoggedIn) {
+        LoggerUtil.i('Token found, verifying validity...', 'APP_LIFECYCLE');
+
+        // Try to refresh token to ensure it's still valid
+        final refreshSuccess = await auth.ApiService.refreshToken();
+
+        if (refreshSuccess) {
+          LoggerUtil.i('Token is valid, will auto-login', 'APP_LIFECYCLE');
+          setState(() {
+            _hasValidToken = true;
+            _isInitialized = true;
+          });
+          return;
+        } else {
+          LoggerUtil.i(
+              'Token refresh failed, will show login screen', 'APP_LIFECYCLE');
+        }
+      } else {
+        LoggerUtil.i('No token found, will show login screen', 'APP_LIFECYCLE');
+      }
+    } catch (e) {
+      LoggerUtil.e('Error checking token', e, StackTrace.current);
+    }
+
+    setState(() {
+      _hasValidToken = false;
+      _isInitialized = true;
+    });
+  }
+
+  @override
   Widget build(BuildContext context) {
-    developer.log('Building MyApp...', name: 'APP_LIFECYCLE');
+    LoggerUtil.i('Building MyApp...', 'APP_LIFECYCLE');
+
+    final textTheme = GoogleFonts.poppinsTextTheme(
+      Theme.of(context).textTheme,
+    ).copyWith(
+      // Ensure readable text sizes for elderly users
+      bodyLarge: GoogleFonts.poppins(fontSize: 16.0, height: 1.5),
+      bodyMedium: GoogleFonts.poppins(fontSize: 14.0, height: 1.5),
+      bodySmall: GoogleFonts.poppins(fontSize: 12.0, height: 1.3),
+      // Make headings bold and clear
+      headlineSmall: GoogleFonts.poppins(
+          fontSize: 22.0, fontWeight: FontWeight.w700, height: 1.3),
+      titleLarge: GoogleFonts.poppins(
+          fontSize: 20.0, fontWeight: FontWeight.w700, height: 1.3),
+      titleMedium: GoogleFonts.poppins(
+          fontSize: 18.0, fontWeight: FontWeight.w600, height: 1.3),
+      titleSmall: GoogleFonts.poppins(
+          fontSize: 16.0, fontWeight: FontWeight.w600, height: 1.3),
+      // Labels for buttons, etc.
+      labelLarge: GoogleFonts.poppins(
+          fontSize: 16.0, fontWeight: FontWeight.w500, height: 1.3),
+      labelMedium: GoogleFonts.poppins(
+          fontSize: 14.0, fontWeight: FontWeight.w500, height: 1.3),
+      labelSmall: GoogleFonts.poppins(
+          fontSize: 12.0, fontWeight: FontWeight.w500, height: 1.3),
+    );
 
     return MaterialApp(
       debugShowCheckedModeBanner: false,
-      initialRoute: '/',
-      routes: {
-        '/': (context) {
-          developer.log('Navigating to LoginScreen', name: 'APP_NAVIGATION');
-          // Pastikan anti-screenshot dinonaktifkan saat navigasi ke login screen
-          _disableGlobalScreenshotProtection();
-          return const LoginScreen();
-        },
-        '/home': (context) {
-          developer.log('Navigating to DashboardScreen',
-              name: 'APP_NAVIGATION');
-          // Pastikan anti-screenshot dinonaktifkan saat navigasi ke dashboard
-          _disableGlobalScreenshotProtection();
-          return const DashboardScreen();
-        },
+      navigatorKey: auth.ApiService
+          .navigatorKey, // Gunakan navigatorKey global untuk navigasi tanpa context
+      navigatorObservers: [
+        routeObserver
+      ], // Add route observer for navigation tracking
+      // Force proper navigation history
+      onGenerateRoute: (RouteSettings settings) {
+        LoggerUtil.i(
+            'Generating route for: ${settings.name}', 'APP_NAVIGATION');
+        // This ensures the back navigation follows the exact path the user took
+        return MaterialPageRoute(
+          settings: settings,
+          builder: (context) {
+            switch (settings.name) {
+              case '/login':
+                return const LoginScreen();
+              case '/dashboard':
+                return const DashboardScreen();
+              default:
+                return _isInitialized
+                    ? (_hasValidToken
+                        ? const DashboardScreen()
+                        : const LoginScreen())
+                    : const Scaffold(
+                        body: Center(
+                          child: CircularProgressIndicator(),
+                        ),
+                      );
+            }
+          },
+        );
       },
+      home: _isInitialized
+          ? (_hasValidToken ? const DashboardScreen() : const LoginScreen())
+          : const Scaffold(
+              body: Center(
+                child: CircularProgressIndicator(),
+              ),
+            ),
       theme: ThemeData(
-        fontFamily: 'Inter',
-        colorScheme: ColorScheme.fromSeed(
-            seedColor: const Color(0xFF213268),
-            primary: const Color(0xFF213268)),
-        scaffoldBackgroundColor: Colors.white,
+        useMaterial3: true,
+        textTheme: textTheme,
+        primaryColor: const Color(0xFF213268),
+        colorScheme: const ColorScheme.light(
+          primary: Color(0xFF213268),
+          secondary: Color(0xFF25B1FF),
+          background: Colors.white,
+        ),
         appBarTheme: const AppBarTheme(
           backgroundColor: Color(0xFF213268),
           foregroundColor: Colors.white,
+          elevation: 2,
         ),
-        elevatedButtonTheme: ElevatedButtonThemeData(
-          style: ElevatedButton.styleFrom(
-            backgroundColor: const Color(0xFF213268),
-            foregroundColor: Colors.white,
-          ),
-        ),
-        visualDensity: VisualDensity.adaptivePlatformDensity,
       ),
-      // Tambahkan dukungan lokalisasi untuk Indonesia
+      // Localization support
       localizationsDelegates: const [
         GlobalMaterialLocalizations.delegate,
         GlobalWidgetsLocalizations.delegate,
         GlobalCupertinoLocalizations.delegate,
       ],
       supportedLocales: const [
-        Locale('id', 'ID'), // Indonesia
+        Locale('id', 'ID'), // Indonesian
         Locale('en', 'US'), // English
       ],
-      locale: const Locale('id', 'ID'), // Set bahasa default ke Indonesia
+      locale: const Locale('id', 'ID'), // Default to Indonesian
     );
   }
 }

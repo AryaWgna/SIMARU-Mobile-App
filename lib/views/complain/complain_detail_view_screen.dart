@@ -88,7 +88,7 @@ class _ComplainDetailViewScreenState extends State<ComplainDetailViewScreen> {
             padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
             child: Text(
               'Report Detail Teknisi',
-              style: GoogleFonts.inter(
+              style: GoogleFonts.poppins(
                 fontSize: 18,
                 fontWeight: FontWeight.w600,
                 color: const Color(0xFF213268),
@@ -99,7 +99,7 @@ class _ComplainDetailViewScreenState extends State<ComplainDetailViewScreen> {
             padding: const EdgeInsets.symmetric(horizontal: 16),
             child: Text(
               'REPORT DETAIL',
-              style: GoogleFonts.inter(
+              style: GoogleFonts.poppins(
                 fontSize: 16,
                 fontWeight: FontWeight.w600,
                 color: const Color(0xFF213268),
@@ -162,7 +162,7 @@ class _ComplainDetailViewScreenState extends State<ComplainDetailViewScreen> {
                       // Asset Code
                       Text(
                         complaintDetail!['asset_id']?.toString() ?? '-',
-                        style: GoogleFonts.inter(
+                        style: GoogleFonts.poppins(
                           fontSize: 14,
                           fontWeight: FontWeight.w600,
                           color: const Color(0xFF213268),
@@ -172,7 +172,7 @@ class _ComplainDetailViewScreenState extends State<ComplainDetailViewScreen> {
                       // Asset Name
                       Text(
                         complaintDetail!['asset_name'] ?? '-',
-                        style: GoogleFonts.inter(
+                        style: GoogleFonts.poppins(
                           fontSize: 16,
                           fontWeight: FontWeight.w600,
                           color: Colors.black,
@@ -184,7 +184,7 @@ class _ComplainDetailViewScreenState extends State<ComplainDetailViewScreen> {
                       // Performed By
                       Text(
                         complaintDetail!['reporter_name'] ?? '-',
-                        style: GoogleFonts.inter(
+                        style: GoogleFonts.poppins(
                           fontSize: 14,
                           fontWeight: FontWeight.w500,
                           color: Colors.black,
@@ -194,7 +194,7 @@ class _ComplainDetailViewScreenState extends State<ComplainDetailViewScreen> {
                       // Complaint Description
                       Text(
                         complaintDetail!['description'] ?? '-',
-                        style: GoogleFonts.inter(
+                        style: GoogleFonts.poppins(
                           fontSize: 14,
                           color: Colors.grey[600],
                         ),
@@ -205,7 +205,7 @@ class _ComplainDetailViewScreenState extends State<ComplainDetailViewScreen> {
                       // Asset Information Header
                       Text(
                         'Asset Information',
-                        style: GoogleFonts.inter(
+                        style: GoogleFonts.poppins(
                           fontSize: 16,
                           fontWeight: FontWeight.w600,
                           color: const Color(0xFF213268),
@@ -263,7 +263,7 @@ class _ComplainDetailViewScreenState extends State<ComplainDetailViewScreen> {
                 ),
                 child: Text(
                   'Work',
-                  style: GoogleFonts.inter(
+                  style: GoogleFonts.poppins(
                     fontSize: 16,
                     fontWeight: FontWeight.w600,
                     color: Colors.white,
@@ -286,7 +286,7 @@ class _ComplainDetailViewScreenState extends State<ComplainDetailViewScreen> {
             width: 100,
             child: Text(
               label,
-              style: GoogleFonts.inter(
+              style: GoogleFonts.poppins(
                 fontSize: 14,
                 color: Colors.black87,
               ),
@@ -294,7 +294,7 @@ class _ComplainDetailViewScreenState extends State<ComplainDetailViewScreen> {
           ),
           Text(
             value,
-            style: GoogleFonts.inter(
+            style: GoogleFonts.poppins(
               fontSize: 14,
               color: Colors.black,
             ),

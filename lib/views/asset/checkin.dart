@@ -122,7 +122,7 @@ class _CheckInScreenState extends State<CheckInScreen> {
                       fontSize: 24,
                       fontWeight: FontWeight.w600,
                       color: Color(0xFF213268),
-                      fontFamily: 'Inter',
+                      fontFamily: 'Poppins',
                     ),
                   ),
                   const SizedBox(height: 25),
@@ -151,7 +151,7 @@ class _CheckInScreenState extends State<CheckInScreen> {
                               Text(
                                 'Informasi Aset',
                                 style: TextStyle(
-                                  fontFamily: 'Inter',
+                                  fontFamily: 'Poppins',
                                   fontSize: 16,
                                   fontWeight: FontWeight.w600,
                                   color: Color(0xFF213268),
@@ -167,7 +167,7 @@ class _CheckInScreenState extends State<CheckInScreen> {
                                 child: Text(
                                   'Kode Aset:',
                                   style: TextStyle(
-                                    fontFamily: 'Inter',
+                                    fontFamily: 'Poppins',
                                     fontSize: 14,
                                     color: Color(0xFF666666),
                                   ),
@@ -177,7 +177,7 @@ class _CheckInScreenState extends State<CheckInScreen> {
                                 child: Text(
                                   widget.assetData?['asset_code'] ?? '-',
                                   style: const TextStyle(
-                                    fontFamily: 'Inter',
+                                    fontFamily: 'Poppins',
                                     fontSize: 14,
                                     fontWeight: FontWeight.w500,
                                     color: Color(0xFF213268),
@@ -194,7 +194,7 @@ class _CheckInScreenState extends State<CheckInScreen> {
                                 child: Text(
                                   'Nama Aset:',
                                   style: TextStyle(
-                                    fontFamily: 'Inter',
+                                    fontFamily: 'Poppins',
                                     fontSize: 14,
                                     color: Color(0xFF666666),
                                   ),
@@ -203,9 +203,11 @@ class _CheckInScreenState extends State<CheckInScreen> {
                               Expanded(
                                 child: Text(
                                   widget.assetData?['asset_name'] ??
+                                      widget.assetData?['asset_master']
+                                          ?['asset_name'] ??
                                       'Tidak diketahui',
                                   style: const TextStyle(
-                                    fontFamily: 'Inter',
+                                    fontFamily: 'Poppins',
                                     fontSize: 14,
                                     fontWeight: FontWeight.w500,
                                     color: Color(0xFF213268),
@@ -253,7 +255,7 @@ class _CheckInScreenState extends State<CheckInScreen> {
                           fontSize: 16,
                           fontWeight: FontWeight.w600,
                           color: Color(0xFF666666),
-                          fontFamily: 'Inter',
+                          fontFamily: 'Poppins',
                         ),
                       ),
                       const SizedBox(height: 8),
@@ -285,7 +287,7 @@ class _CheckInScreenState extends State<CheckInScreen> {
                                 style: const TextStyle(
                                   fontSize: 16,
                                   color: Colors.black87,
-                                  fontFamily: 'Inter',
+                                  fontFamily: 'Poppins',
                                 ),
                               ),
                             ),
@@ -306,7 +308,7 @@ class _CheckInScreenState extends State<CheckInScreen> {
                           fontSize: 16,
                           fontWeight: FontWeight.w600,
                           color: Color(0xFF666666),
-                          fontFamily: 'Inter',
+                          fontFamily: 'Poppins',
                         ),
                       ),
                       const SizedBox(height: 8),
@@ -357,7 +359,7 @@ class _CheckInScreenState extends State<CheckInScreen> {
                           fontSize: 16,
                           fontWeight: FontWeight.w600,
                           color: Color(0xFF666666),
-                          fontFamily: 'Inter',
+                          fontFamily: 'Poppins',
                         ),
                       ),
                       const SizedBox(height: 8),
@@ -427,7 +429,7 @@ class _CheckInScreenState extends State<CheckInScreen> {
                       'Kembalikan',
                       style: TextStyle(
                         fontSize: 16,
-                        fontFamily: 'Inter',
+                        fontFamily: 'Poppins',
                       ),
                     ),
             ),

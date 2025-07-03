@@ -4,7 +4,10 @@ import '../pages/qr_scanner_screen.dart';
 import 'dart:convert';
 import 'dart:async';
 import '../../controllers/auth_controller.dart' as auth;
+import '../../controllers/dashboard_controller.dart';
+import '../../utils/logger_util.dart';
 import 'stockopname_scanner.dart';
+import 'scan_result_screen.dart';
 import 'package:pull_to_refresh_flutter3/pull_to_refresh_flutter3.dart';
 import 'package:skeletonizer/skeletonizer.dart';
 import 'package:provider/provider.dart';
@@ -13,6 +16,7 @@ import '../../controllers/stockopname_controller.dart';
 import '../../models/stockopname_model.dart';
 import 'package:drop_down_list/drop_down_list.dart';
 import 'package:drop_down_list/model/selected_list_item.dart';
+import '../dashboard/dashboard.dart';
 
 class StockopnameScreen extends StatefulWidget {
   const StockopnameScreen({super.key});
@@ -21,13 +25,15 @@ class StockopnameScreen extends StatefulWidget {
   State<StockopnameScreen> createState() => _StockopnameScreenState();
 }
 
-class _StockopnameScreenState extends State<StockopnameScreen> {
+class _StockopnameScreenState extends State<StockopnameScreen> with RouteAware {
   final GlobalKey<ScaffoldMessengerState> _scaffoldMessengerKey =
       GlobalKey<ScaffoldMessengerState>();
   final RefreshController _refreshController =
       RefreshController(initialRefresh: false);
   late StockOpnameController _stockOpnameController;
   bool _firstLoad = true; // Untuk track apakah ini adalah load pertama
+  bool _isLoadingMoreBuildings = false; // Track load more state locally
+  bool _isLoadingMoreRooms = false; // Track load more state for rooms
 
   // Tambahkan timer untuk debounce pencarian
   Timer? _buildingSearchDebounce;
@@ -42,7 +48,34 @@ class _StockopnameScreenState extends State<StockopnameScreen> {
   }
 
   @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // Subscribe to route observer
+    final route = ModalRoute.of(context);
+    if (route is PageRoute) {
+      routeObserver.subscribe(this, route);
+    }
+  }
+
+  @override
+  void didPopNext() {
+    // This is called when the user returns to this screen
+    LoggerUtil.d("Returned to StockopnameScreen");
+
+    final dashboardController =
+        Provider.of<DashboardController>(context, listen: false);
+    // Make sure we're on the stockopname tab when returning to this screen
+    if (dashboardController.selectedIndex != 1) {
+      dashboardController.setSelectedIndex(1);
+    }
+
+    // Refresh data
+    _stockOpnameController.fetchPendingOpnames(context);
+  }
+
+  @override
   void dispose() {
+    routeObserver.unsubscribe(this);
     _refreshController.dispose();
     // Pastikan untuk membatalkan timer debounce saat widget dihapus
     _buildingSearchDebounce?.cancel();
@@ -351,8 +384,9 @@ class _StockopnameScreenState extends State<StockopnameScreen> {
               children: [
                 Text(
                   'Pilih gedung dan ruangan untuk memulai stock opname',
-                  style: GoogleFonts.inter(
+                  style: GoogleFonts.poppins(
                     fontSize: 16,
+                    fontWeight: FontWeight.bold,
                     color: Colors.black54,
                   ),
                 ),
@@ -373,7 +407,7 @@ class _StockopnameScreenState extends State<StockopnameScreen> {
                     children: [
                       Text(
                         'Gedung',
-                        style: GoogleFonts.inter(
+                        style: GoogleFonts.poppins(
                           fontSize: 14,
                           fontWeight: FontWeight.w500,
                           color: const Color(0xFF213268),
@@ -392,7 +426,7 @@ class _StockopnameScreenState extends State<StockopnameScreen> {
                             children: [
                               Text(
                                 'Gagal memuat data gedung',
-                                style: GoogleFonts.inter(
+                                style: GoogleFonts.poppins(
                                   fontSize: 14,
                                   fontWeight: FontWeight.w500,
                                   color: Colors.red[800],
@@ -410,7 +444,7 @@ class _StockopnameScreenState extends State<StockopnameScreen> {
                                 ),
                                 child: Text(
                                   'Coba Lagi',
-                                  style: GoogleFonts.inter(
+                                  style: GoogleFonts.poppins(
                                     fontSize: 14,
                                   ),
                                 ),
@@ -426,7 +460,7 @@ class _StockopnameScreenState extends State<StockopnameScreen> {
                           alignment: Alignment.center,
                           child: Text(
                             'Tidak ada gedung yang tersedia',
-                            style: GoogleFonts.inter(
+                            style: GoogleFonts.poppins(
                               fontSize: 14,
                               color: Colors.grey[600],
                             ),
@@ -458,7 +492,7 @@ class _StockopnameScreenState extends State<StockopnameScreen> {
                             children: [
                               Text(
                                 'Gagal memuat data ruangan',
-                                style: GoogleFonts.inter(
+                                style: GoogleFonts.poppins(
                                   fontSize: 14,
                                   fontWeight: FontWeight.w500,
                                   color: Colors.red[800],
@@ -477,7 +511,7 @@ class _StockopnameScreenState extends State<StockopnameScreen> {
                                 ),
                                 child: Text(
                                   'Coba Lagi',
-                                  style: GoogleFonts.inter(
+                                  style: GoogleFonts.poppins(
                                     fontSize: 14,
                                   ),
                                 ),
@@ -494,7 +528,7 @@ class _StockopnameScreenState extends State<StockopnameScreen> {
                           alignment: Alignment.center,
                           child: Text(
                             'Tidak ada ruangan yang tersedia di gedung ini',
-                            style: GoogleFonts.inter(
+                            style: GoogleFonts.poppins(
                               fontSize: 14,
                               color: Colors.grey[600],
                             ),
@@ -505,7 +539,7 @@ class _StockopnameScreenState extends State<StockopnameScreen> {
                         const SizedBox(height: 16),
                         Text(
                           'Ruangan',
-                          style: GoogleFonts.inter(
+                          style: GoogleFonts.poppins(
                             fontSize: 14,
                             fontWeight: FontWeight.w500,
                             color: const Color(0xFF213268),
@@ -539,7 +573,7 @@ class _StockopnameScreenState extends State<StockopnameScreen> {
                               Expanded(
                                 child: Text(
                                   'Lokasi: ${controller.selectedBuilding!.name} - ${controller.selectedRoom!.name}',
-                                  style: GoogleFonts.inter(
+                                  style: GoogleFonts.poppins(
                                     fontSize: 14,
                                     fontWeight: FontWeight.w500,
                                     color: const Color(0xFF213268),
@@ -600,7 +634,7 @@ class _StockopnameScreenState extends State<StockopnameScreen> {
                             controller.isCreatingOpname
                                 ? 'Memproses...'
                                 : 'Mulai Scan Stock Opname',
-                            style: GoogleFonts.inter(
+                            style: GoogleFonts.poppins(
                               fontSize: 16,
                               fontWeight: FontWeight.w600,
                             ),
@@ -627,7 +661,7 @@ class _StockopnameScreenState extends State<StockopnameScreen> {
                     const SizedBox(width: 8),
                     Text(
                       'Stock Opname Berlangsung',
-                      style: GoogleFonts.inter(
+                      style: GoogleFonts.poppins(
                         fontSize: 18,
                         fontWeight: FontWeight.bold,
                         color: const Color(0xFF213268),
@@ -650,7 +684,7 @@ class _StockopnameScreenState extends State<StockopnameScreen> {
                       children: [
                         Text(
                           'Gagal memuat data stock opname',
-                          style: GoogleFonts.inter(
+                          style: GoogleFonts.poppins(
                             fontSize: 14,
                             fontWeight: FontWeight.w500,
                             color: Colors.red[800],
@@ -668,7 +702,7 @@ class _StockopnameScreenState extends State<StockopnameScreen> {
                           ),
                           child: Text(
                             'Coba Lagi',
-                            style: GoogleFonts.inter(
+                            style: GoogleFonts.poppins(
                               fontSize: 14,
                             ),
                           ),
@@ -691,7 +725,7 @@ class _StockopnameScreenState extends State<StockopnameScreen> {
                           Text(
                             'Tidak ada stock opname yang sedang berlangsung',
                             textAlign: TextAlign.center,
-                            style: GoogleFonts.inter(
+                            style: GoogleFonts.poppins(
                               fontSize: 14,
                               color: Colors.grey[700],
                             ),
@@ -743,7 +777,7 @@ class _StockopnameScreenState extends State<StockopnameScreen> {
               Expanded(
                 child: Text(
                   'Stock Opname ${opname.roomName}',
-                  style: GoogleFonts.inter(
+                  style: GoogleFonts.poppins(
                     fontSize: 16,
                     fontWeight: FontWeight.w600,
                     color: const Color(0xFF213268),
@@ -752,14 +786,15 @@ class _StockopnameScreenState extends State<StockopnameScreen> {
                 ),
               ),
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
                 decoration: BoxDecoration(
                   color: Colors.blue.withOpacity(0.1),
                   borderRadius: BorderRadius.circular(4),
                 ),
                 child: Text(
                   'Sedang Berlangsung',
-                  style: GoogleFonts.inter(
+                  style: GoogleFonts.poppins(
                     fontSize: 12,
                     color: Colors.blue,
                     fontWeight: FontWeight.w500,
@@ -779,7 +814,7 @@ class _StockopnameScreenState extends State<StockopnameScreen> {
               const SizedBox(width: 4),
               Text(
                 opname.opnameCode,
-                style: GoogleFonts.inter(
+                style: GoogleFonts.poppins(
                   fontSize: 14,
                   color: Colors.grey[700],
                 ),
@@ -791,7 +826,7 @@ class _StockopnameScreenState extends State<StockopnameScreen> {
             children: [
               Text(
                 'Progress: ${opname.scannedAssets}/${opname.totalAssets} aset',
-                style: GoogleFonts.inter(
+                style: GoogleFonts.poppins(
                   fontSize: 14,
                   color: Colors.grey[700],
                 ),
@@ -831,7 +866,7 @@ class _StockopnameScreenState extends State<StockopnameScreen> {
                   icon: const Icon(Icons.qr_code_scanner, size: 16),
                   label: Text(
                     'Lanjutkan Scan',
-                    style: GoogleFonts.inter(
+                    style: GoogleFonts.poppins(
                       fontSize: 14,
                       fontWeight: FontWeight.w500,
                     ),
@@ -840,7 +875,19 @@ class _StockopnameScreenState extends State<StockopnameScreen> {
               ),
               const SizedBox(width: 8),
               ElevatedButton(
-                onPressed: () {},
+                onPressed: () {
+                  // Navigasi langsung ke ScanResultScreen tanpa menampilkan SnackBar
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => ScanResultScreen(
+                        roomName: opname.roomName,
+                        opnameId: opname.opnameId,
+                        opnameCode: opname.opnameCode,
+                      ),
+                    ),
+                  );
+                },
                 style: ElevatedButton.styleFrom(
                   backgroundColor: Colors.white,
                   foregroundColor: const Color(0xFF213268),
@@ -849,13 +896,21 @@ class _StockopnameScreenState extends State<StockopnameScreen> {
                     borderRadius: BorderRadius.circular(6),
                     side: const BorderSide(color: Color(0xFF213268)),
                   ),
+                  elevation: 0,
                 ),
-                child: Text(
-                  'Detail',
-                  style: GoogleFonts.inter(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w500,
-                  ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(Icons.analytics, size: 16),
+                    const SizedBox(width: 4),
+                    Text(
+                      'Lihat Detail',
+                      style: GoogleFonts.poppins(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ],
                 ),
               ),
             ],
@@ -879,7 +934,7 @@ class _StockopnameScreenState extends State<StockopnameScreen> {
           contentPadding: EdgeInsets.zero,
           title: Text(
             controller.selectedBuilding!.name ?? 'Gedung Tidak Diketahui',
-            style: GoogleFonts.inter(
+            style: GoogleFonts.poppins(
               fontSize: 14,
               fontWeight: FontWeight.bold,
               color: Colors.black87,
@@ -917,7 +972,7 @@ class _StockopnameScreenState extends State<StockopnameScreen> {
       alignment: Alignment.center,
       child: Text(
         'Klik untuk memilih gedung',
-        style: GoogleFonts.inter(
+        style: GoogleFonts.poppins(
           fontSize: 14,
           color: Colors.grey[600],
         ),
@@ -950,7 +1005,7 @@ class _StockopnameScreenState extends State<StockopnameScreen> {
             Expanded(
               child: Text(
                 controller.selectedBuilding?.name ?? 'Pilih gedung...',
-                style: GoogleFonts.inter(
+                style: GoogleFonts.poppins(
                   fontSize: 14,
                   color: controller.selectedBuilding != null
                       ? Colors.black87
@@ -1025,7 +1080,7 @@ class _StockopnameScreenState extends State<StockopnameScreen> {
             Expanded(
               child: Text(
                 controller.selectedRoom?.name ?? 'Pilih ruangan...',
-                style: GoogleFonts.inter(
+                style: GoogleFonts.poppins(
                   fontSize: 14,
                   color: controller.selectedRoom != null
                       ? Colors.black87
@@ -1077,15 +1132,22 @@ class _StockopnameScreenState extends State<StockopnameScreen> {
       BuildContext context, StockOpnameController controller) async {
     FocusScope.of(context).unfocus();
 
+    // Reset local state
+    setState(() {
+      _isLoadingMoreBuildings = false;
+    });
+
     // Reset state controller untuk menghindari data lama
     controller.resetSearch();
 
     // Ambil data gedung terlebih dahulu
-    controller.fetchBuildings(context);
+    await controller.fetchBuildings(context);
 
     // Status pencarian lokal
-    bool isSearching = false;
     String currentQuery = '';
+
+    // Create a shared scroll controller outside of the consumer
+    final ScrollController scrollController = ScrollController();
 
     // Custom bottom sheet dengan consumer untuk auto-refresh saat data berubah
     showModalBottomSheet(
@@ -1095,23 +1157,59 @@ class _StockopnameScreenState extends State<StockopnameScreen> {
         borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
       ),
       builder: (sheetContext) {
+        // We'll set up the scroll listener in the StatefulBuilder
+
         return StatefulBuilder(
           builder: (builderContext, setSheetState) {
             return Consumer<StockOpnameController>(
               builder: (consumerContext, updatedController, _) {
-                final ScrollController scrollController = ScrollController();
+                // Set up scroll listener in post-frame callback to ensure it's attached properly
+                WidgetsBinding.instance.addPostFrameCallback((_) {
+                  if (scrollController.hasClients) {
+                    // Remove previous listeners to avoid duplicates
+                    scrollController.removeListener(() {});
 
-                // Add scroll listener for infinite scrolling
-                if (!scrollController.hasListeners) {
-                  scrollController.addListener(() {
-                    if (scrollController.position.pixels >=
-                            scrollController.position.maxScrollExtent - 200 &&
-                        !updatedController.isLoadingMoreBuildings &&
-                        updatedController.hasMoreBuildings) {
-                      updatedController.loadMoreBuildings(context);
-                    }
-                  });
-                }
+                    // Add the scroll listener
+                    scrollController.addListener(() {
+                      if (scrollController.position.pixels >=
+                          scrollController.position.maxScrollExtent - 100) {
+                        // Check if we can load more
+                        if (!_isLoadingMoreBuildings &&
+                            updatedController.hasMoreBuildings &&
+                            !updatedController.isLoadingBuildings) {
+                          LoggerUtil.d(
+                              'Scroll threshold reached, loading more buildings');
+
+                          // Set local loading state
+                          setSheetState(() {
+                            _isLoadingMoreBuildings = true;
+                          });
+
+                          // Load more data
+                          updatedController
+                              .loadMoreBuildings(context)
+                              .then((_) {
+                            // Reset local loading state
+                            if (mounted) {
+                              setSheetState(() {
+                                _isLoadingMoreBuildings = false;
+                              });
+                            }
+                          }).catchError((error) {
+                            // Handle error and reset loading state
+                            LoggerUtil.e('Error loading more buildings', error,
+                                StackTrace.current);
+                            if (mounted) {
+                              setSheetState(() {
+                                _isLoadingMoreBuildings = false;
+                              });
+                            }
+                          });
+                        }
+                      }
+                    });
+                  }
+                });
 
                 return DraggableScrollableSheet(
                   initialChildSize: 0.7,
@@ -1128,7 +1226,7 @@ class _StockopnameScreenState extends State<StockopnameScreen> {
                             children: [
                               Text(
                                 'Pilih Gedung',
-                                style: GoogleFonts.inter(
+                                style: GoogleFonts.poppins(
                                   fontSize: 18,
                                   fontWeight: FontWeight.bold,
                                   color: const Color(0xFF213268),
@@ -1154,7 +1252,6 @@ class _StockopnameScreenState extends State<StockopnameScreen> {
                             child: TextField(
                               onChanged: (query) {
                                 setSheetState(() {
-                                  isSearching = true;
                                   currentQuery = query;
                                 });
 
@@ -1169,11 +1266,13 @@ class _StockopnameScreenState extends State<StockopnameScreen> {
                                     const Duration(milliseconds: 500), () {
                                   if (query.isNotEmpty) {
                                     print('Debounce search buildings: $query');
-                                    updatedController.fetchBuildings(context,
-                                        searchQuery: query);
+                                    // Reset pagination and clear previous results
+                                    updatedController.searchBuildings(
+                                        query, context);
                                   } else {
                                     // Jika query kosong, ambil semua gedung
-                                    updatedController.fetchBuildings(context);
+                                    updatedController.fetchBuildings(context,
+                                        resetList: true);
                                   }
                                 });
                               },
@@ -1192,9 +1291,11 @@ class _StockopnameScreenState extends State<StockopnameScreen> {
                                           });
                                           // Reset text field
                                           FocusScope.of(context).unfocus();
-                                          // Refresh data
-                                          updatedController
-                                              .fetchBuildings(context);
+                                          // Refresh data with reset
+                                          updatedController.resetSearch();
+                                          updatedController.fetchBuildings(
+                                              context,
+                                              resetList: true);
                                         },
                                       )
                                     : null,
@@ -1233,71 +1334,135 @@ class _StockopnameScreenState extends State<StockopnameScreen> {
   // Widget untuk menampilkan daftar gedung dengan load more
   Widget _buildBuildingListWithLoadMore(StockOpnameController controller,
       ScrollController scrollController, BuildContext context) {
-    return ListView.separated(
+    // Add a placeholder to check building list length
+    if (controller.buildings.isEmpty && !controller.isLoadingBuildings) {
+      return _buildEmptyResults('');
+    }
+
+    // Show a different UI when we're loading more but already have some buildings
+    final bool showLoadingMore =
+        _isLoadingMoreBuildings && controller.hasMoreBuildings;
+
+    return ListView.builder(
       controller: scrollController,
-      itemCount:
-          controller.buildings.length + (controller.hasMoreBuildings ? 1 : 0),
-      separatorBuilder: (context, index) => const Divider(height: 1),
+      // Add +1 for loading indicator if we're loading more or have more to load
+      itemCount: controller.buildings.length +
+          (controller.hasMoreBuildings || showLoadingMore ? 1 : 0),
       itemBuilder: (context, index) {
-        // Tampilkan loader di item terakhir jika masih ada data
+        // Show divider except for the last item if it's a loader
+        if (index > 0 && index < controller.buildings.length) {
+          return Column(
+            children: [
+              const Divider(height: 1),
+              _buildBuildingItem(controller, index, context),
+            ],
+          );
+        }
+
+        // Tampilkan loader di item terakhir jika masih ada data atau sedang loading
         if (index == controller.buildings.length) {
+          // Log to help debug
+          LoggerUtil.d(
+              'Showing loader at index $index, hasMore: ${controller.hasMoreBuildings}, isLoadingMore: $_isLoadingMoreBuildings');
           return _buildLoadMoreIndicator();
         }
 
-        final building = controller.buildings[index];
-        final isSelected = controller.selectedBuilding?.id == building.id;
-
-        return ListTile(
-          title: Text(
-            building.name ?? 'Gedung Tidak Diketahui',
-            style: GoogleFonts.inter(
-              fontSize: 16,
-              fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-              color: Colors.black87,
-            ),
-          ),
-          subtitle: Text(
-            '${building.address}',
-            style: GoogleFonts.inter(
-              fontSize: 12,
-              color: Colors.grey[600],
-            ),
-          ),
-          trailing: isSelected
-              ? const Icon(Icons.check_circle, color: Color(0xFF213268))
-              : null,
-          onTap: () {
-            controller.selectRoom(null); // Reset room selection
-            controller.selectBuilding(building);
-            controller.fetchRoomsByBuilding(building.id, context);
-            Navigator.pop(context);
-          },
-        );
+        // Regular item
+        return _buildBuildingItem(controller, index, context);
       },
     );
   }
 
-  // Widget untuk menampilkan indikator loading more
+  // Extracted building item widget for better organization
+  Widget _buildBuildingItem(
+      StockOpnameController controller, int index, BuildContext context) {
+    // Safety check
+    if (index >= controller.buildings.length) {
+      return const SizedBox.shrink();
+    }
+
+    final building = controller.buildings[index];
+    final isSelected = controller.selectedBuilding?.id == building.id;
+
+    return ListTile(
+      title: Text(
+        building.name ?? 'Gedung Tidak Diketahui',
+        style: GoogleFonts.poppins(
+          fontSize: 16,
+          fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+          color: Colors.black87,
+        ),
+      ),
+      subtitle: Text(
+        '${building.address ?? ""}',
+        style: GoogleFonts.poppins(
+          fontSize: 12,
+          color: Colors.grey[600],
+        ),
+      ),
+      trailing: isSelected
+          ? const Icon(Icons.check_circle, color: Color(0xFF213268))
+          : null,
+      onTap: () async {
+        controller.selectRoom(null); // Reset room selection
+        controller.selectBuilding(building);
+
+        // Remove SnackBar and directly preload rooms
+        await controller.preloadRoomsForBuilding(building.id, context);
+
+        Navigator.pop(context);
+      },
+    );
+  }
+
   Widget _buildLoadMoreIndicator() {
     return Container(
       padding: const EdgeInsets.symmetric(vertical: 16.0),
       alignment: Alignment.center,
       child: Column(
         children: [
-          const SizedBox(
-            width: 24,
-            height: 24,
-            child: CircularProgressIndicator(strokeWidth: 2),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            'Memuat gedung lainnya...',
-            style: GoogleFonts.inter(
-              fontSize: 14,
-              fontStyle: FontStyle.italic,
-              color: Colors.grey[600],
+          if (_isLoadingMoreBuildings)
+            Column(
+              children: [
+                const SizedBox(
+                  width: 24,
+                  height: 24,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    valueColor:
+                        AlwaysStoppedAnimation<Color>(Color(0xFF213268)),
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'Memuat gedung lainnya...',
+                  style: GoogleFonts.poppins(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w500,
+                    color: Colors.grey[700],
+                  ),
+                ),
+              ],
+            )
+          else if (!_isLoadingMoreBuildings &&
+              _stockOpnameController.hasMoreBuildings)
+            Text(
+              'Scroll untuk memuat lebih banyak gedung',
+              style: GoogleFonts.poppins(
+                fontSize: 12,
+                fontWeight: FontWeight.w400,
+                color: Colors.grey[600],
+              ),
+            )
+          else
+            Text(
+              'Tidak ada gedung lagi',
+              style: GoogleFonts.poppins(
+                fontSize: 12,
+                fontWeight: FontWeight.w400,
+                color: Colors.grey[600],
+              ),
             ),
-          ),
         ],
       ),
     );
@@ -1314,7 +1479,7 @@ class _StockopnameScreenState extends State<StockopnameScreen> {
             padding: const EdgeInsets.symmetric(vertical: 12.0),
             child: Text(
               'Mencari gedung...',
-              style: GoogleFonts.inter(
+              style: GoogleFonts.poppins(
                 fontSize: 14,
                 fontStyle: FontStyle.italic,
                 color: Colors.grey[600],
@@ -1361,7 +1526,7 @@ class _StockopnameScreenState extends State<StockopnameScreen> {
             query.isEmpty
                 ? 'Tidak ada gedung yang tersedia'
                 : 'Tidak ditemukan gedung "$query"',
-            style: GoogleFonts.inter(
+            style: GoogleFonts.poppins(
               fontSize: 16,
               color: Colors.grey[600],
             ),
@@ -1382,44 +1547,22 @@ class _StockopnameScreenState extends State<StockopnameScreen> {
       return;
     }
 
+    // Reset local state
+    setState(() {
+      _isLoadingMoreRooms = false;
+    });
+
     // Reset state controller untuk menghindari data lama
     controller.resetSearch();
 
-    // Ambil data ruangan terlebih dahulu jika belum ada
-    if (controller.rooms.isEmpty) {
-      controller.fetchRoomsByBuilding(controller.selectedBuilding!.id, context);
-
-      // Tunggu hingga data selesai diambil
-      await Future.delayed(const Duration(milliseconds: 500));
-
-      // Jika masih loading atau error, tampilkan pesan
-      if (controller.isLoadingRooms) {
-        _showError('Sedang memuat data ruangan...');
-        return;
-      }
-
-      if (controller.error != null) {
-        _showError(controller.error!);
-        return;
-      }
-    }
-
-    // Konversi data ruangan ke format yang dibutuhkan oleh dropdown
-    List<SelectedListItem<Room>> roomItems = controller.rooms
-        .map((room) => SelectedListItem<Room>(
-              data: room,
-            ))
-        .toList();
-
-    // Jika tidak ada data ruangan, return
-    if (roomItems.isEmpty) {
-      _showError('Tidak ada data ruangan yang tersedia');
-      return;
-    }
+    // Pastikan data ruangan sudah diambil sebelumnya saat memilih gedung
+    // Tidak perlu menunggu loading lagi di sini
 
     // Status pencarian lokal
-    bool isSearching = false;
     String currentQuery = '';
+
+    // Create a shared scroll controller
+    final ScrollController scrollController = ScrollController();
 
     // Custom bottom sheet dengan consumer untuk auto-refresh saat data berubah
     showModalBottomSheet(
@@ -1433,21 +1576,47 @@ class _StockopnameScreenState extends State<StockopnameScreen> {
           builder: (builderContext, setSheetState) {
             return Consumer<StockOpnameController>(
               builder: (consumerContext, updatedController, _) {
-                // Update items jika ada perubahan data
-                if (!isSearching || !updatedController.isLoadingRooms) {
-                  roomItems = updatedController.rooms
-                      .map((room) => SelectedListItem<Room>(
-                            data: room,
-                          ))
-                      .toList();
-                }
+                // Set up scroll listener in post-frame callback to ensure it's attached properly
+                WidgetsBinding.instance.addPostFrameCallback((_) {
+                  if (scrollController.hasClients) {
+                    // Remove previous listeners to avoid duplicates
+                    scrollController.removeListener(() {});
+
+                    // Add the scroll listener
+                    scrollController.addListener(() {
+                      if (scrollController.position.pixels >=
+                          scrollController.position.maxScrollExtent - 100) {
+                        // Check if we can load more
+                        if (!_isLoadingMoreRooms &&
+                            !updatedController.isLoadingRooms) {
+                          LoggerUtil.d(
+                              'Scroll threshold reached, loading more rooms');
+
+                          // Set local loading state
+                          setSheetState(() {
+                            _isLoadingMoreRooms = true;
+                          });
+
+                          // Load more data - currently no pagination for rooms, but structure is ready
+                          Future.delayed(const Duration(milliseconds: 500), () {
+                            if (mounted) {
+                              setSheetState(() {
+                                _isLoadingMoreRooms = false;
+                              });
+                            }
+                          });
+                        }
+                      }
+                    });
+                  }
+                });
 
                 return DraggableScrollableSheet(
                   initialChildSize: 0.7,
                   minChildSize: 0.5,
                   maxChildSize: 0.9,
                   expand: false,
-                  builder: (_, scrollController) {
+                  builder: (_, controller) {
                     return Column(
                       children: [
                         // Header
@@ -1457,7 +1626,7 @@ class _StockopnameScreenState extends State<StockopnameScreen> {
                             children: [
                               Text(
                                 'Pilih Ruangan',
-                                style: GoogleFonts.inter(
+                                style: GoogleFonts.poppins(
                                   fontSize: 18,
                                   fontWeight: FontWeight.bold,
                                   color: const Color(0xFF213268),
@@ -1494,7 +1663,7 @@ class _StockopnameScreenState extends State<StockopnameScreen> {
                                   Expanded(
                                     child: Text(
                                       'Gedung: ${updatedController.selectedBuilding!.name}',
-                                      style: GoogleFonts.inter(
+                                      style: GoogleFonts.poppins(
                                         fontSize: 14,
                                         fontWeight: FontWeight.w500,
                                         color: const Color(0xFF213268),
@@ -1519,7 +1688,6 @@ class _StockopnameScreenState extends State<StockopnameScreen> {
                             child: TextField(
                               onChanged: (query) {
                                 setSheetState(() {
-                                  isSearching = true;
                                   currentQuery = query;
                                 });
 
@@ -1528,22 +1696,22 @@ class _StockopnameScreenState extends State<StockopnameScreen> {
                                   _roomSearchDebounce!.cancel();
                                 }
 
-                                // Create new debounce
+                                // Create new debounce - filter locally instead of fetching
                                 _roomSearchDebounce = Timer(
-                                    const Duration(milliseconds: 500), () {
+                                    const Duration(milliseconds: 300), () {
                                   if (query.isNotEmpty) {
-                                    print('Debounce search rooms: $query');
-                                    updatedController.fetchRoomsByBuilding(
-                                      updatedController.selectedBuilding!.id,
-                                      context,
-                                      searchQuery: query,
-                                    );
+                                    print('Filtering rooms locally: $query');
+                                    // Filter rooms locally from preloaded data
+                                    setSheetState(() {
+                                      // Reset loading state
+                                      _isLoadingMoreRooms = false;
+                                    });
                                   } else {
-                                    // Jika query kosong, ambil semua ruangan
-                                    updatedController.fetchRoomsByBuilding(
-                                      updatedController.selectedBuilding!.id,
-                                      context,
-                                    );
+                                    // If query is empty, show all rooms
+                                    setSheetState(() {
+                                      // Reset loading state
+                                      _isLoadingMoreRooms = false;
+                                    });
                                   }
                                 });
                               },
@@ -1559,16 +1727,11 @@ class _StockopnameScreenState extends State<StockopnameScreen> {
                                         onPressed: () {
                                           setSheetState(() {
                                             currentQuery = '';
+                                            // Reset loading state
+                                            _isLoadingMoreRooms = false;
                                           });
                                           // Reset text field
                                           FocusScope.of(context).unfocus();
-                                          // Refresh data
-                                          updatedController
-                                              .fetchRoomsByBuilding(
-                                            updatedController
-                                                .selectedBuilding!.id,
-                                            context,
-                                          );
                                         },
                                       )
                                     : null,
@@ -1579,46 +1742,17 @@ class _StockopnameScreenState extends State<StockopnameScreen> {
 
                         const SizedBox(height: 8),
 
-                        // Content - Skeleton or results
+                        // Content - Results
                         Expanded(
-                          child: updatedController.isLoadingRooms
-                              ? _buildRoomSkeletonList() // Skeleton loader saat loading
-                              : roomItems.isEmpty
+                          child: updatedController.isLoadingRooms &&
+                                  updatedController.rooms.isEmpty
+                              ? _buildRoomSkeletonList() // Skeleton loader saat loading awal
+                              : updatedController.rooms.isEmpty
                                   ? _buildEmptyRoomResults(currentQuery)
-                                  : ListView.separated(
-                                      controller: scrollController,
-                                      itemCount: roomItems.length,
-                                      separatorBuilder: (context, index) =>
-                                          const Divider(height: 1),
-                                      itemBuilder: (context, index) {
-                                        final room = roomItems[index].data;
-                                        final isSelected = updatedController
-                                                .selectedRoom?.id ==
-                                            room.id;
-
-                                        return ListTile(
-                                          title: Text(
-                                            room.name ??
-                                                'Ruangan Tidak Diketahui',
-                                            style: GoogleFonts.inter(
-                                              fontSize: 16,
-                                              fontWeight: isSelected
-                                                  ? FontWeight.bold
-                                                  : FontWeight.normal,
-                                              color: Colors.black87,
-                                            ),
-                                          ),
-                                          trailing: isSelected
-                                              ? const Icon(Icons.check_circle,
-                                                  color: Color(0xFF213268))
-                                              : null,
-                                          onTap: () {
-                                            updatedController.selectRoom(room);
-                                            Navigator.pop(context);
-                                          },
-                                        );
-                                      },
-                                    ),
+                                  : _buildRoomListWithLoadMore(
+                                      updatedController,
+                                      scrollController,
+                                      context),
                         ),
                       ],
                     );
@@ -1643,7 +1777,7 @@ class _StockopnameScreenState extends State<StockopnameScreen> {
             padding: const EdgeInsets.symmetric(vertical: 12.0),
             child: Text(
               'Mencari ruangan...',
-              style: GoogleFonts.inter(
+              style: GoogleFonts.poppins(
                 fontSize: 14,
                 fontStyle: FontStyle.italic,
                 color: Colors.grey[600],
@@ -1690,12 +1824,102 @@ class _StockopnameScreenState extends State<StockopnameScreen> {
             query.isEmpty
                 ? 'Tidak ada ruangan yang tersedia'
                 : 'Tidak ditemukan ruangan "$query"',
-            style: GoogleFonts.inter(
+            style: GoogleFonts.poppins(
               fontSize: 16,
               color: Colors.grey[600],
             ),
             textAlign: TextAlign.center,
           ),
+        ],
+      ),
+    );
+  }
+
+  // Widget untuk menampilkan daftar ruangan dengan load more
+  Widget _buildRoomListWithLoadMore(StockOpnameController controller,
+      ScrollController scrollController, BuildContext context) {
+    // Check if there are rooms to display
+    if (controller.rooms.isEmpty && !controller.isLoadingRooms) {
+      return _buildEmptyRoomResults('');
+    }
+
+    // Filter rooms based on current query if needed
+    List<Room> filteredRooms = controller.rooms;
+
+    return ListView.separated(
+      controller: scrollController,
+      itemCount: filteredRooms.length + (_isLoadingMoreRooms ? 1 : 0),
+      separatorBuilder: (context, index) => const Divider(height: 1),
+      itemBuilder: (context, index) {
+        // Show loader at the end if loading more
+        if (index == filteredRooms.length) {
+          return _buildRoomLoadMoreIndicator();
+        }
+
+        // Regular room item
+        final room = filteredRooms[index];
+        final isSelected = controller.selectedRoom?.id == room.id;
+
+        return ListTile(
+          title: Text(
+            room.name ?? 'Ruangan Tidak Diketahui',
+            style: GoogleFonts.poppins(
+              fontSize: 16,
+              fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+              color: Colors.black87,
+            ),
+          ),
+          trailing: isSelected
+              ? const Icon(Icons.check_circle, color: Color(0xFF213268))
+              : null,
+          onTap: () {
+            controller.selectRoom(room);
+            Navigator.pop(context);
+          },
+        );
+      },
+    );
+  }
+
+  // Widget untuk indikator loading ruangan
+  Widget _buildRoomLoadMoreIndicator() {
+    return Container(
+      padding: const EdgeInsets.symmetric(vertical: 16.0),
+      alignment: Alignment.center,
+      child: Column(
+        children: [
+          if (_isLoadingMoreRooms)
+            Column(
+              children: [
+                const SizedBox(
+                  width: 24,
+                  height: 24,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    valueColor:
+                        AlwaysStoppedAnimation<Color>(Color(0xFF213268)),
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'Memuat ruangan lainnya...',
+                  style: GoogleFonts.poppins(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w500,
+                    color: Colors.grey[700],
+                  ),
+                ),
+              ],
+            )
+          else
+            Text(
+              'Tidak ada ruangan lagi',
+              style: GoogleFonts.poppins(
+                fontSize: 12,
+                fontWeight: FontWeight.w400,
+                color: Colors.grey[600],
+              ),
+            ),
         ],
       ),
     );

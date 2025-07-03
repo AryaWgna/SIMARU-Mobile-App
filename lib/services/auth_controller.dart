@@ -3,13 +3,14 @@ import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import '../core/config/api_config.dart';
+import '../utils/logger_util.dart';
 
 class ApiService {
   static String? _tempAccessToken;
   static String? _tempRefreshToken;
   static String? _tempUserId;
   static String? _tempPassword;
-  
+
   // Callback function to navigate to login screen
   static Function(BuildContext)? navigateToLogin;
 
@@ -18,7 +19,8 @@ class ApiService {
       final prefs = await SharedPreferences.getInstance();
       return prefs.getString('accessToken') ?? _tempAccessToken;
     } catch (e) {
-      print('Error getting access token from SharedPreferences: $e');
+      LoggerUtil.e('Error getting access token from SharedPreferences', e,
+          StackTrace.current);
       return _tempAccessToken;
     }
   }
@@ -28,18 +30,21 @@ class ApiService {
       final prefs = await SharedPreferences.getInstance();
       return prefs.getString('refreshToken') ?? _tempRefreshToken;
     } catch (e) {
-      print('Error getting refresh token from SharedPreferences: $e');
+      LoggerUtil.e('Error getting refresh token from SharedPreferences', e,
+          StackTrace.current);
       return _tempRefreshToken;
     }
   }
 
-  static Future<void> _saveTokens(String accessToken, String refreshToken) async {
+  static Future<void> _saveTokens(
+      String accessToken, String refreshToken) async {
     try {
       final prefs = await SharedPreferences.getInstance();
       await prefs.setString('accessToken', accessToken);
       await prefs.setString('refreshToken', refreshToken);
     } catch (e) {
-      print('Error saving tokens to SharedPreferences: $e');
+      LoggerUtil.e(
+          'Error saving tokens to SharedPreferences', e, StackTrace.current);
       // Fallback to memory storage
       _tempAccessToken = accessToken;
       _tempRefreshToken = refreshToken;
@@ -52,20 +57,22 @@ class ApiService {
       await prefs.setString('userId', userId);
       await prefs.setString('password', password);
     } catch (e) {
-      print('Error saving credentials to SharedPreferences: $e');
+      LoggerUtil.e('Error saving credentials to SharedPreferences', e,
+          StackTrace.current);
       // Fallback to memory storage
       _tempUserId = userId;
       _tempPassword = password;
     }
   }
 
-  static Future<Map<String, dynamic>> login(String userId, String password) async {
+  static Future<Map<String, dynamic>> login(
+      String userId, String password) async {
     if (userId.isEmpty || password.isEmpty) {
       throw Exception('User ID and password cannot be empty');
     }
 
     try {
-      print('Attempting login with userId: $userId');
+      LoggerUtil.i('Attempting login with userId: $userId');
       final response = await http.post(
         Uri.parse(ApiConfig.loginUrl),
         headers: {'Content-Type': 'application/json'},
@@ -75,28 +82,29 @@ class ApiService {
         }),
       );
 
-      print('Login response status: ${response.statusCode}');
+      LoggerUtil.d('Login response status: ${response.statusCode}');
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
-        print('LOGIN SUCCESS: ${response.body}');
-        
+        LoggerUtil.d('LOGIN SUCCESS: ${response.body}');
+
         if (data['success'] == true) {
           final accessToken = data['data']['accessToken'];
           final refreshToken = data['data']['refreshToken'];
-          
+
           await _saveTokens(accessToken, refreshToken);
           await _saveCredentials(userId, password);
-          
+
           return data;
         } else {
           throw Exception(data['message'] ?? 'Login failed');
         }
       } else {
-        throw Exception('Login failed with status code: ${response.statusCode}');
+        throw Exception(
+            'Login failed with status code: ${response.statusCode}');
       }
     } catch (e) {
-      print('Login error: $e');
+      LoggerUtil.e('Login error', e, StackTrace.current);
       throw Exception('Login failed: $e');
     }
   }
@@ -105,22 +113,23 @@ class ApiService {
     try {
       String? userId;
       String? password;
-      
+
       try {
         final prefs = await SharedPreferences.getInstance();
         userId = prefs.getString('userId') ?? _tempUserId;
         password = prefs.getString('password') ?? _tempPassword;
       } catch (e) {
-        print('Error getting credentials from SharedPreferences: $e');
+        LoggerUtil.e('Error getting credentials from SharedPreferences', e,
+            StackTrace.current);
         userId = _tempUserId;
         password = _tempPassword;
       }
-      
+
       if (userId == null || password == null) {
         throw Exception('No stored credentials for token refresh');
       }
-      
-      print('Attempting to refresh token for user: $userId');
+
+      LoggerUtil.i('Attempting to refresh token for user: $userId');
       final response = await http.post(
         Uri.parse(ApiConfig.refreshTokenUrl),
         headers: {'Content-Type': 'application/json'},
@@ -130,32 +139,34 @@ class ApiService {
         }),
       );
 
-      print('Refresh token response status: ${response.statusCode}');
+      LoggerUtil.d('Refresh token response status: ${response.statusCode}');
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
-        print('REFRESH TOKEN SUCCESS: ${response.body}');
-        
+        LoggerUtil.d('REFRESH TOKEN SUCCESS: ${response.body}');
+
         if (data['success'] == true) {
           final accessToken = data['data']['accessToken'];
-          
+
           try {
             final prefs = await SharedPreferences.getInstance();
             await prefs.setString('accessToken', accessToken);
           } catch (e) {
-            print('Error saving new access token to SharedPreferences: $e');
+            LoggerUtil.e('Error saving new access token to SharedPreferences',
+                e, StackTrace.current);
             _tempAccessToken = accessToken;
           }
-          
+
           return data;
         } else {
           throw Exception(data['message'] ?? 'Token refresh failed');
         }
       } else {
-        throw Exception('Token refresh failed with status code: ${response.statusCode}');
+        throw Exception(
+            'Token refresh failed with status code: ${response.statusCode}');
       }
     } catch (e) {
-      print('Token refresh error: $e');
+      LoggerUtil.e('Token refresh error', e, StackTrace.current);
       throw Exception('Token refresh failed: $e');
     }
   }
@@ -168,9 +179,9 @@ class ApiService {
       await prefs.remove('userId');
       await prefs.remove('password');
     } catch (e) {
-      print('Error clearing SharedPreferences: $e');
+      LoggerUtil.e('Error clearing SharedPreferences', e, StackTrace.current);
     }
-    
+
     // Clear memory variables as well
     _tempAccessToken = null;
     _tempRefreshToken = null;
@@ -186,7 +197,7 @@ class ApiService {
         ApiConfig.profileUrl,
       );
     } catch (e) {
-      print('Get profile error: $e');
+      LoggerUtil.e('Get profile error', e, StackTrace.current);
       throw Exception('Failed to get profile: $e');
     }
   }
@@ -200,19 +211,19 @@ class ApiService {
   }) async {
     try {
       final accessToken = await _getAccessToken();
-      
+
       if (accessToken == null) {
         throw Exception('No access token available');
       }
-      
-      print('Making $method request to $url');
-      
+
+      LoggerUtil.d('Making $method request to $url');
+
       http.Response response;
       final headers = {
         'Content-Type': 'application/json',
         'Authorization': 'Bearer $accessToken',
       };
-      
+
       switch (method) {
         case 'GET':
           response = await http.get(Uri.parse(url), headers: headers);
@@ -237,12 +248,13 @@ class ApiService {
         default:
           throw Exception('Unsupported HTTP method: $method');
       }
-      
-      print('Response status code: ${response.statusCode}');
-      
+
+      LoggerUtil.d('Response status code: ${response.statusCode}');
+
       if (response.statusCode == 401 && !hasRetried) {
         // Token might be expired, attempt to refresh
-        print('Received 401, attempting to refresh token and retry request');
+        LoggerUtil.w(
+            'Received 401, attempting to refresh token and retry request');
         try {
           await refreshToken();
           // Retry the request with new token
@@ -254,87 +266,92 @@ class ApiService {
             hasRetried: true,
           );
         } catch (e) {
-          print('Token refresh failed: $e');
+          LoggerUtil.e('Token refresh failed', e, StackTrace.current);
           // If refresh fails, logout and redirect to login
           await logout();
-          
+
           if (navigateToLogin != null && context.mounted) {
             navigateToLogin!(context);
           }
-          
+
           throw Exception('Authentication failed after token refresh attempt');
         }
       } else if (response.statusCode == 401 && hasRetried) {
         // Still getting 401 after token refresh, logout
-        print('Still receiving 401 after token refresh, logging out');
+        LoggerUtil.w('Still receiving 401 after token refresh, logging out');
         await logout();
-        
+
         if (navigateToLogin != null && context.mounted) {
           navigateToLogin!(context);
         }
-        
+
         throw Exception('Authentication failed after token refresh');
       }
-      
+
       if (response.statusCode >= 200 && response.statusCode < 300) {
         final data = jsonDecode(response.body);
         return data;
       } else {
-        throw Exception('Request failed with status code: ${response.statusCode}');
+        throw Exception(
+            'Request failed with status code: ${response.statusCode}');
       }
     } catch (e) {
-      print('Request error: $e');
+      LoggerUtil.e('Request error', e, StackTrace.current);
       throw Exception('Request failed: $e');
     }
   }
-  
+
   // Helper methods for different HTTP methods
-  
+
   static Future<Map<String, dynamic>> getWithAuth(
-    BuildContext context, 
-    String endpoint
-  ) async {
+      BuildContext context, String endpoint) async {
     return _requestWithAuth(
       context,
       'GET',
-      endpoint.startsWith('http') ? endpoint : ApiConfig.getEndpointUrl(endpoint),
+      endpoint.startsWith('http')
+          ? endpoint
+          : ApiConfig.getEndpointUrl(endpoint),
     );
   }
-  
+
   static Future<Map<String, dynamic>> postWithAuth(
-    BuildContext context, 
+    BuildContext context,
     String endpoint, {
     Map<String, dynamic>? body,
   }) async {
     return _requestWithAuth(
       context,
       'POST',
-      endpoint.startsWith('http') ? endpoint : ApiConfig.getEndpointUrl(endpoint),
+      endpoint.startsWith('http')
+          ? endpoint
+          : ApiConfig.getEndpointUrl(endpoint),
       body: body,
     );
   }
-  
+
   static Future<Map<String, dynamic>> putWithAuth(
-    BuildContext context, 
+    BuildContext context,
     String endpoint, {
     Map<String, dynamic>? body,
   }) async {
     return _requestWithAuth(
       context,
       'PUT',
-      endpoint.startsWith('http') ? endpoint : ApiConfig.getEndpointUrl(endpoint),
+      endpoint.startsWith('http')
+          ? endpoint
+          : ApiConfig.getEndpointUrl(endpoint),
       body: body,
     );
   }
-  
+
   static Future<Map<String, dynamic>> deleteWithAuth(
-    BuildContext context, 
-    String endpoint
-  ) async {
+      BuildContext context, String endpoint) async {
     return _requestWithAuth(
       context,
       'DELETE',
-      endpoint.startsWith('http') ? endpoint : ApiConfig.getEndpointUrl(endpoint),
+      endpoint.startsWith('http')
+          ? endpoint
+          : ApiConfig.getEndpointUrl(endpoint),
     );
   }
 }

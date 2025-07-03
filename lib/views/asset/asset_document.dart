@@ -19,6 +19,7 @@ import 'dart:math';
 import 'package:pull_to_refresh_flutter3/pull_to_refresh_flutter3.dart';
 import 'package:skeletonizer/skeletonizer.dart';
 import 'package:provider/provider.dart';
+import '../../utils/logger_util.dart';
 
 // Platform channel untuk deteksi screenshot di iOS
 const MethodChannel _channel =
@@ -53,10 +54,11 @@ class ScreenshotProtectionManager {
         if (Platform.isAndroid || Platform.isIOS) {
           await _noScreenshot.screenshotOff();
           _isProtectionEnabled = true;
-          print("ScreenshotProtectionManager: Protection enabled");
+          LoggerUtil.i("ScreenshotProtectionManager: Protection enabled");
         }
       } catch (e) {
-        print("ScreenshotProtectionManager: Error enabling protection: $e");
+        LoggerUtil.e("ScreenshotProtectionManager: Error enabling protection",
+            e, StackTrace.current);
       }
     }
   }
@@ -68,10 +70,11 @@ class ScreenshotProtectionManager {
         if (Platform.isAndroid || Platform.isIOS) {
           await _noScreenshot.screenshotOn();
           _isProtectionEnabled = false;
-          print("ScreenshotProtectionManager: Protection disabled");
+          LoggerUtil.i("ScreenshotProtectionManager: Protection disabled");
         }
       } catch (e) {
-        print("ScreenshotProtectionManager: Error disabling protection: $e");
+        LoggerUtil.e("ScreenshotProtectionManager: Error disabling protection",
+            e, StackTrace.current);
       }
     }
   }
@@ -142,7 +145,7 @@ class _AssetDocumentState extends State<AssetDocument>
       return;
     }
 
-    print('Asset data: ${widget.assetData}');
+    LoggerUtil.d('Asset data: ${widget.assetData}');
 
     // Coba ambil asset_id dari berbagai properti yang mungkin
     var assetId = widget.assetData!['asset_id'];
@@ -162,7 +165,7 @@ class _AssetDocumentState extends State<AssetDocument>
       return;
     }
 
-    print('Menggunakan asset_id: $_assetId untuk mengambil dokumen');
+    LoggerUtil.d('Menggunakan asset_id: $_assetId untuk mengambil dokumen');
     // Fetch documents
     _fetchAssetDocuments();
   }
@@ -180,16 +183,17 @@ class _AssetDocumentState extends State<AssetDocument>
     try {
       _channel.setMethodCallHandler((call) async {
         if (call.method == 'onScreenshotTaken') {
-          print("iOS screenshot terdeteksi");
+          LoggerUtil.w("iOS screenshot terdeteksi");
           _showAntiScreenshotNotification();
         }
         return null;
       });
 
       await _channel.invokeMethod('startScreenshotDetection');
-      print("iOS screenshot detection setup berhasil");
+      LoggerUtil.i("iOS screenshot detection setup berhasil");
     } catch (e) {
-      print("Error saat setup iOS screenshot detection: $e");
+      LoggerUtil.e(
+          "Error saat setup iOS screenshot detection", e, StackTrace.current);
     }
   }
 
@@ -230,7 +234,7 @@ class _AssetDocumentState extends State<AssetDocument>
       _protectionManager.enableProtection();
 
       // Ketika aplikasi dibuka kembali, periksa apakah screenshot diambil
-      print("Aplikasi dibuka kembali, mungkin setelah screenshot");
+      LoggerUtil.w("Aplikasi dibuka kembali, mungkin setelah screenshot");
       _showAntiScreenshotNotification();
     } else if (state == AppLifecycleState.paused) {
       // Ketika aplikasi di-pause, secara proaktif tampilkan pesan anti-screenshot
@@ -262,22 +266,55 @@ class _AssetDocumentState extends State<AssetDocument>
       _protectionManager.enableProtection();
 
       // Debug log
-      print("Security check: ${_documentController.randomSecurityId}");
+      LoggerUtil.d("Security check: ${_documentController.randomSecurityId}");
     });
   }
 
   // Fungsi refresh untuk pull-to-refresh
   void _onRefresh() async {
+    LoggerUtil.d("AssetDocument: onRefresh called");
+
     await _fetchAssetDocuments();
+    LoggerUtil.d("AssetDocument: fetchAssetDocuments completed");
+
     _refreshController.refreshCompleted();
+    LoggerUtil.d("AssetDocument: refreshController.refreshCompleted called");
+
     // Increment refresh counter
     _documentController.incrementRefreshCount();
+    LoggerUtil.d(
+        "AssetDocument: Refresh count: ${_documentController.refreshCount}");
+
+    // Jika refresh counter mencapai 3, reset tampilan untuk mencegah zoom
+    if (_documentController.refreshCount % 3 == 0 && mounted) {
+      LoggerUtil.d(
+          "AssetDocument: Resetting view after ${_documentController.refreshCount} refreshes");
+
+      // Trigger rebuild dengan sedikit delay
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) {
+          Navigator.of(context).push(
+            PageRouteBuilder(
+              pageBuilder: (context, animation, secondaryAnimation) =>
+                  AssetDocument(
+                assetData: widget.assetData,
+                qrData: widget.qrData,
+                previousScreen: widget.previousScreen,
+              ),
+              transitionDuration: Duration.zero,
+              reverseTransitionDuration: Duration.zero,
+            ),
+          );
+          Navigator.of(context).removeRoute(ModalRoute.of(context)!);
+        }
+      });
+    }
   }
 
   // Metode untuk menampilkan PDF viewer langsung dari URL
   void _openPdfViewerDirectly(Map<String, dynamic> document) {
     final filePath = document['file_path'];
-    print('File path dari database (PDF): $filePath');
+    LoggerUtil.d('File path dari database (PDF): $filePath');
     if (filePath == null || filePath.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -298,7 +335,7 @@ class _AssetDocumentState extends State<AssetDocument>
       fullUrl = '${ApiConfig.baseUrl}/public$path';
     }
 
-    print('Membuka PDF dari URL: $fullUrl');
+    LoggerUtil.d('Membuka PDF dari URL: $fullUrl');
 
     try {
       // Buka PDF viewer langsung dengan URL
@@ -314,7 +351,7 @@ class _AssetDocumentState extends State<AssetDocument>
         ),
       );
     } catch (e) {
-      print('Error saat membuka PDF: $e');
+      LoggerUtil.e('Error saat membuka PDF', e, StackTrace.current);
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text('Gagal membuka dokumen: ${e.toString()}'),
@@ -327,7 +364,7 @@ class _AssetDocumentState extends State<AssetDocument>
   // Metode untuk menampilkan Image viewer langsung dari URL
   void _openImageViewerDirectly(Map<String, dynamic> document) {
     final filePath = document['file_path'];
-    print('File path dari database (Image): $filePath');
+    LoggerUtil.d('File path dari database (Image): $filePath');
     if (filePath == null || filePath.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -348,7 +385,7 @@ class _AssetDocumentState extends State<AssetDocument>
       fullUrl = '${ApiConfig.baseUrl}/public$path';
     }
 
-    print('Membuka gambar dari URL: $fullUrl');
+    LoggerUtil.d('Membuka gambar dari URL: $fullUrl');
 
     try {
       // Buka Image viewer langsung dengan URL
@@ -364,7 +401,7 @@ class _AssetDocumentState extends State<AssetDocument>
         ),
       );
     } catch (e) {
-      print('Error saat membuka gambar: $e');
+      LoggerUtil.e('Error saat membuka gambar', e, StackTrace.current);
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text('Gagal membuka gambar: ${e.toString()}'),
@@ -407,7 +444,19 @@ class _AssetDocumentState extends State<AssetDocument>
                       } else if (controller.documents.isEmpty) {
                         return _buildEmptyView();
                       } else {
-                        return _buildDocumentListView(controller.documents);
+                        return SmartRefresher(
+                          enablePullDown: true,
+                          enablePullUp: false,
+                          physics: const AlwaysScrollableScrollPhysics(),
+                          controller: _refreshController,
+                          onRefresh: _onRefresh,
+                          header: const WaterDropMaterialHeader(
+                            backgroundColor: Color(0xFF213268),
+                            color: Colors.white,
+                            distance: 60.0,
+                          ),
+                          child: _buildDocumentListView(controller.documents),
+                        );
                       }
                     }),
                   ),
@@ -656,7 +705,7 @@ class _AssetDocumentState extends State<AssetDocument>
           ),
           SizedBox(height: 8),
           Text(
-            'Aset ini belum memiliki dokumen terkait',
+            'Aset ini belum memiliki dokumen terkait\n(reguler, kalibrasi, atau pemeliharaan)',
             style: TextStyle(fontSize: 14, color: Colors.grey),
             textAlign: TextAlign.center,
           ),
@@ -666,37 +715,16 @@ class _AssetDocumentState extends State<AssetDocument>
   }
 
   Widget _buildDocumentListView(List<dynamic> documents) {
-    return SmartRefresher(
-      enablePullDown: true,
-      enablePullUp: false,
-      controller: _refreshController,
-      onRefresh: _onRefresh,
-      header: const WaterDropMaterialHeader(
-        backgroundColor: Color(0xFF25B1FF),
-        color: Colors.white,
-        distance: 60.0,
-      ),
-      child: ScrollConfiguration(
-        behavior: ScrollConfiguration.of(context).copyWith(
-          overscroll: false,
-        ),
-        child: NotificationListener<OverscrollIndicatorNotification>(
-          onNotification: (overscroll) {
-            overscroll.disallowIndicator();
-            return true;
-          },
-          child: ListView.separated(
-            padding: const EdgeInsets.all(16),
-            itemCount: documents.length,
-            separatorBuilder: (context, index) => const SizedBox(height: 12),
-            itemBuilder: (context, index) {
-              final document = documents[index];
-              print('Rendering document at index $index: $document');
-              return _buildDocumentCard(document);
-            },
-          ),
-        ),
-      ),
+    return ListView.separated(
+      padding: const EdgeInsets.all(16),
+      physics: const AlwaysScrollableScrollPhysics(),
+      itemCount: documents.length,
+      separatorBuilder: (context, index) => const SizedBox(height: 12),
+      itemBuilder: (context, index) {
+        final document = documents[index];
+        LoggerUtil.d('Rendering document at index $index: $document');
+        return _buildDocumentCard(document);
+      },
     );
   }
 
@@ -707,7 +735,8 @@ class _AssetDocumentState extends State<AssetDocument>
     final String fileName = document.fileName;
     final String fileType = document.fileType;
     final String uploadDate = _formatDate(document.uploadDate.toString());
-    final String uploadedBy = document.uploaderName;
+    final String notes = document.notes ?? '-';
+    final String docType = document.docType; // Kategori dokumen
 
     return GestureDetector(
       onTap: () {
@@ -758,28 +787,37 @@ class _AssetDocumentState extends State<AssetDocument>
           children: [
             Padding(
               padding: const EdgeInsets.all(12),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Expanded(
-                    child: Text(
-                      documentTitle,
-                      style: const TextStyle(
-                        fontFamily: 'Inter',
-                        fontSize: 16,
-                        fontWeight: FontWeight.w500,
-                        color: Color(0xFF213268),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Expanded(
+                        child: Text(
+                          documentTitle,
+                          style: const TextStyle(
+                            fontFamily: 'Poppins',
+                            fontSize: 16,
+                            fontWeight: FontWeight.w500,
+                            color: Color(0xFF213268),
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
                       ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
+                      const SizedBox(width: 8),
+                      Icon(
+                        _getFileIcon(fileType),
+                        color: const Color(0xFF25B1FF),
+                        size: 24,
+                      ),
+                    ],
                   ),
-                  const SizedBox(width: 8),
-                  Icon(
-                    _getFileIcon(fileType),
-                    color: const Color(0xFF25B1FF),
-                    size: 24,
-                  ),
+                  const SizedBox(height: 8),
+                  // Hanya tampilkan badge untuk kategori Kalibrasi dan Pemeliharaan
+                  if (docType == 'Kalibrasi' || docType == 'Pemeliharaan')
+                    _buildDocTypeBadge(docType),
                 ],
               ),
             ),
@@ -792,9 +830,9 @@ class _AssetDocumentState extends State<AssetDocument>
                   const SizedBox(height: 8),
                   _buildDocumentDetail('Tipe File', fileType.toUpperCase()),
                   const SizedBox(height: 8),
-                  _buildDocumentDetail('Tanggal Upload', uploadDate),
+                  _buildDocumentDetail('Catatan', notes),
                   const SizedBox(height: 8),
-                  _buildDocumentDetail('Diupload oleh', uploadedBy),
+                  _buildDocumentDetail('Tanggal Upload', uploadDate),
                 ],
               ),
             ),
@@ -813,7 +851,7 @@ class _AssetDocumentState extends State<AssetDocument>
           child: Text(
             label,
             style: const TextStyle(
-              fontFamily: 'Inter',
+              fontFamily: 'Poppins',
               fontSize: 14,
               color: Color(0xFF666666),
             ),
@@ -823,7 +861,7 @@ class _AssetDocumentState extends State<AssetDocument>
           child: Text(
             value,
             style: const TextStyle(
-              fontFamily: 'Inter',
+              fontFamily: 'Poppins',
               fontSize: 14,
               fontWeight: FontWeight.w500,
               color: Color(0xFF333333),
@@ -882,6 +920,58 @@ class _AssetDocumentState extends State<AssetDocument>
       default:
         return Icons.insert_drive_file;
     }
+  }
+
+  // Widget untuk menampilkan badge kategori dokumen
+  Widget _buildDocTypeBadge(String docType) {
+    Color badgeColor;
+    IconData badgeIcon;
+
+    // Tentukan warna dan ikon berdasarkan tipe dokumen
+    switch (docType) {
+      case 'Kalibrasi':
+        badgeColor = const Color(0xFF25B1FF); // Biru
+        badgeIcon = Icons.hardware;
+        break;
+      case 'Pemeliharaan':
+        badgeColor = const Color(0xFFDAAE0F); // Kuning
+        badgeIcon = Icons.handyman;
+        break;
+      case 'Dokumen':
+      default:
+        badgeColor = const Color(0xFF7CB60C); // Hijau
+        badgeIcon = Icons.description;
+        break;
+    }
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+      decoration: BoxDecoration(
+        color: badgeColor.withOpacity(0.15),
+        borderRadius: BorderRadius.circular(4),
+        border: Border.all(color: badgeColor, width: 1),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(
+            badgeIcon,
+            color: badgeColor,
+            size: 12,
+          ),
+          const SizedBox(width: 4),
+          Text(
+            docType,
+            style: TextStyle(
+              fontFamily: 'Poppins',
+              fontSize: 10,
+              fontWeight: FontWeight.w500,
+              color: badgeColor,
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
   Widget _buildAntiScreenshotOverlay() {
@@ -988,7 +1078,7 @@ class _AssetDocumentState extends State<AssetDocument>
             Text(
               label,
               style: TextStyle(
-                fontFamily: 'Inter',
+                fontFamily: 'Poppins',
                 fontSize: 12,
                 color: isActive
                     ? const Color(0xFF213268)
@@ -1061,16 +1151,17 @@ class _SecurePdfViewerPageState extends State<SecurePdfViewerPage>
     try {
       _channel.setMethodCallHandler((call) async {
         if (call.method == 'onScreenshotTaken') {
-          print("iOS PDF Viewer: screenshot terdeteksi");
+          LoggerUtil.w("iOS PDF Viewer: screenshot terdeteksi");
           _showAntiScreenshotNotification();
         }
         return null;
       });
 
       await _channel.invokeMethod('startScreenshotDetection');
-      print("iOS PDF Viewer: screenshot detection setup berhasil");
+      LoggerUtil.i("iOS PDF Viewer: screenshot detection setup berhasil");
     } catch (e) {
-      print("Error saat setup iOS screenshot detection di PDF Viewer: $e");
+      LoggerUtil.e("Error saat setup iOS screenshot detection di PDF Viewer", e,
+          StackTrace.current);
     }
   }
 
@@ -1099,7 +1190,8 @@ class _SecurePdfViewerPageState extends State<SecurePdfViewerPage>
       _protectionManager.enableProtection();
 
       // Ketika aplikasi dibuka kembali, periksa apakah screenshot diambil
-      print("PDF Viewer: Aplikasi dibuka kembali, mungkin setelah screenshot");
+      LoggerUtil.w(
+          "PDF Viewer: Aplikasi dibuka kembali, mungkin setelah screenshot");
       _showAntiScreenshotNotification();
     } else if (state == AppLifecycleState.paused) {
       // Ketika aplikasi di-pause, secara proaktif tampilkan pesan anti-screenshot
@@ -1143,7 +1235,7 @@ class _SecurePdfViewerPageState extends State<SecurePdfViewerPage>
       _protectionManager.enableProtection();
 
       // Debug log
-      print("Security check: $_randomSecurityId");
+      LoggerUtil.d("Security check: $_randomSecurityId");
     });
   }
 
@@ -1336,16 +1428,17 @@ class _SecureImageViewerPageState extends State<SecureImageViewerPage>
     try {
       _channel.setMethodCallHandler((call) async {
         if (call.method == 'onScreenshotTaken') {
-          print("iOS Image Viewer: screenshot terdeteksi");
+          LoggerUtil.w("iOS Image Viewer: screenshot terdeteksi");
           _showAntiScreenshotNotification();
         }
         return null;
       });
 
       await _channel.invokeMethod('startScreenshotDetection');
-      print("iOS Image Viewer: screenshot detection setup berhasil");
+      LoggerUtil.i("iOS Image Viewer: screenshot detection setup berhasil");
     } catch (e) {
-      print("Error saat setup iOS screenshot detection di Image Viewer: $e");
+      LoggerUtil.e("Error saat setup iOS screenshot detection di Image Viewer",
+          e, StackTrace.current);
     }
   }
 
@@ -1375,7 +1468,7 @@ class _SecureImageViewerPageState extends State<SecureImageViewerPage>
       _protectionManager.enableProtection();
 
       // Ketika aplikasi dibuka kembali, periksa apakah screenshot diambil
-      print(
+      LoggerUtil.w(
           "Image Viewer: Aplikasi dibuka kembali, mungkin setelah screenshot");
       _showAntiScreenshotNotification();
     } else if (state == AppLifecycleState.paused) {
@@ -1459,7 +1552,7 @@ class _SecureImageViewerPageState extends State<SecureImageViewerPage>
       _protectionManager.enableProtection();
 
       // Debug log
-      print("Security check: $_randomSecurityId");
+      LoggerUtil.d("Security check: $_randomSecurityId");
     });
   }
 
@@ -1471,43 +1564,6 @@ class _SecureImageViewerPageState extends State<SecureImageViewerPage>
         title: Text(widget.title),
         backgroundColor: const Color(0xFF213268),
         foregroundColor: Colors.white,
-        actions: [
-          // Tombol informasi
-          IconButton(
-            icon: const Icon(Icons.info_outline),
-            onPressed: () {
-              showDialog(
-                context: context,
-                builder: (context) => AlertDialog(
-                  title: const Text('Informasi'),
-                  content: const Column(
-                    mainAxisSize: MainAxisSize.min,
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text('• Ketuk dua kali untuk memperbesar gambar'),
-                      SizedBox(height: 4),
-                      Text('• Geser untuk melihat bagian lain saat diperbesar'),
-                      SizedBox(height: 4),
-                      Text(
-                          '• Ketuk dua kali lagi untuk kembali ke ukuran normal'),
-                      SizedBox(height: 12),
-                      Text(
-                          'Dokumen ini dilindungi dan tidak dapat diambil screenshot.',
-                          style: TextStyle(
-                              fontWeight: FontWeight.bold, color: Colors.red)),
-                    ],
-                  ),
-                  actions: [
-                    TextButton(
-                      onPressed: () => Navigator.of(context).pop(),
-                      child: const Text('Tutup'),
-                    ),
-                  ],
-                ),
-              );
-            },
-          ),
-        ],
       ),
       body: Stack(
         children: [

@@ -7,6 +7,8 @@ import 'dart:async';
 import 'dart:io';
 import 'dart:developer' as developer;
 import '../views/dashboard/dashboard.dart'; // Import for DashboardScreen
+import '../auth/login.dart'; // Import for LoginScreen
+import '../utils/logger_util.dart'; // Import LoggerUtil
 
 class ApiException implements Exception {
   final String message;
@@ -34,10 +36,8 @@ class ApiException implements Exception {
 }
 
 class ApiService {
-  // Base URL untuk perangkat fisik
-  static String baseUrl = 'https://web-magangunbin2025.rsummi.co.id/api/';
-  // Alternatif: 'http://localhost:3000' untuk iOS simulator
-  // Gunakan URL publik Anda untuk perangkat fisik, misalnya: 'https://api.example.com'
+  // Use the base URL from ApiConfig to ensure consistency
+  static String get baseUrl => ApiConfig.baseUrl;
 
   // Membuat instance untuk flutter_secure_storage
   static const _secureStorage = FlutterSecureStorage();
@@ -51,6 +51,89 @@ class ApiService {
   // Callback untuk navigasi ke halaman login
   static Function(BuildContext)? navigateToLogin;
 
+  // Global navigator key untuk akses Navigator tanpa context
+  static final GlobalKey<NavigatorState> navigatorKey =
+      GlobalKey<NavigatorState>();
+
+  // Helper method untuk redirect ke login dengan berbagai cara
+  static void _redirectToLogin(BuildContext? context) {
+    LoggerUtil.i('Redirecting to login screen...');
+
+    // Cara 1: Gunakan navigateToLogin callback jika tersedia dan context ada
+    if (navigateToLogin != null && context != null) {
+      LoggerUtil.i('Using navigateToLogin callback');
+      navigateToLogin!(context);
+      return;
+    }
+
+    // Cara 2: Gunakan navigatorKey jika tersedia
+    if (navigatorKey.currentState != null) {
+      LoggerUtil.i('Using navigatorKey to navigate');
+      navigatorKey.currentState!.pushAndRemoveUntil(
+        MaterialPageRoute(builder: (context) => const LoginScreen()),
+        (route) => false,
+      );
+      return;
+    }
+
+    // Cara 3: Jika context tersedia tapi callback tidak
+    if (context != null) {
+      LoggerUtil.i('Using provided context to navigate');
+      Navigator.of(context).pushAndRemoveUntil(
+        MaterialPageRoute(builder: (c) => const LoginScreen()),
+        (route) => false,
+      );
+      return;
+    }
+
+    LoggerUtil.w(
+        'WARNING: Could not navigate to login screen - no valid navigation method available');
+  }
+
+  // Metode untuk memeriksa validitas sesi secara berkala
+  static Future<bool> checkSessionValidity() async {
+    try {
+      LoggerUtil.d('Checking session validity...');
+
+      // Cek apakah token ada
+      final hasToken = await isLoggedIn();
+      if (!hasToken) {
+        LoggerUtil.i('No active session found');
+        return false;
+      }
+
+      // Check if token is expired based on JWT expiration time
+      final isExpired = await isTokenExpired();
+      if (isExpired) {
+        LoggerUtil.i(
+            'Token is expired based on JWT expiration time, attempting refresh');
+      } else {
+        LoggerUtil.i('Token is not expired based on JWT expiration time');
+        // If token is not expired, we can consider the session valid
+        // But we'll still try a refresh to extend the session
+      }
+
+      // Coba refresh token untuk memastikan masih valid
+      final refreshSuccess = await refreshToken();
+      if (!refreshSuccess) {
+        LoggerUtil.w('Token refresh failed, session is invalid');
+        // Bersihkan data penyimpanan
+        await _clearStoredData();
+        // Redirect ke login jika navigatorKey tersedia
+        if (navigatorKey.currentState != null) {
+          _redirectToLogin(null);
+        }
+        return false;
+      }
+
+      LoggerUtil.i('Session is valid');
+      return true;
+    } catch (e) {
+      LoggerUtil.e('Error checking session validity', e, StackTrace.current);
+      return false;
+    }
+  }
+
   // Metode untuk melakukan HTTP request dengan auto refresh token
   static Future<http.Response> _requestWithAuth({
     required String method,
@@ -63,7 +146,14 @@ class ApiService {
     final accessToken = await _getAccessToken();
 
     if (accessToken == null) {
-      throw Exception('Not logged in');
+      // Jika tidak ada token, langsung arahkan ke login
+      _redirectToLogin(context);
+
+      throw ApiException(
+        message: 'Tidak ada sesi login yang aktif',
+        code: 'NOT_LOGGED_IN',
+        statusCode: 401,
+      );
     }
 
     final headers = {
@@ -78,136 +168,157 @@ class ApiService {
     http.Response response;
     final uri = Uri.parse('$baseUrl$endpoint');
 
-    print('Making $method request to: $uri');
-    print('Headers: $headers');
+    LoggerUtil.d('Making $method request to: $uri');
+    LoggerUtil.d('Headers: $headers');
     if (body != null) {
-      print('Body: $body');
+      LoggerUtil.d('Body: $body');
     }
 
-    if (method == 'GET') {
-      response = await http.get(uri, headers: headers);
-    } else if (method == 'POST') {
-      response = await http.post(uri,
-          headers: headers, body: body != null ? jsonEncode(body) : null);
-    } else if (method == 'PUT') {
-      response = await http.put(uri,
-          headers: headers, body: body != null ? jsonEncode(body) : null);
-    } else if (method == 'DELETE') {
-      response = await http.delete(uri, headers: headers);
-    } else {
-      throw Exception('Unsupported HTTP method: $method');
-    }
+    try {
+      if (method == 'GET') {
+        response = await http.get(uri, headers: headers);
+      } else if (method == 'POST') {
+        response = await http.post(uri,
+            headers: headers, body: body != null ? jsonEncode(body) : null);
+      } else if (method == 'PUT') {
+        response = await http.put(uri,
+            headers: headers, body: body != null ? jsonEncode(body) : null);
+      } else if (method == 'DELETE') {
+        response = await http.delete(uri, headers: headers);
+      } else {
+        throw Exception('Unsupported HTTP method: $method');
+      }
 
-    print('Response status code: ${response.statusCode}');
-    print('Response body: ${response.body}');
+      LoggerUtil.d('Response status code: ${response.statusCode}');
+      LoggerUtil.d('Response body: ${response.body}');
 
-    // Handle 401 Unauthorized error
-    if (response.statusCode == 401) {
-      if (!retried) {
-        print('Received 401 Unauthorized, attempting to refresh token...');
-        final refreshed = await refreshToken();
+      // Handle 401 Unauthorized error
+      if (response.statusCode == 401) {
+        // Try to parse the response to get the error message
+        String errorMessage =
+            'Sesi Anda telah berakhir. Silakan login kembali.';
+        try {
+          final responseData = jsonDecode(response.body);
+          if (responseData['errors'] != null) {
+            errorMessage = responseData['errors'].toString();
+          } else if (responseData['message'] != null) {
+            errorMessage = responseData['message'].toString();
+          }
+        } catch (e) {
+          LoggerUtil.e('Failed to parse error response', e, StackTrace.current);
+        }
 
-        if (refreshed) {
-          print('Token refreshed successfully, retrying request...');
-          // Retry the request with the new token
-          return _requestWithAuth(
-            method: method,
-            endpoint: endpoint,
-            body: body,
-            additionalHeaders: additionalHeaders,
-            retried: true, // Mark as retried to prevent infinite loops
-            context: context,
-          );
-        } else {
-          print('Token refresh failed, performing automatic logout');
-          // Jika refresh token gagal, lakukan logout otomatis
-          if (context != null) {
-            await logout(context);
+        if (!retried) {
+          LoggerUtil.w(
+              'Received 401 Unauthorized, attempting to refresh token...');
+          final refreshed = await refreshToken();
+
+          if (refreshed) {
+            LoggerUtil.i('Token refreshed successfully, retrying request...');
+            // Retry the request with the new token
+            return _requestWithAuth(
+              method: method,
+              endpoint: endpoint,
+              body: body,
+              additionalHeaders: additionalHeaders,
+              retried: true, // Mark as retried to prevent infinite loops
+              context: context,
+            );
           } else {
-            // Jika context tidak tersedia, cukup bersihkan penyimpanan token
+            LoggerUtil.w('Token refresh failed, performing automatic logout');
+            // If refresh token fails, perform automatic logout
             await _clearStoredData();
-          }
 
-          // Navigasi ke halaman login jika navigateToLogin tersedia dan context tersedia
-          if (navigateToLogin != null && context != null) {
-            print('Navigating to login screen');
-            navigateToLogin!(context);
-          } else {
-            print(
-                'Cannot navigate to login: navigateToLogin or context is null');
+            // Redirect to login screen regardless of context
+            _redirectToLogin(context);
+
+            throw ApiException(
+              message: errorMessage,
+              code: 'SESSION_EXPIRED',
+              statusCode: 401,
+            );
           }
+        } else {
+          LoggerUtil.w(
+              'Still receiving 401 after token refresh, performing automatic logout');
+
+          // If still 401 after token refresh, perform automatic logout
+          await _clearStoredData();
+
+          // Redirect to login screen regardless of context
+          _redirectToLogin(context);
 
           throw ApiException(
-            message: 'Sesi Anda telah berakhir. Silakan login kembali.',
+            message: errorMessage,
             code: 'SESSION_EXPIRED',
             statusCode: 401,
           );
         }
-      } else {
-        print(
-            'Still receiving 401 after token refresh, performing automatic logout');
+      }
 
-        // Jika masih 401 setelah refresh token, lakukan logout otomatis
-        if (context != null) {
-          await logout(context);
-        } else {
-          // Jika context tidak tersedia, cukup bersihkan penyimpanan token
-          await _clearStoredData();
+      return response;
+    } catch (e) {
+      if (e is ApiException) {
+        // If it's a session expired error, ensure we redirect to login
+        if (e.code == 'SESSION_EXPIRED' || e.statusCode == 401) {
+          _redirectToLogin(context);
         }
+        rethrow;
+      }
 
-        // Navigasi ke halaman login jika navigateToLogin tersedia dan context tersedia
-        if (navigateToLogin != null && context != null) {
-          print('Navigating to login screen');
-          navigateToLogin!(context);
-        } else {
-          print('Cannot navigate to login: navigateToLogin or context is null');
-        }
-
+      if (e is SocketException) {
         throw ApiException(
-          message: 'Sesi Anda telah berakhir. Silakan login kembali.',
-          code: 'SESSION_EXPIRED',
-          statusCode: 401,
+          message:
+              'Tidak dapat terhubung ke server. Periksa koneksi internet Anda.',
+          code: 'CONNECTION_ERROR',
+          details: e.toString(),
         );
       }
-    }
 
-    return response;
+      if (e is TimeoutException) {
+        throw ApiException(
+          message: 'Koneksi timeout. Coba lagi nanti.',
+          code: 'TIMEOUT',
+          details: e.toString(),
+        );
+      }
+
+      throw ApiException(
+        message: 'Terjadi kesalahan: ${e.toString()}',
+        code: 'REQUEST_ERROR',
+        details: e.toString(),
+      );
+    }
   }
 
   static void logNetworkRequest(
       String method, String url, Map<String, dynamic>? body) {
-    developer.log(
-      '-------- NETWORK REQUEST --------',
-      name: 'API_REQUEST',
-    );
-    developer.log('Method: $method', name: 'API_REQUEST');
-    developer.log('URL: $url', name: 'API_REQUEST');
+    LoggerUtil.i('-------- NETWORK REQUEST --------');
+    LoggerUtil.i('Method: $method');
+    LoggerUtil.i('URL: $url');
     if (body != null) {
-      developer.log('Body: ${jsonEncode(body)}', name: 'API_REQUEST');
+      LoggerUtil.i('Body: ${jsonEncode(body)}');
     }
-    developer.log('-------------------------------', name: 'API_REQUEST');
+    LoggerUtil.i('-------------------------------');
   }
 
   static void logNetworkResponse(int statusCode, String body, String url) {
-    developer.log(
-      '-------- NETWORK RESPONSE --------',
-      name: 'API_RESPONSE',
-    );
-    developer.log('URL: $url', name: 'API_RESPONSE');
-    developer.log('Status Code: $statusCode', name: 'API_RESPONSE');
+    LoggerUtil.i('-------- NETWORK RESPONSE --------');
+    LoggerUtil.i('URL: $url');
+    LoggerUtil.i('Status Code: $statusCode');
 
     try {
       // Coba format JSON untuk readability
       final jsonData = jsonDecode(body);
       final formattedJson =
           const JsonEncoder.withIndent('  ').convert(jsonData);
-      developer.log('Response Body:\n$formattedJson', name: 'API_RESPONSE');
+      LoggerUtil.i('Response Body:\n$formattedJson');
     } catch (e) {
       // Jika gagal format, tampilkan sebagai string biasa
-      developer.log('Response Body: $body', name: 'API_RESPONSE');
+      LoggerUtil.i('Response Body: $body');
     }
 
-    developer.log('--------------------------------', name: 'API_RESPONSE');
+    LoggerUtil.i('--------------------------------');
   }
 
   static Future<void> login(String employeeNumber, String password) async {
@@ -219,14 +330,16 @@ class ApiService {
 
     try {
       final url = ApiConfig.loginUrl;
-      print('Attempting login to: $url');
+      LoggerUtil.i('Attempting login to: $url');
 
       final requestBody = {
         'employee_number': employeeNumber,
         'password': password,
       };
 
-      print('Sending login request...');
+      logNetworkRequest('POST', url, requestBody);
+
+      LoggerUtil.d('Sending login request...');
       final response = await http
           .post(
         Uri.parse(url),
@@ -236,10 +349,9 @@ class ApiService {
         body: jsonEncode(requestBody),
       )
           .timeout(
-        const Duration(
-            seconds: 10), // Mengurangi timeout dari 15 detik menjadi 10 detik
+        const Duration(seconds: 10),
         onTimeout: () {
-          print('Login request timed out after 10 seconds');
+          LoggerUtil.e('Login request timed out after 10 seconds');
           throw ApiException(
               message: 'Koneksi timeout, silakan coba lagi',
               code: 'TIMEOUT',
@@ -247,16 +359,17 @@ class ApiService {
         },
       );
 
-      print('Login response received. Status: ${response.statusCode}');
-      print('Response body: ${response.body}');
+      LoggerUtil.i('Login response received. Status: ${response.statusCode}');
+      logNetworkResponse(response.statusCode, response.body, url);
 
+      // Parse response according to auth.md documentation
       final jsonResponse = jsonDecode(response.body);
 
-      // Jika response tidak sukses, langsung throw error dengan pesan dari server
-      if (!jsonResponse['success']) {
+      // Check if login was successful based on the 'success' field
+      if (jsonResponse['success'] != true) {
         String errorMessage = 'Login gagal';
 
-        // Coba ambil pesan error dari berbagai kemungkinan lokasi
+        // Try to extract error message from various possible locations
         if (jsonResponse.containsKey('errors')) {
           var errors = jsonResponse['errors'];
           if (errors is String) {
@@ -270,7 +383,7 @@ class ApiService {
           errorMessage = jsonResponse['message'].toString();
         }
 
-        print('Extracted error message: $errorMessage');
+        LoggerUtil.w('Extracted error message: $errorMessage');
 
         throw ApiException(
           message: errorMessage,
@@ -279,7 +392,7 @@ class ApiService {
         );
       }
 
-      // Jika sukses, proses data login
+      // Process successful login data
       if (jsonResponse['data'] == null) {
         throw ApiException(
           message: 'Data tidak ditemukan dalam respon',
@@ -299,31 +412,36 @@ class ApiService {
         );
       }
 
-      print('Tokens found, storing credentials...');
+      LoggerUtil.i('Tokens found, storing credentials...');
       try {
         await _secureStorage.write(key: 'accessToken', value: accessToken);
         await _secureStorage.write(key: 'refreshToken', value: refreshToken);
         await _secureStorage.write(
             key: 'employee_number', value: employeeNumber);
+        // Store password only if needed for automatic re-login
         await _secureStorage.write(key: 'password', value: password);
-        print('Credentials stored successfully');
+        LoggerUtil.i('Credentials stored successfully');
 
-        // Setelah login berhasil, ambil data profil
-        print('Fetching user profile...');
-        // Hapus pemanggilan getProfile di sini karena tidak ada context yang valid
-        // Profil akan diambil nanti setelah navigasi ke dashboard
-        print('Profile fetch will be done after navigation');
+        // Set up the navigation callback for session expiry
+        navigateToLogin = (BuildContext ctx) {
+          LoggerUtil.i('Session expired, redirecting to login screen');
+          Navigator.of(ctx).pushAndRemoveUntil(
+            MaterialPageRoute(builder: (c) => const LoginScreen()),
+            (route) => false,
+          );
+        };
+
+        LoggerUtil.i('Login completed successfully');
       } catch (e) {
-        print('Failed to store credentials or fetch profile: $e');
-        // Backup ke variabel memori jika gagal
+        LoggerUtil.e('Failed to store credentials', e, StackTrace.current);
+        // Backup to memory variables if secure storage fails
         _tempAccessToken = accessToken;
         _tempRefreshToken = refreshToken;
         _tempemployee_number = employeeNumber;
         _tempPassword = password;
-        print('Credentials stored in temporary variables');
+        LoggerUtil.i('Credentials stored in temporary variables');
         rethrow;
       }
-      print('Login and profile fetch completed successfully');
       return;
     } catch (e) {
       if (e is ApiException) rethrow;
@@ -334,26 +452,28 @@ class ApiService {
   static Future<bool> refreshToken() async {
     String? refreshToken;
 
-    print('Attempting to refresh token...');
+    LoggerUtil.d('Attempting to refresh token...');
 
     try {
       refreshToken =
           await _secureStorage.read(key: 'refreshToken') ?? _tempRefreshToken;
-      print('Retrieved refresh token from secure storage');
+      LoggerUtil.d('Retrieved refresh token from secure storage');
     } catch (e) {
-      print('Failed to get refresh token from secure storage: $e');
+      LoggerUtil.e('Failed to get refresh token from secure storage', e,
+          StackTrace.current);
       refreshToken = _tempRefreshToken;
-      print('Using temporary refresh token');
+      LoggerUtil.d('Using temporary refresh token');
     }
 
     if (refreshToken == null) {
-      print('No refresh token found for token refresh');
+      LoggerUtil.w('No refresh token found for token refresh');
       return false;
     }
 
     try {
-      print('Sending refresh token request');
+      LoggerUtil.d('Sending refresh token request');
 
+      // Using the endpoint from API documentation (auth.md)
       final response = await http
           .post(
         Uri.parse(ApiConfig.refreshTokenUrl),
@@ -365,28 +485,33 @@ class ApiService {
         }),
       )
           .timeout(
-        const Duration(seconds: 3), // Mengurangi timeout menjadi 3 detik
+        const Duration(
+            seconds:
+                10), // Increased timeout to 10 seconds for better reliability
         onTimeout: () {
-          print('Refresh token request timed out');
+          LoggerUtil.e('Refresh token request timed out');
           throw TimeoutException('Refresh token request timed out');
         },
       );
 
-      print('Refresh token response status code: ${response.statusCode}');
-      print('Refresh token response body: ${response.body}');
+      LoggerUtil.d(
+          'Refresh token response status code: ${response.statusCode}');
+      LoggerUtil.d('Refresh token response body: ${response.body}');
 
       if (response.statusCode == 200) {
         final jsonResponse = jsonDecode(response.body);
 
-        if (jsonResponse['success'] == true) {
+        // Check for success based on the API documentation
+        if (jsonResponse['success'] == true && jsonResponse['data'] != null) {
           final newAccessToken = jsonResponse['data']['accessToken'];
+          // The refresh token might be updated too, or we keep using the old one
           final newRefreshToken =
               jsonResponse['data']['refreshToken'] ?? refreshToken;
 
-          print('======================================');
-          print('TOKEN REFRESH SUCCESS');
-          print('New Access Token: $newAccessToken');
-          print('======================================');
+          LoggerUtil.i('======================================');
+          LoggerUtil.i('TOKEN REFRESH SUCCESS');
+          LoggerUtil.d('New Access Token: $newAccessToken');
+          LoggerUtil.i('======================================');
 
           try {
             // Update tokens in secure storage
@@ -394,35 +519,92 @@ class ApiService {
                 key: 'accessToken', value: newAccessToken);
             await _secureStorage.write(
                 key: 'refreshToken', value: newRefreshToken);
-            print('New tokens saved to Secure Storage');
+            LoggerUtil.i('New tokens saved to Secure Storage');
           } catch (e) {
             // Update memory variables if secure storage fails
-            print('Warning: Failed to update token in Secure Storage: $e');
+            LoggerUtil.w('Warning: Failed to update token in Secure Storage', e,
+                StackTrace.current);
             _tempAccessToken = newAccessToken;
             _tempRefreshToken = newRefreshToken;
-            print('New tokens saved to temporary variables');
+            LoggerUtil.i('New tokens saved to temporary variables');
           }
           return true;
         } else {
-          print('Token refresh failed: ${jsonResponse['message']}');
+          // Handle specific error messages from API
+          String errorMessage =
+              jsonResponse['message'] ?? 'Token refresh failed';
+          if (jsonResponse['errors'] != null) {
+            if (jsonResponse['errors'] is String) {
+              errorMessage = jsonResponse['errors'];
+            } else if (jsonResponse['errors'] is List &&
+                jsonResponse['errors'].isNotEmpty) {
+              errorMessage = jsonResponse['errors'][0];
+            }
+          }
+          LoggerUtil.w('Token refresh failed: $errorMessage');
         }
+      } else if (response.statusCode == 401 || response.statusCode == 403) {
+        LoggerUtil.w('Token refresh failed: Refresh token invalid or expired');
+        // Clear stored tokens on 401/403 as they are no longer valid
+        await _clearStoredData();
       } else {
-        print('Token refresh failed with status code: ${response.statusCode}');
+        LoggerUtil.w(
+            'Token refresh failed with status code: ${response.statusCode}');
+
+        // For other status codes, try to parse the error message
+        try {
+          final jsonResponse = jsonDecode(response.body);
+          final errorMessage = jsonResponse['message'] ??
+              jsonResponse['errors'] ??
+              'Unknown error';
+          LoggerUtil.w('Error message: $errorMessage');
+        } catch (e) {
+          LoggerUtil.e('Failed to parse error response', e, StackTrace.current);
+        }
       }
       return false;
     } catch (e) {
-      print('Error refreshing token: $e');
-      return false;
+      LoggerUtil.e('Error refreshing token', e, StackTrace.current);
+      if (e is SocketException) {
+        LoggerUtil.w(
+            'Network error during token refresh. Will try again later.');
+        // Don't clear tokens on network errors
+        return false;
+      } else {
+        // For other errors, clear stored data as a precaution
+        await _clearStoredData();
+        return false;
+      }
     }
   }
 
   static Future<bool> isLoggedIn() async {
     try {
+      // Check for access token
       final accessToken = await _secureStorage.read(key: 'accessToken');
-      return accessToken != null && accessToken.isNotEmpty;
+      final refreshToken = await _secureStorage.read(key: 'refreshToken');
+
+      // Check if we have both tokens
+      final hasAccessToken = accessToken != null && accessToken.isNotEmpty;
+      final hasRefreshToken = refreshToken != null && refreshToken.isNotEmpty;
+
+      LoggerUtil.d(
+          'Token check: Access token exists: $hasAccessToken, Refresh token exists: $hasRefreshToken');
+
+      // We consider the user logged in if at least the refresh token exists
+      // The access token can be refreshed if needed
+      return hasRefreshToken;
     } catch (e) {
       // Jika gagal mengakses Secure Storage, periksa variabel sementara
-      return _tempAccessToken != null && _tempAccessToken!.isNotEmpty;
+      final hasAccessToken =
+          _tempAccessToken != null && _tempAccessToken!.isNotEmpty;
+      final hasRefreshToken =
+          _tempRefreshToken != null && _tempRefreshToken!.isNotEmpty;
+
+      LoggerUtil.d(
+          'Token check (from memory): Access token exists: $hasAccessToken, Refresh token exists: $hasRefreshToken');
+
+      return hasRefreshToken;
     }
   }
 
@@ -439,7 +621,7 @@ class ApiService {
 
       return accessToken;
     } catch (e) {
-      print('Error retrieving auth token: $e');
+      LoggerUtil.e('Error retrieving auth token', e, StackTrace.current);
       // Return the temporary token as fallback
       return _tempAccessToken;
     }
@@ -456,7 +638,7 @@ class ApiService {
         throw Exception('No access token available for logout');
       }
 
-      print('Attempting to logout with token');
+      LoggerUtil.i('Attempting to logout with token');
 
       // Call logout API
       final response = await http.post(
@@ -470,23 +652,24 @@ class ApiService {
         }),
       );
 
-      print('Logout response status: ${response.statusCode}');
-      print('Logout response body: ${response.body}');
+      LoggerUtil.d('Logout response status: ${response.statusCode}');
+      LoggerUtil.d('Logout response body: ${response.body}');
 
       // Clear local storage regardless of API response
       await _clearStoredData();
 
       if (response.statusCode >= 200 && response.statusCode < 300) {
         final data = jsonDecode(response.body);
-        print('LOGOUT SUCCESS: ${response.body}');
+        LoggerUtil.i('LOGOUT SUCCESS: ${response.body}');
         return data;
       } else {
-        print('Logout API failed with status code: ${response.statusCode}');
+        LoggerUtil.w(
+            'Logout API failed with status code: ${response.statusCode}');
         // Even if API fails, we still want to clear local data
         return {'success': true, 'message': 'Logged out locally'};
       }
     } catch (e) {
-      print('Logout error: $e');
+      LoggerUtil.e('Logout error', e, StackTrace.current);
       // Even on error, clear local data
       await _clearStoredData();
       return {
@@ -517,7 +700,7 @@ class ApiService {
 
       return payloadMap;
     } catch (e) {
-      print('Error decoding JWT: $e');
+      LoggerUtil.e('Error decoding JWT', e, StackTrace.current);
       return null;
     }
   }
@@ -527,7 +710,7 @@ class ApiService {
     try {
       await _secureStorage.deleteAll();
     } catch (e) {
-      print('Error clearing Secure Storage: $e');
+      LoggerUtil.e('Error clearing Secure Storage', e, StackTrace.current);
     }
 
     // Clear memory variables as well
@@ -541,8 +724,24 @@ class ApiService {
     try {
       return await _secureStorage.read(key: 'accessToken') ?? _tempAccessToken;
     } catch (e) {
-      print('Error getting access token from Secure Storage: $e');
+      LoggerUtil.e('Error getting access token from Secure Storage', e,
+          StackTrace.current);
       return _tempAccessToken;
+    }
+  }
+
+  // Helper method to get employee number
+  static Future<String?> getEmployeeNumber() async {
+    try {
+      // Try to get the employee number from secure storage
+      final employeeNumber =
+          await _secureStorage.read(key: 'employee_number') ??
+              _tempemployee_number;
+      return employeeNumber;
+    } catch (e) {
+      LoggerUtil.e('Error getting employee number from Secure Storage', e,
+          StackTrace.current);
+      return _tempemployee_number;
     }
   }
 
@@ -600,13 +799,13 @@ class ApiService {
       final response = await get('/users/profile', context: context).timeout(
         const Duration(seconds: 5), // Menambahkan timeout untuk getProfile
         onTimeout: () {
-          print('Profile request timed out after 5 seconds');
+          LoggerUtil.e('Profile request timed out after 5 seconds');
           throw TimeoutException('Profile request timed out');
         },
       );
 
-      print('Profile response status: ${response.statusCode}');
-      print('Profile response body: ${response.body}');
+      LoggerUtil.d('Profile response status: ${response.statusCode}');
+      LoggerUtil.d('Profile response body: ${response.body}');
 
       if (response.statusCode == 200) {
         final responseData = json.decode(response.body);
@@ -625,9 +824,9 @@ class ApiService {
               key: 'roles',
               value: json.encode(responseData['data']['roles']),
             );
-            print('Profile data saved to secure storage');
+            LoggerUtil.i('Profile data saved to secure storage');
           } catch (e) {
-            print('Error saving profile data: $e');
+            LoggerUtil.e('Error saving profile data', e, StackTrace.current);
           }
           return responseData['data'];
         } else {
@@ -644,7 +843,7 @@ class ApiService {
         );
       }
     } catch (e) {
-      print('Error getting profile: $e');
+      LoggerUtil.e('Error getting profile', e, StackTrace.current);
       rethrow;
     }
   }
@@ -667,15 +866,17 @@ class ApiService {
         throw Exception('Gagal mengambil data user: ${response.statusCode}');
       }
     } catch (e) {
-      print('Error getting user by ID: $e');
+      LoggerUtil.e('Error getting user by ID', e, StackTrace.current);
       throw Exception('Gagal melakukan koneksi ke server');
     }
   }
 
   static ApiException _processError(dynamic error,
       {int? statusCode, String? endpoint}) {
-    print(
-        'Error processing error: $error, statusCode: $statusCode, endpoint: $endpoint');
+    LoggerUtil.e(
+        'Error processing error: $error, statusCode: $statusCode, endpoint: $endpoint',
+        error,
+        StackTrace.current);
 
     if (error is ApiException) {
       return error;
@@ -724,21 +925,21 @@ class ApiService {
   // Helper method untuk navigasi ke dashboard
   static void navigateToDashboard(BuildContext context) {
     try {
-      print("Attempting to navigate to dashboard (ApiService method)");
+      LoggerUtil.i("Attempting to navigate to dashboard (ApiService method)");
 
       // Coba dengan named route
       try {
-        print("Using named route");
+        LoggerUtil.d("Using named route");
         Navigator.of(context)
             .pushNamedAndRemoveUntil('/home', (route) => false);
         return;
       } catch (e) {
-        print("Named route failed: $e");
+        LoggerUtil.w("Named route failed", e, StackTrace.current);
       }
 
       // Jika gagal, coba dengan import langsung
       try {
-        print("Using direct import");
+        LoggerUtil.d("Using direct import");
         Navigator.of(context).pushAndRemoveUntil(
           MaterialPageRoute(
             builder: (context) => const DashboardScreen(),
@@ -747,14 +948,13 @@ class ApiService {
         );
         return;
       } catch (e) {
-        print("Direct import failed: $e");
+        LoggerUtil.w("Direct import failed", e, StackTrace.current);
       }
 
       // Jika masih gagal, coba cara lain
-      print("All navigation methods failed");
+      LoggerUtil.w("All navigation methods failed");
     } catch (e, s) {
-      print("Navigation error in ApiService: $e");
-      print("Stack trace: $s");
+      LoggerUtil.e("Navigation error in ApiService", e, s);
     }
   }
 
@@ -762,8 +962,49 @@ class ApiService {
     try {
       return await _secureStorage.read(key: 'accessToken') ?? _tempAccessToken;
     } catch (e) {
-      print('Error getting access token from Secure Storage: $e');
+      LoggerUtil.e('Error getting access token from Secure Storage', e,
+          StackTrace.current);
       return _tempAccessToken;
+    }
+  }
+
+  // Check if the token is expired based on JWT expiration
+  static Future<bool> isTokenExpired() async {
+    try {
+      final accessToken = await _getAccessToken();
+
+      if (accessToken == null) {
+        LoggerUtil.w('No access token found to check expiration');
+        return true; // Consider expired if no token
+      }
+
+      // Decode token to check expiration
+      final decodedToken = _decodeJwt(accessToken);
+      if (decodedToken == null) {
+        LoggerUtil.w('Failed to decode access token');
+        return true; // Consider expired if can't decode
+      }
+
+      // Check if token has expiration claim
+      if (!decodedToken.containsKey('exp')) {
+        LoggerUtil.w('Token does not contain expiration claim');
+        return false; // Can't determine expiration, assume valid
+      }
+
+      // Get expiration timestamp and current time
+      final expTimestamp = decodedToken['exp'] as int;
+      final currentTimestamp = DateTime.now().millisecondsSinceEpoch ~/ 1000;
+
+      // Add buffer time (30 seconds) to avoid edge cases
+      final isExpired = currentTimestamp + 30 >= expTimestamp;
+
+      LoggerUtil.d(
+          'Token expiration check: ${isExpired ? "EXPIRED" : "VALID"} (Expires at: ${DateTime.fromMillisecondsSinceEpoch(expTimestamp * 1000)})');
+
+      return isExpired;
+    } catch (e) {
+      LoggerUtil.e('Error checking token expiration', e, StackTrace.current);
+      return true; // Consider expired on error to be safe
     }
   }
 }

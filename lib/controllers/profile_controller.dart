@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'dart:convert';
 import 'auth_controller.dart';
+import '../utils/logger_util.dart';
 
 class ProfileController extends ChangeNotifier {
   Map<String, dynamic>? _profile;
@@ -14,6 +15,12 @@ class ProfileController extends ChangeNotifier {
   bool get isLoading => _isLoading;
   String? get errorMessage => _errorMessage;
 
+  // Clear error message
+  void clearError() {
+    _errorMessage = null;
+    notifyListeners();
+  }
+
   // Load user profile data
   Future<void> loadUserData(BuildContext context) async {
     _isLoading = true;
@@ -21,17 +28,18 @@ class ProfileController extends ChangeNotifier {
     notifyListeners();
 
     try {
-      print("Fetching user profile data...");
+      LoggerUtil.i("Fetching user profile data...");
 
       // Try to get from API first
       try {
         final userData = await ApiService.getProfile(context);
         _profile = userData;
         _isLoading = false;
+        _errorMessage = null; // Make sure to clear any previous errors
         notifyListeners();
         return;
       } catch (e) {
-        print("Error fetching from API: $e");
+        LoggerUtil.w("Error fetching from API", e);
 
         // If API fails, try to get from secure storage
         try {
@@ -48,19 +56,30 @@ class ProfileController extends ChangeNotifier {
 
             _profile = userData;
             _isLoading = false;
+            _errorMessage = null; // Clear any previous errors
             notifyListeners();
             return;
+          } else {
+            throw Exception(
+                'Data karyawan tidak ditemukan di penyimpanan lokal');
           }
         } catch (storageError) {
-          print("Error reading from secure storage: $storageError");
+          LoggerUtil.e("Error reading from secure storage", storageError,
+              StackTrace.current);
+          throw Exception(
+              'Gagal membaca data profil: ${storageError.toString()}');
         }
       }
-
-      // If all methods fail
-      throw Exception('Tidak dapat memuat data profil');
     } catch (e) {
-      print("Error loading user data: $e");
-      _errorMessage = e.toString();
+      LoggerUtil.e("Error loading user data", e, StackTrace.current);
+      String displayError = e.toString();
+
+      // Clean up the error message
+      if (displayError.contains('Exception: ')) {
+        displayError = displayError.replaceAll('Exception: ', '');
+      }
+
+      _errorMessage = displayError;
       _isLoading = false;
       notifyListeners();
     }
@@ -69,12 +88,25 @@ class ProfileController extends ChangeNotifier {
   // Logout user
   Future<bool> logout(BuildContext context) async {
     try {
-      // Perform logout with API without showing loading indicator
+      _isLoading = true;
+      notifyListeners();
+
+      // Perform logout with API
       final result = await ApiService.logout(context);
+
+      _isLoading = false;
+      notifyListeners();
       return true;
     } catch (e) {
-      print("Error during logout: $e");
-      _errorMessage = e.toString();
+      LoggerUtil.e("Error during logout", e, StackTrace.current);
+
+      String displayError = e.toString();
+      if (displayError.contains('Exception: ')) {
+        displayError = displayError.replaceAll('Exception: ', '');
+      }
+
+      _errorMessage = displayError;
+      _isLoading = false;
       notifyListeners();
       return false;
     }

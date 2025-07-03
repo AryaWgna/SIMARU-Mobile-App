@@ -166,7 +166,7 @@ class _AssetScheduleState extends State<AssetSchedule> {
                 Text(
                   months[_focusedDay.month - 1],
                   style: const TextStyle(
-                    fontFamily: 'Lato',
+                    fontFamily: 'Poppins',
                     fontSize: 24,
                     fontWeight: FontWeight.bold,
                     color: Color(0xFF252525),
@@ -176,7 +176,7 @@ class _AssetScheduleState extends State<AssetSchedule> {
                 Text(
                   '${_focusedDay.year}',
                   style: const TextStyle(
-                    fontFamily: 'Lato',
+                    fontFamily: 'Poppins',
                     fontSize: 24,
                     fontWeight: FontWeight.w300,
                     color: Color(0xFF252525),
@@ -237,22 +237,22 @@ class _AssetScheduleState extends State<AssetSchedule> {
             showAgenda: false,
             monthCellStyle: MonthCellStyle(
               textStyle: TextStyle(
-                fontFamily: 'Lato',
+                fontFamily: 'Poppins',
                 fontSize: 12,
                 color: Colors.black,
               ),
               trailingDatesTextStyle: TextStyle(
-                fontFamily: 'Lato',
+                fontFamily: 'Poppins',
                 fontSize: 12,
                 color: Colors.grey,
               ),
               leadingDatesTextStyle: TextStyle(
-                fontFamily: 'Lato',
+                fontFamily: 'Poppins',
                 fontSize: 12,
                 color: Colors.grey,
               ),
               todayTextStyle: TextStyle(
-                fontFamily: 'Lato',
+                fontFamily: 'Poppins',
                 fontSize: 12,
                 fontWeight: FontWeight.bold,
                 color: Colors.black,
@@ -264,7 +264,7 @@ class _AssetScheduleState extends State<AssetSchedule> {
           ),
           viewHeaderStyle: const ViewHeaderStyle(
             dayTextStyle: TextStyle(
-              fontFamily: 'Lato',
+              fontFamily: 'Poppins',
               fontSize: 12,
               color: Colors.black54,
             ),
@@ -454,7 +454,7 @@ class _AssetScheduleState extends State<AssetSchedule> {
                   Text(
                     assetName,
                     style: const TextStyle(
-                      fontFamily: 'Inter',
+                      fontFamily: 'Poppins',
                       fontSize: 14,
                       fontWeight: FontWeight.w500,
                     ),
@@ -463,7 +463,7 @@ class _AssetScheduleState extends State<AssetSchedule> {
                   Text(
                     title,
                     style: const TextStyle(
-                      fontFamily: 'Inter',
+                      fontFamily: 'Poppins',
                       fontSize: 13,
                     ),
                   ),
@@ -471,7 +471,7 @@ class _AssetScheduleState extends State<AssetSchedule> {
                   Text(
                     dueDate,
                     style: const TextStyle(
-                      fontFamily: 'Inter',
+                      fontFamily: 'Poppins',
                       fontSize: 11,
                       color: Colors.black54,
                     ),
@@ -493,7 +493,7 @@ class _AssetScheduleState extends State<AssetSchedule> {
                 Text(
                   status,
                   style: TextStyle(
-                    fontFamily: 'Inter',
+                    fontFamily: 'Poppins',
                     fontSize: 11,
                     color: iconColor,
                   ),
@@ -589,7 +589,7 @@ class _AssetScheduleState extends State<AssetSchedule> {
             Text(
               label,
               style: TextStyle(
-                fontFamily: 'Inter',
+                fontFamily: 'Poppins',
                 fontSize: 12,
                 color: isActive
                     ? const Color(0xFF213268)

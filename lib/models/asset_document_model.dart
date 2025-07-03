@@ -9,6 +9,8 @@ class AssetDocumentModel {
   final DateTime updatedAt;
   final Map<String, dynamic>? uploader;
   final List<Map<String, dynamic>>? assets;
+  final String
+      docType; // Kategori dokumen: Dokumen, Kalibrasi, atau Pemeliharaan
 
   AssetDocumentModel({
     required this.documentId,
@@ -21,9 +23,11 @@ class AssetDocumentModel {
     required this.updatedAt,
     this.uploader,
     this.assets,
+    this.docType = 'Dokumen', // Default ke 'Dokumen' jika tidak ditentukan
   });
 
-  factory AssetDocumentModel.fromJson(Map<String, dynamic> json) {
+  factory AssetDocumentModel.fromJson(Map<String, dynamic> json,
+      {String docType = 'Dokumen'}) {
     return AssetDocumentModel(
       documentId: json['document_id'] ?? 0,
       title: json['document_title'] ?? json['title'] ?? '',
@@ -46,6 +50,7 @@ class AssetDocumentModel {
           ? List<Map<String, dynamic>>.from(
               json['assets'].map((asset) => Map<String, dynamic>.from(asset)))
           : null,
+      docType: docType, // Kategori dokumen dari parameter
     );
   }
 
@@ -61,6 +66,7 @@ class AssetDocumentModel {
       'updated_at': updatedAt.toIso8601String(),
       'uploader': uploader,
       'assets': assets,
+      'doc_type': docType,
     };
   }
 

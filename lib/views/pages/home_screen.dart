@@ -7,9 +7,12 @@ import '../../controllers/total_asset_controller.dart';
 import '../../controllers/asset_under_repair_controller.dart';
 import '../../controllers/net_asset_value_controller.dart';
 import '../../controllers/recent_activity_controller.dart';
+import '../../controllers/dashboard_controller.dart';
 import '../../widgets/today_activities_widget.dart';
+import '../../utils/logger_util.dart';
 import 'package:flutter_assets_monitoring/models/net_asset_model.dart';
 import 'package:flutter_assets_monitoring/views/notification/notification_screen.dart';
+import '../dashboard/dashboard.dart'; // Import for routeObserver
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -18,9 +21,10 @@ class HomeScreen extends StatefulWidget {
   State<HomeScreen> createState() => _HomeScreenState();
 }
 
-class _HomeScreenState extends State<HomeScreen> {
+class _HomeScreenState extends State<HomeScreen> with RouteAware {
   final RefreshController _refreshController =
       RefreshController(initialRefresh: false);
+  bool _forceLoading = false;
 
   @override
   void initState() {
@@ -28,13 +32,12 @@ class _HomeScreenState extends State<HomeScreen> {
     // Load data when screen initializes with error handling
     WidgetsBinding.instance.addPostFrameCallback((_) {
       try {
-        print("Loading data for HomeScreen...");
+        LoggerUtil.i("Loading data for HomeScreen...");
         if (mounted) {
           _loadData();
         }
       } catch (e, s) {
-        print("Error loading HomeScreen data: $e");
-        print("Stack trace: $s");
+        LoggerUtil.e("Error loading HomeScreen data", e, s);
       }
     });
   }
@@ -42,6 +45,12 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
+    // Subscribe to route observer
+    final route = ModalRoute.of(context);
+    if (route is PageRoute) {
+      routeObserver.subscribe(this, route);
+    }
+
     // Cek apakah semua controller dalam keadaan loading, jika ya maka biarkan
     // Jika tidak, mungkin kita perlu muat data
     final assetController =
@@ -55,12 +64,41 @@ class _HomeScreenState extends State<HomeScreen> {
     if (assetController.isLoading ||
         repairController.isLoading ||
         navController.isLoading) {
-      print("Home screen detected loading state after navigation");
+      LoggerUtil.d("Home screen detected loading state after navigation");
     }
   }
 
   @override
+  void didPopNext() {
+    // This is called when the user returns to this screen
+    LoggerUtil.d("Returned to HomeScreen, showing skeleton loader");
+
+    final dashboardController =
+        Provider.of<DashboardController>(context, listen: false);
+    // Make sure we're on the home tab when returning to this screen
+    if (dashboardController.selectedIndex != 0) {
+      dashboardController.setSelectedIndex(0);
+    }
+
+    setState(() {
+      _forceLoading = true;
+    });
+
+    // Load data with a slight delay to show the skeleton
+    Future.delayed(const Duration(milliseconds: 800), () {
+      if (mounted) {
+        _loadData().then((_) {
+          setState(() {
+            _forceLoading = false;
+          });
+        });
+      }
+    });
+  }
+
+  @override
   void dispose() {
+    routeObserver.unsubscribe(this);
     _refreshController.dispose();
     super.dispose();
   }
@@ -107,7 +145,7 @@ class _HomeScreenState extends State<HomeScreen> {
         _refreshController.refreshCompleted();
       }
     } catch (e) {
-      print("Error loading controllers: $e");
+      LoggerUtil.e("Error loading controllers", e);
 
       // Pastikan loading dimatikan meskipun error
       final assetController = context.read<TotalAssetController>();
@@ -163,7 +201,8 @@ class _HomeScreenState extends State<HomeScreen> {
                     // Cek apakah ada controller yang masih loading
                     final isLoading = assetController.isLoading ||
                         repairController.isLoading ||
-                        navController.isLoading;
+                        navController.isLoading ||
+                        _forceLoading;
 
                     if (isLoading) {
                       return Skeletonizer(
@@ -558,16 +597,16 @@ class _HomeScreenState extends State<HomeScreen> {
               children: [
                 Text(
                   controller.totalAssets,
-                  style: GoogleFonts.inter(
-                    fontSize: 20,
+                  style: GoogleFonts.poppins(
+                    fontSize: 24,
                     fontWeight: FontWeight.bold,
                   ),
                   overflow: TextOverflow.ellipsis,
                 ),
                 Text(
                   "Total Aset",
-                  style: GoogleFonts.inter(
-                    fontSize: 14,
+                  style: GoogleFonts.poppins(
+                    fontSize: 16,
                     color: Colors.black87,
                   ),
                 ),
@@ -575,17 +614,17 @@ class _HomeScreenState extends State<HomeScreen> {
                   Row(
                     children: [
                       Text(
-                        "Medical: ${controller.dashboardSummary!.assetsByType['medical'] ?? 0}",
-                        style: GoogleFonts.inter(
-                          fontSize: 11,
+                        "${controller.translateAssetType('medical')}: ${controller.dashboardSummary!.assetsByType['medical'] ?? 0}",
+                        style: GoogleFonts.poppins(
+                          fontSize: 12,
                           color: Colors.black54,
                         ),
                       ),
                       const SizedBox(width: 8),
                       Text(
-                        "Non-Medical: ${controller.dashboardSummary!.assetsByType['non_medical'] ?? 0}",
-                        style: GoogleFonts.inter(
-                          fontSize: 11,
+                        "${controller.translateAssetType('non_medical')}: ${controller.dashboardSummary!.assetsByType['non_medical'] ?? 0}",
+                        style: GoogleFonts.poppins(
+                          fontSize: 12,
                           color: Colors.black54,
                         ),
                       ),
@@ -603,7 +642,7 @@ class _HomeScreenState extends State<HomeScreen> {
             child: Icon(
               Icons.grid_4x4,
               color: cardColor,
-              size: 20,
+              size: 24,
             ),
           ),
         ],
@@ -642,25 +681,25 @@ class _HomeScreenState extends State<HomeScreen> {
               children: [
                 Text(
                   calibrationCount,
-                  style: GoogleFonts.inter(
-                    fontSize: 20,
+                  style: GoogleFonts.poppins(
+                    fontSize: 24,
                     fontWeight: FontWeight.bold,
                   ),
                   overflow: TextOverflow.ellipsis,
                 ),
                 Text(
-                  "Kalibrasi & Perawatan",
-                  style: GoogleFonts.inter(
-                    fontSize: 14,
+                  "Aset Dalam Perbaikan",
+                  style: GoogleFonts.poppins(
+                    fontSize: 16,
                     color: Colors.black87,
                   ),
                 ),
                 Text(
                   calibrationCount == "0"
-                      ? "Tidak ada kalibrasi mendatang"
+                      ? "Tidak ada aset dalam perbaikan"
                       : "Perlu perhatian segera",
-                  style: GoogleFonts.inter(
-                    fontSize: 12,
+                  style: GoogleFonts.poppins(
+                    fontSize: 13,
                     color: Colors.black54,
                   ),
                 ),
@@ -683,7 +722,7 @@ class _HomeScreenState extends State<HomeScreen> {
             child: const Icon(
               Icons.build,
               color: iconColor,
-              size: 20,
+              size: 24,
             ),
           ),
         ],
@@ -722,8 +761,8 @@ class _HomeScreenState extends State<HomeScreen> {
                   children: [
                     Text(
                       "Rp ",
-                      style: GoogleFonts.inter(
-                        fontSize: 12,
+                      style: GoogleFonts.poppins(
+                        fontSize: 14,
                         fontWeight: FontWeight.bold,
                         color: Colors.black87,
                       ),
@@ -731,8 +770,8 @@ class _HomeScreenState extends State<HomeScreen> {
                     Expanded(
                       child: Text(
                         data.formattedTotalBookValue,
-                        style: GoogleFonts.inter(
-                          fontSize: 16,
+                        style: GoogleFonts.poppins(
+                          fontSize: 20,
                           fontWeight: FontWeight.bold,
                         ),
                         overflow: TextOverflow.ellipsis,
@@ -742,23 +781,23 @@ class _HomeScreenState extends State<HomeScreen> {
                 ),
                 Text(
                   "Nilai Aset Bersih",
-                  style: GoogleFonts.inter(
-                    fontSize: 14,
+                  style: GoogleFonts.poppins(
+                    fontSize: 16,
                     color: Colors.black87,
                   ),
                 ),
                 const SizedBox(height: 2),
                 Text(
                   "Depresiasi: Rp ${data.formattedTotalDepreciation}",
-                  style: GoogleFonts.inter(
-                    fontSize: 11,
+                  style: GoogleFonts.poppins(
+                    fontSize: 12,
                     color: Colors.black54,
                   ),
                 ),
                 Text(
                   "Per ${data.asOfDate}",
-                  style: GoogleFonts.inter(
-                    fontSize: 10,
+                  style: GoogleFonts.poppins(
+                    fontSize: 11,
                     color: Colors.black54,
                   ),
                 ),
@@ -774,7 +813,7 @@ class _HomeScreenState extends State<HomeScreen> {
             child: Icon(
               Icons.attach_money,
               color: cardColor,
-              size: 20,
+              size: 24,
             ),
           ),
         ],
@@ -805,16 +844,16 @@ class _HomeScreenState extends State<HomeScreen> {
               children: [
                 Text(
                   value,
-                  style: GoogleFonts.inter(
-                    fontSize: title == "Nilai Aset Bersih" ? 16 : 20,
+                  style: GoogleFonts.poppins(
+                    fontSize: title == "Nilai Aset Bersih" ? 20 : 24,
                     fontWeight: FontWeight.bold,
                   ),
                   overflow: TextOverflow.ellipsis,
                 ),
                 Text(
                   title,
-                  style: GoogleFonts.inter(
-                    fontSize: 14,
+                  style: GoogleFonts.poppins(
+                    fontSize: 16,
                     color: Colors.black87,
                   ),
                 ),
@@ -826,8 +865,8 @@ class _HomeScreenState extends State<HomeScreen> {
                     }
                     return Text(
                       "Per ${controller.netAssetValue?.asOfDate ?? '-'}",
-                      style: GoogleFonts.inter(
-                        fontSize: 10,
+                      style: GoogleFonts.poppins(
+                        fontSize: 11,
                         color: Colors.black54,
                       ),
                     );
@@ -841,7 +880,7 @@ class _HomeScreenState extends State<HomeScreen> {
               color: Colors.white,
               borderRadius: BorderRadius.circular(8),
             ),
-            child: Icon(icon, color: bgColor, size: 20),
+            child: Icon(icon, color: bgColor, size: 24),
           ),
         ],
       ),

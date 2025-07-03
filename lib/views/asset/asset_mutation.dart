@@ -359,14 +359,29 @@ class _AssetMutationState extends State<AssetMutation> {
               children: [
                 const SizedBox(height: 24),
                 ...controller.statusHistories.map<Widget>((history) {
-                  if (history['status']?.toString().toLowerCase() ==
-                      'checked out') {
-                    return _buildCheckoutCard(history);
-                  } else if (history['status']?.toString().toLowerCase() ==
-                      'return') {
-                    return _buildReturnCard(history);
+                  final status =
+                      history['status']?.toString().toLowerCase() ?? '';
+
+                  switch (status) {
+                    case 'checked out':
+                      // Check if it's checkout to user/employee or location
+                      final detailInfo =
+                          history['detail_info'] as Map<String, dynamic>?;
+                      if (detailInfo != null &&
+                          detailInfo.containsKey('user')) {
+                        return _buildCheckoutToEmployeeCard(history);
+                      } else {
+                        return _buildCheckoutCard(history);
+                      }
+                    case 'return':
+                      return _buildReturnCard(history);
+                    case 'loss':
+                      return _buildLossCard(history);
+                    case 'found':
+                      return _buildFoundCard(history);
+                    default:
+                      return const SizedBox.shrink();
                   }
-                  return const SizedBox.shrink();
                 }),
                 const SizedBox(height: 24),
               ],
@@ -379,16 +394,10 @@ class _AssetMutationState extends State<AssetMutation> {
 
   Widget _buildCheckoutCard(Map<String, dynamic> history) {
     final detailInfo = history['detail_info'] as Map<String, dynamic>?;
-    final user = detailInfo?['user'] as Map<String, dynamic>?;
     final location = detailInfo?['location'] as Map<String, dynamic>?;
 
     final checkoutDate =
         formatAPIDate(detailInfo?['checkout_date']?.toString());
-
-    String borrower = '-';
-    if (user != null && user['employee_number'] != null) {
-      borrower = user['employee_number'].toString();
-    }
 
     String locationInfo = '-';
     if (location != null) {
@@ -398,88 +407,127 @@ class _AssetMutationState extends State<AssetMutation> {
 
       List<String> locationParts = [];
       if (buildingName.isNotEmpty) locationParts.add(buildingName);
-      if (floorNumber.isNotEmpty) locationParts.add(floorNumber);
       if (roomName.isNotEmpty) locationParts.add(roomName);
+      if (floorNumber.isNotEmpty) locationParts.add('Lantai $floorNumber');
 
       locationInfo = locationParts.isNotEmpty ? locationParts.join(', ') : '-';
     }
 
     final notes = detailInfo?['checkout_notes']?.toString() ?? '-';
 
-    return Container(
-      width: double.infinity,
-      margin: const EdgeInsets.only(bottom: 24),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(5),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.25),
-            blurRadius: 4,
-            spreadRadius: 2,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Container(
-            padding: const EdgeInsets.only(left: 15, top: 14, bottom: 14),
-            child: Row(
-              children: [
-                Container(
-                  width: 24,
-                  height: 24,
-                  margin: const EdgeInsets.only(right: 11),
-                  child: const Icon(
-                    Icons.logout,
-                    color: Color(0xFF203268),
-                    size: 24,
-                  ),
-                ),
-                const Text(
-                  'PEMINJAMAN',
-                  style: TextStyle(
-                    fontFamily: 'Roboto',
-                    fontSize: 20,
-                    fontWeight: FontWeight.w500,
-                    color: Color(0xFF56C5F1),
-                    letterSpacing: 0.1,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          Container(
-            width: double.infinity,
-            height: 1,
-            color: const Color(0xFFAAAAAA),
-          ),
-          Padding(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              children: [
-                _buildInfoRow('Tanggal Dipinjam:', checkoutDate),
-                const SizedBox(height: 12),
-                _buildInfoRow('Dipinjam oleh:', borrower),
-                const SizedBox(height: 12),
-                _buildInfoRow('Lokasi:', locationInfo),
-                const SizedBox(height: 12),
-                _buildInfoRow('Catatan:', notes),
-              ],
-            ),
-          ),
-        ],
-      ),
+    return _buildStatusCard(
+      title: 'DIPINJAM KE LOKASI',
+      icon: Icons.logout,
+      color: _mutationController.getStatusColor('CHECKED OUT'),
+      children: [
+        _buildInfoRow('Tanggal:', checkoutDate),
+        const SizedBox(height: 12),
+        _buildInfoRow('Ruangan:', location?['room_name']?.toString() ?? '-'),
+        const SizedBox(height: 12),
+        _buildInfoRow('Gedung:', location?['building_name']?.toString() ?? '-'),
+        const SizedBox(height: 12),
+        _buildInfoRow(
+            'Lantai:',
+            location?['floor_number'] != null
+                ? 'Lantai ${location?['floor_number']}'
+                : '-'),
+        const SizedBox(height: 12),
+        _buildInfoRow('Catatan:', notes),
+      ],
     );
   }
 
   Widget _buildReturnCard(Map<String, dynamic> history) {
     final returnDate = formatAPIDate(history['return_date']?.toString());
-
     final notes = history['return_notes']?.toString() ?? '-';
 
+    return _buildStatusCard(
+      title: 'DIKEMBALIKAN',
+      icon: Icons.arrow_back_outlined,
+      iconWidget: Transform(
+        alignment: Alignment.center,
+        // Apply horizontal flip
+        transform: Matrix4.rotationY(3.14159),
+        child: const Icon(
+          Icons.login,
+          color: Color(0xFF203268),
+          size: 24,
+        ),
+      ),
+      color: _mutationController.getStatusColor('RETURN'),
+      children: [
+        _buildInfoRow('Tanggal Kembali:', returnDate),
+        const SizedBox(height: 12),
+        _buildInfoRow('Catatan:', notes),
+      ],
+    );
+  }
+
+  Widget _buildLossCard(Map<String, dynamic> history) {
+    final lossDate = formatAPIDate(history['loss_date']?.toString());
+    final notes = history['loss_notes']?.toString() ?? '-';
+
+    return _buildStatusCard(
+      title: 'HILANG',
+      icon: Icons.report_problem_outlined,
+      color: _mutationController.getStatusColor('LOSS'),
+      children: [
+        _buildInfoRow('Tanggal Hilang:', lossDate),
+        const SizedBox(height: 12),
+        _buildInfoRow('Catatan:', notes),
+      ],
+    );
+  }
+
+  Widget _buildFoundCard(Map<String, dynamic> history) {
+    final foundDate = formatAPIDate(history['found_date']?.toString());
+    final notes = history['found_notes']?.toString() ?? '-';
+
+    return _buildStatusCard(
+      title: 'DITEMUKAN',
+      icon: Icons.check_circle_outlined,
+      color: _mutationController.getStatusColor('FOUND'),
+      children: [
+        _buildInfoRow('Tanggal Ditemukan:', foundDate),
+        const SizedBox(height: 12),
+        _buildInfoRow('Catatan:', notes),
+      ],
+    );
+  }
+
+  Widget _buildCheckoutToEmployeeCard(Map<String, dynamic> history) {
+    final detailInfo = history['detail_info'] as Map<String, dynamic>?;
+    final user = detailInfo?['user'] as Map<String, dynamic>?;
+
+    final checkoutDate =
+        formatAPIDate(detailInfo?['checkout_date']?.toString());
+
+    final employeeNumber = user?['employee_number']?.toString() ?? '-';
+    final notes = detailInfo?['checkout_notes']?.toString() ?? '-';
+
+    return _buildStatusCard(
+      title: 'DIPINJAM KE KARYAWAN',
+      icon: Icons.login,
+      color: _mutationController.getStatusColor('CHECKED OUT'),
+      children: [
+        _buildInfoRow('Tanggal:', checkoutDate),
+        const SizedBox(height: 12),
+        _buildInfoRow('Dipinjam kepada:', employeeNumber),
+        const SizedBox(height: 12),
+        _buildInfoRow('No. Karyawan:', employeeNumber),
+        const SizedBox(height: 12),
+        _buildInfoRow('Catatan:', notes),
+      ],
+    );
+  }
+
+  Widget _buildStatusCard({
+    required String title,
+    required IconData icon,
+    Widget? iconWidget,
+    required Color color,
+    required List<Widget> children,
+  }) {
     return Container(
       width: double.infinity,
       margin: const EdgeInsets.only(bottom: 24),
@@ -506,19 +554,20 @@ class _AssetMutationState extends State<AssetMutation> {
                   width: 24,
                   height: 24,
                   margin: const EdgeInsets.only(right: 11),
-                  child: const Icon(
-                    Icons.login,
-                    color: Color(0xFF203268),
-                    size: 24,
-                  ),
+                  child: iconWidget ??
+                      Icon(
+                        icon,
+                        color: const Color(0xFF203268),
+                        size: 24,
+                      ),
                 ),
-                const Text(
-                  'PENGEMBALIAN',
+                Text(
+                  title,
                   style: TextStyle(
-                    fontFamily: 'Roboto',
+                    fontFamily: 'Poppins',
                     fontSize: 20,
                     fontWeight: FontWeight.w500,
-                    color: Color(0xFF659B09),
+                    color: color,
                     letterSpacing: 0.1,
                   ),
                 ),
@@ -533,11 +582,7 @@ class _AssetMutationState extends State<AssetMutation> {
           Padding(
             padding: const EdgeInsets.all(16),
             child: Column(
-              children: [
-                _buildInfoRow('Tanggal Kembali:', returnDate),
-                const SizedBox(height: 12),
-                _buildInfoRow('Catatan:', notes),
-              ],
+              children: children,
             ),
           ),
         ],
@@ -554,7 +599,7 @@ class _AssetMutationState extends State<AssetMutation> {
           child: Text(
             label,
             style: const TextStyle(
-              fontFamily: 'Inter',
+              fontFamily: 'Poppins',
               fontSize: 13,
               color: Color(0xFF757575),
               letterSpacing: 0.1,
@@ -565,7 +610,7 @@ class _AssetMutationState extends State<AssetMutation> {
           child: Text(
             value,
             style: const TextStyle(
-              fontFamily: 'Inter',
+              fontFamily: 'Poppins',
               fontSize: 13,
               color: Color(0xFF757575),
               letterSpacing: 0.1,
@@ -714,7 +759,7 @@ class _AssetMutationState extends State<AssetMutation> {
             Text(
               label,
               style: TextStyle(
-                fontFamily: 'Inter',
+                fontFamily: 'Poppins',
                 fontSize: 12,
                 color: isActive
                     ? const Color(0xFF213268)

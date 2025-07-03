@@ -2,7 +2,7 @@ import 'dart:io';
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
-import 'package:qr_code_scanner/qr_code_scanner.dart';
+import 'package:mobile_scanner/mobile_scanner.dart';
 import 'package:provider/provider.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../asset/asset_details.dart';
@@ -26,13 +26,11 @@ class _QRScannerScreenState extends State<QRScannerScreen>
     with WidgetsBindingObserver, SingleTickerProviderStateMixin {
   final GlobalKey qrKey = GlobalKey(debugLabel: 'QR');
   late QRScannerController _qrScannerController;
+  MobileScannerController? _mobileScannerController;
 
   // Untuk animasi scanner
   late AnimationController _animationController;
   late Animation<double> _animation;
-
-  // Untuk zoom
-  double _currentZoomFactor = 1.0;
 
   @override
   void initState() {
@@ -72,6 +70,7 @@ class _QRScannerScreenState extends State<QRScannerScreen>
 
     // Dispose QR controller
     _qrScannerController.disposeQRController();
+    _mobileScannerController?.dispose();
 
     // Dispose animation controller
     _animationController.dispose();
@@ -82,13 +81,13 @@ class _QRScannerScreenState extends State<QRScannerScreen>
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     // Manage camera based on app lifecycle
-    if (_qrScannerController.qrViewController == null) return;
+    if (_mobileScannerController == null) return;
 
     if (state == AppLifecycleState.resumed) {
-      _qrScannerController.resumeCamera();
+      _mobileScannerController?.start();
     } else if (state == AppLifecycleState.paused ||
         state == AppLifecycleState.inactive) {
-      _qrScannerController.pauseCamera();
+      _mobileScannerController?.stop();
     }
   }
 
@@ -125,26 +124,13 @@ class _QRScannerScreenState extends State<QRScannerScreen>
   void reassemble() {
     super.reassemble();
     if (!kIsWeb) {
-      _qrScannerController.reassembleCamera();
+      if (_mobileScannerController != null) {
+        if (Platform.isAndroid) {
+          _mobileScannerController!.stop();
+        }
+        _mobileScannerController!.start();
+      }
     }
-  }
-
-  void _zoomIn() {
-    setState(() {
-      _currentZoomFactor += 0.2;
-      if (_currentZoomFactor > 2.5) {
-        _currentZoomFactor = 2.5;
-      }
-    });
-  }
-
-  void _zoomOut() {
-    setState(() {
-      _currentZoomFactor -= 0.2;
-      if (_currentZoomFactor < 1.0) {
-        _currentZoomFactor = 1.0;
-      }
-    });
   }
 
   @override
@@ -156,7 +142,9 @@ class _QRScannerScreenState extends State<QRScannerScreen>
         return WillPopScope(
           onWillPop: () async {
             // Matikan kamera sebelum kembali ke halaman sebelumnya
-            controller.pauseCamera();
+            if (_mobileScannerController != null) {
+              _mobileScannerController!.stop();
+            }
 
             // Kembali ke halaman sebelumnya
             Navigator.pop(context);
@@ -168,53 +156,37 @@ class _QRScannerScreenState extends State<QRScannerScreen>
               fit: StackFit.expand,
               children: [
                 // QR Camera View dengan zoom
-                Transform.scale(
-                  scale: _currentZoomFactor,
-                  child: kIsWeb
-                      ? buildQRView(context, qrKey, (code) {
-                          // Callback ketika QR terdeteksi untuk web
-                          if (code != null && !controller.isProcessing) {
-                            controller.setScannedCode(code);
+                buildQRView(context, qrKey, (code) {
+                  // Callback ketika QR terdeteksi
+                  if (code != null && !controller.isProcessing) {
+                    controller.setScannedCode(code);
 
-                            // Proses QR langsung tanpa debounce jika berbeda
-                            if (code != controller.lastScannedCode) {
-                              _processQRCode(code, socketService, controller);
-                            }
-                          }
-                        }, (webController) {
-                          // Tidak perlu menyimpan controller untuk web
-                        })
-                      : buildQRView(context, qrKey, (code) {
-                          // Callback ketika QR terdeteksi untuk mobile
-                          if (code != null && !controller.isProcessing) {
-                            controller.setScannedCode(code);
+                    // Proses QR langsung tanpa debounce jika berbeda
+                    if (code != controller.lastScannedCode) {
+                      _processQRCode(code, socketService, controller);
+                    }
+                  }
+                }, (mobileController) {
+                  // Simpan controller
+                  _mobileScannerController = mobileController;
+                  controller.setQRViewController(mobileController);
+                  // Set camera sebagai initialized
+                  if (!controller.isCameraInitialized) {
+                    controller.setCameraInitialized(true);
+                  }
+                }),
 
-                            // Proses QR dengan debounce untuk mencegah multiple scans
-                            if (code != controller.lastScannedCode) {
-                              _processQRCode(code, socketService, controller);
-                            }
-                          }
-                        }, (mobileController) {
-                          // Simpan controller untuk mobile
-                          controller.setQRViewController(mobileController);
-                          // Resume camera jika sebelumnya paused
-                          if (!controller.isCameraInitialized) {
-                            controller.resumeCamera();
-                            controller.setCameraInitialized(true);
-                          }
-                        }),
-                ),
-
-                // Animasi Garis Scanner
-                AnimatedBuilder(
-                  animation: _animation,
-                  builder: (context, child) {
-                    return CustomPaint(
-                      painter: ScannerLinePainter(_animation.value),
-                      size: Size.infinite,
-                    );
-                  },
-                ),
+                // Animasi Garis Scanner (hanya untuk mobile)
+                if (!kIsWeb)
+                  AnimatedBuilder(
+                    animation: _animation,
+                    builder: (context, child) {
+                      return CustomPaint(
+                        painter: ScannerLinePainter(_animation.value),
+                        size: Size.infinite,
+                      );
+                    },
+                  ),
 
                 // Top Bar dengan tombol kembali dan flash
                 SafeArea(
@@ -244,13 +216,15 @@ class _QRScannerScreenState extends State<QRScannerScreen>
                                 icon: const Icon(Icons.arrow_back),
                                 color: const Color(0xFF213268),
                                 onPressed: () {
-                                  controller.pauseCamera();
+                                  if (_mobileScannerController != null) {
+                                    _mobileScannerController!.stop();
+                                  }
                                   Navigator.pop(context);
                                 },
                               ),
                             ),
 
-                            // Flash Button
+                            // Flash Button (hanya untuk mobile)
                             if (!kIsWeb)
                               Container(
                                 decoration: BoxDecoration(
@@ -273,6 +247,9 @@ class _QRScannerScreenState extends State<QRScannerScreen>
                                   color: const Color(0xFF213268),
                                   onPressed: () {
                                     controller.toggleFlash();
+                                    if (_mobileScannerController != null) {
+                                      _mobileScannerController!.toggleTorch();
+                                    }
                                   },
                                 ),
                               ),
@@ -280,54 +257,6 @@ class _QRScannerScreenState extends State<QRScannerScreen>
                         ),
                       ],
                     ),
-                  ),
-                ),
-
-                // Zoom Controls
-                Positioned(
-                  right: 16,
-                  top: MediaQuery.of(context).size.height / 2 - 60,
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Container(
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          shape: BoxShape.circle,
-                          boxShadow: [
-                            BoxShadow(
-                              color: Colors.black.withOpacity(0.1),
-                              blurRadius: 8,
-                              offset: const Offset(0, 2),
-                            ),
-                          ],
-                        ),
-                        child: IconButton(
-                          icon: const Icon(Icons.add),
-                          color: const Color(0xFF213268),
-                          onPressed: _zoomIn,
-                        ),
-                      ),
-                      const SizedBox(height: 16),
-                      Container(
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          shape: BoxShape.circle,
-                          boxShadow: [
-                            BoxShadow(
-                              color: Colors.black.withOpacity(0.1),
-                              blurRadius: 8,
-                              offset: const Offset(0, 2),
-                            ),
-                          ],
-                        ),
-                        child: IconButton(
-                          icon: const Icon(Icons.remove),
-                          color: const Color(0xFF213268),
-                          onPressed: _zoomOut,
-                        ),
-                      ),
-                    ],
                   ),
                 ),
 
@@ -512,28 +441,6 @@ class _QRScannerScreenState extends State<QRScannerScreen>
                       ),
                     ),
                   ),
-
-                // Zoom factor indicator
-                Positioned(
-                  top: 80,
-                  right: 16,
-                  child: Container(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                    decoration: BoxDecoration(
-                      color: Colors.black.withOpacity(0.6),
-                      borderRadius: BorderRadius.circular(15),
-                    ),
-                    child: Text(
-                      '${(_currentZoomFactor * 100).toInt()}%',
-                      style: GoogleFonts.poppins(
-                        fontSize: 12,
-                        color: Colors.white,
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
-                  ),
-                ),
               ],
             ),
           ),
@@ -546,16 +453,16 @@ class _QRScannerScreenState extends State<QRScannerScreen>
   Future<void> _processQRCode(String qrCode, SocketService socketService,
       QRScannerController controller) async {
     // Pause camera while processing
-    controller.pauseCamera();
+    if (_mobileScannerController != null) {
+      _mobileScannerController!.stop();
+    }
 
     // Process QR code using controller
     final assetData =
         await controller.processScannedQR(qrCode, socketService, context);
 
     if (assetData != null) {
-      // Show success notification
-      showNotice("QR Code berhasil dipindai", isSuccess: true);
-
+      // Remove success notification
       // Navigate to asset details
       if (mounted) {
         Navigator.pushReplacement(
@@ -574,7 +481,9 @@ class _QRScannerScreenState extends State<QRScannerScreen>
       showNotice(controller.errorMessage!, isError: true);
 
       // Resume camera
-      controller.resumeCamera();
+      if (_mobileScannerController != null) {
+        _mobileScannerController!.start();
+      }
     }
   }
 }

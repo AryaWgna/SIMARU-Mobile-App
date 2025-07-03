@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'dart:async';
 import '../services/notification_service.dart';
+import '../utils/logger_util.dart';
 
 class NotificationBadgeController extends ChangeNotifier {
   int _notificationCount = 0;
@@ -16,7 +17,7 @@ class NotificationBadgeController extends ChangeNotifier {
     loadUnreadNotificationCount();
 
     // Refresh jumlah notifikasi setiap 30 detik
-    _refreshTimer = Timer.periodic(const Duration(seconds: 60), (timer) {
+    _refreshTimer = Timer.periodic(const Duration(seconds: 30), (timer) {
       loadUnreadNotificationCount();
     });
   }
@@ -38,7 +39,7 @@ class NotificationBadgeController extends ChangeNotifier {
       _isLoading = false;
       notifyListeners();
     } catch (e) {
-      debugPrint('Error loading notification count: $e');
+      LoggerUtil.e('Error loading notification count', e, StackTrace.current);
       _isLoading = false;
       notifyListeners();
     }

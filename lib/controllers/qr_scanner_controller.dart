@@ -4,8 +4,9 @@ import 'package:http/http.dart' as http;
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import '../core/config/api_config.dart';
 import '../services/socket_service.dart';
-import 'package:qr_code_scanner/qr_code_scanner.dart';
+import 'package:mobile_scanner/mobile_scanner.dart';
 import 'dart:io';
+import '../utils/logger_util.dart';
 
 class QRScannerController extends ChangeNotifier {
   String? _scannedCode;
@@ -15,7 +16,7 @@ class QRScannerController extends ChangeNotifier {
   String? _errorMessage;
   Map<String, dynamic>? _assetData;
   final _storage = const FlutterSecureStorage();
-  QRViewController? _qrViewController;
+  MobileScannerController? _mobileScannerController;
 
   // Tambahkan state untuk kamera
   bool _isCameraInitialized = false;
@@ -32,7 +33,7 @@ class QRScannerController extends ChangeNotifier {
   bool get isCameraInitialized => _isCameraInitialized;
   bool get isCameraPaused => _isCameraPaused;
   int get animationUpdateCounter => _animationUpdateCounter;
-  QRViewController? get qrViewController => _qrViewController;
+  MobileScannerController? get qrViewController => _mobileScannerController;
 
   // Setters
   void setScannedCode(String? code) {
@@ -52,8 +53,8 @@ class QRScannerController extends ChangeNotifier {
 
   void toggleFlash() {
     _flashOn = !_flashOn;
-    if (_qrViewController != null) {
-      _qrViewController!.toggleFlash();
+    if (_mobileScannerController != null) {
+      _mobileScannerController!.toggleTorch();
     }
     notifyListeners();
   }
@@ -73,41 +74,41 @@ class QRScannerController extends ChangeNotifier {
     notifyListeners();
   }
 
-  // Metode untuk mengelola QRViewController
-  void setQRViewController(QRViewController controller) {
-    _qrViewController = controller;
+  // Metode untuk mengelola MobileScannerController
+  void setQRViewController(MobileScannerController controller) {
+    _mobileScannerController = controller;
     notifyListeners();
   }
 
   void pauseCamera() {
-    if (_qrViewController != null && !_isCameraPaused) {
-      _qrViewController!.pauseCamera();
+    if (_mobileScannerController != null && !_isCameraPaused) {
+      _mobileScannerController!.stop();
       _isCameraPaused = true;
       notifyListeners();
     }
   }
 
   void resumeCamera() {
-    if (_qrViewController != null && _isCameraPaused) {
-      _qrViewController!.resumeCamera();
+    if (_mobileScannerController != null && _isCameraPaused) {
+      _mobileScannerController!.start();
       _isCameraPaused = false;
       notifyListeners();
     }
   }
 
   void disposeQRController() {
-    if (_qrViewController != null) {
-      _qrViewController!.dispose();
-      _qrViewController = null;
+    if (_mobileScannerController != null) {
+      _mobileScannerController!.dispose();
+      _mobileScannerController = null;
     }
   }
 
   void reassembleCamera() {
-    if (_qrViewController != null) {
+    if (_mobileScannerController != null) {
       if (Platform.isAndroid) {
-        _qrViewController!.pauseCamera();
+        _mobileScannerController!.stop();
       }
-      _qrViewController!.resumeCamera();
+      _mobileScannerController!.start();
     }
   }
 
@@ -140,7 +141,7 @@ class QRScannerController extends ChangeNotifier {
     clearError();
 
     try {
-      print('Processing QR code: $code');
+      LoggerUtil.i('Processing QR code: $code');
 
       // Try to parse the QR code as a URL or asset code
       String assetCode;
@@ -160,7 +161,7 @@ class QRScannerController extends ChangeNotifier {
         assetCode = code;
       }
 
-      print('Extracted asset code: $assetCode');
+      LoggerUtil.d('Extracted asset code: $assetCode');
 
       // Get asset data
       final assetData = await _getAssetData(assetCode, context);
@@ -171,7 +172,7 @@ class QRScannerController extends ChangeNotifier {
 
       return assetData;
     } catch (e) {
-      print('Error processing QR: $e');
+      LoggerUtil.e('Error processing QR', e, StackTrace.current);
       setError('Error: ${e.toString().replaceAll('Exception: ', '')}');
       return null;
     } finally {
@@ -188,7 +189,7 @@ class QRScannerController extends ChangeNotifier {
       final url = Uri.parse(
           '${ApiConfig.baseUrl}/assets/qr/${Uri.encodeComponent(assetCode)}');
 
-      print('Calling API endpoint: $url');
+      LoggerUtil.d('Calling API endpoint: $url');
 
       final headers = {
         'Content-Type': 'application/json',
@@ -200,12 +201,33 @@ class QRScannerController extends ChangeNotifier {
       }
 
       final response = await http.get(url, headers: headers);
-      print('API response status: ${response.statusCode}');
-      print('API response body: ${response.body}');
+      LoggerUtil.d('API response status: ${response.statusCode}');
+      LoggerUtil.d('API response body length: ${response.body.length}');
 
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
+        LoggerUtil.d('API response data structure: ${data.keys}');
+
         if (data['data'] != null) {
+          // Cek struktur data yang diterima
+          final assetData = data['data'];
+          LoggerUtil.d('Asset data fields: ${assetData.keys}');
+
+          // Debugging untuk employee_number dan brand
+          LoggerUtil.d('Employee number: ${assetData['employee_number']}');
+          LoggerUtil.d('Brand info direct: ${assetData['brand']}');
+
+          if (assetData['asset_master'] != null) {
+            LoggerUtil.d(
+                'Asset master fields: ${assetData['asset_master'].keys}');
+
+            // Debug brand dari asset_master
+            if (assetData['asset_master']['brand'] != null) {
+              LoggerUtil.d(
+                  'Brand from asset_master: ${assetData['asset_master']['brand']}');
+            }
+          }
+
           return data['data'];
         } else {
           throw Exception('Data aset tidak ditemukan');
@@ -218,7 +240,7 @@ class QRScannerController extends ChangeNotifier {
         throw Exception(errorData['message'] ?? 'Gagal mendapatkan data aset');
       }
     } catch (e) {
-      print('Error getting asset data: $e');
+      LoggerUtil.e('Error getting asset data', e, StackTrace.current);
       throw Exception('Gagal mengambil data aset: ${e.toString()}');
     }
   }
@@ -244,7 +266,7 @@ class QRScannerController extends ChangeNotifier {
         }
       }
     } catch (e) {
-      print('Error emitting socket event: $e');
+      LoggerUtil.e('Error emitting socket event', e, StackTrace.current);
     }
   }
 

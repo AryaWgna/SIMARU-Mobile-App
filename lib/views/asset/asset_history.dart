@@ -168,16 +168,8 @@ class _AssetHistoryState extends State<AssetHistory> {
 
   // Format tanggal dari API
   String formatAPIDate(String dateString) {
-    try {
-      final date = DateTime.parse(dateString);
-      // Format hanya waktu (jam:menit)
-      final hour = date.hour.toString().padLeft(2, '0');
-      final minute = date.minute.toString().padLeft(2, '0');
-
-      return '$hour:$minute';
-    } catch (e) {
-      return '';
-    }
+    if (dateString == null || dateString.isEmpty) return '-';
+    return _historyController.formatAPIDate(dateString);
   }
 
   // Fungsi untuk memilih tanggal
@@ -385,7 +377,7 @@ class _AssetHistoryState extends State<AssetHistory> {
                               Text(
                                 'Ubah Tanggal',
                                 style: TextStyle(
-                                  fontFamily: 'Inter',
+                                  fontFamily: 'Poppins',
                                   fontSize: 16,
                                   color: Colors.white,
                                 ),
@@ -406,7 +398,7 @@ class _AssetHistoryState extends State<AssetHistory> {
                               return Text(
                                 formatDate(controller.selectedDate),
                                 style: const TextStyle(
-                                  fontFamily: 'Inter',
+                                  fontFamily: 'Poppins',
                                   fontSize: 32,
                                   fontWeight: FontWeight.w500,
                                   color: Color(0xFF213268),
@@ -444,7 +436,7 @@ class _AssetHistoryState extends State<AssetHistory> {
                                     formatDay(controller.selectedDate),
                                     textAlign: TextAlign.center,
                                     style: const TextStyle(
-                                      fontFamily: 'Inter',
+                                      fontFamily: 'Poppins',
                                       fontSize: 22,
                                       fontWeight: FontWeight.w500,
                                       color: Color(0xFF213268),
@@ -653,7 +645,7 @@ class _AssetHistoryState extends State<AssetHistory> {
                                               _buildTimelineItem(
                                                 actionType: actionType,
                                                 message:
-                                                    '$employeeId mengubah status dari ',
+                                                    'Pegawai $employeeId mengubah status dari ',
                                                 oldStatus: history
                                                     .translateStatus(oldStatus),
                                                 connecting: ' ke ',
@@ -674,11 +666,12 @@ class _AssetHistoryState extends State<AssetHistory> {
                                               _buildDocumentTimelineItem(
                                                 message: message
                                                         .contains('uploaded')
-                                                    ? '${history.employeeId} mengunggah dokumen $docTitle'
+                                                    ? 'Pegawai ${history.employeeId} mengunggah dokumen $docTitle'
                                                     : message
                                                             .contains('updated')
-                                                        ? '${history.employeeId} memperbarui dokumen'
-                                                        : message,
+                                                        ? 'Pegawai ${history.employeeId} memperbarui dokumen'
+                                                        : _addPegawaiPrefix(
+                                                            message),
                                                 time: time,
                                               ),
                                               const SizedBox(height: 20),
@@ -688,7 +681,8 @@ class _AssetHistoryState extends State<AssetHistory> {
                                           return Column(
                                             children: [
                                               _buildSimpleTimelineItem(
-                                                message: message,
+                                                message:
+                                                    _addPegawaiPrefix(message),
                                                 time: time,
                                               ),
                                               const SizedBox(height: 20),
@@ -725,7 +719,7 @@ class _AssetHistoryState extends State<AssetHistory> {
     required String time,
   }) {
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 21),
+      padding: const EdgeInsets.symmetric(horizontal: 16),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -737,6 +731,11 @@ class _AssetHistoryState extends State<AssetHistory> {
                 decoration: const BoxDecoration(
                   color: Color(0xFF213268),
                   shape: BoxShape.circle,
+                ),
+                child: const Icon(
+                  Icons.swap_horiz,
+                  color: Colors.white,
+                  size: 18,
                 ),
               ),
               if (time.isNotEmpty)
@@ -753,7 +752,7 @@ class _AssetHistoryState extends State<AssetHistory> {
                     child: Text(
                       time,
                       style: const TextStyle(
-                        fontFamily: 'Inter',
+                        fontFamily: 'Poppins',
                         fontSize: 10,
                         color: Color(0xFF666666),
                       ),
@@ -780,7 +779,7 @@ class _AssetHistoryState extends State<AssetHistory> {
               child: RichText(
                 text: TextSpan(
                   style: const TextStyle(
-                    fontFamily: 'Inter',
+                    fontFamily: 'Poppins',
                     fontSize: 14,
                     color: Colors.black,
                   ),
@@ -820,7 +819,7 @@ class _AssetHistoryState extends State<AssetHistory> {
     required String time,
   }) {
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 21),
+      padding: const EdgeInsets.symmetric(horizontal: 16),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -853,7 +852,7 @@ class _AssetHistoryState extends State<AssetHistory> {
                     child: Text(
                       time,
                       style: const TextStyle(
-                        fontFamily: 'Inter',
+                        fontFamily: 'Poppins',
                         fontSize: 10,
                         color: Color(0xFF666666),
                       ),
@@ -880,7 +879,7 @@ class _AssetHistoryState extends State<AssetHistory> {
               child: Text(
                 message,
                 style: const TextStyle(
-                  fontFamily: 'Inter',
+                  fontFamily: 'Poppins',
                   fontSize: 14,
                   color: Colors.black,
                 ),
@@ -896,8 +895,24 @@ class _AssetHistoryState extends State<AssetHistory> {
     required String message,
     required String time,
   }) {
+    IconData iconData = Icons.info_outline;
+
+    // Select appropriate icon based on the message content
+    if (message.toLowerCase().contains('create')) {
+      iconData = Icons.add_circle_outline;
+    } else if (message.toLowerCase().contains('update')) {
+      iconData = Icons.edit;
+    } else if (message.toLowerCase().contains('delete')) {
+      iconData = Icons.delete_outline;
+    } else if (message.toLowerCase().contains('assign')) {
+      iconData = Icons.person_add;
+    } else if (message.toLowerCase().contains('check') ||
+        message.toLowerCase().contains('inspect')) {
+      iconData = Icons.check_circle_outline;
+    }
+
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 21),
+      padding: const EdgeInsets.symmetric(horizontal: 16),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -909,6 +924,11 @@ class _AssetHistoryState extends State<AssetHistory> {
                 decoration: const BoxDecoration(
                   color: Color(0xFF213268),
                   shape: BoxShape.circle,
+                ),
+                child: Icon(
+                  iconData,
+                  color: Colors.white,
+                  size: 18,
                 ),
               ),
               if (time.isNotEmpty)
@@ -925,7 +945,7 @@ class _AssetHistoryState extends State<AssetHistory> {
                     child: Text(
                       time,
                       style: const TextStyle(
-                        fontFamily: 'Inter',
+                        fontFamily: 'Poppins',
                         fontSize: 10,
                         color: Color(0xFF666666),
                       ),
@@ -952,7 +972,7 @@ class _AssetHistoryState extends State<AssetHistory> {
               child: Text(
                 message,
                 style: const TextStyle(
-                  fontFamily: 'Inter',
+                  fontFamily: 'Poppins',
                   fontSize: 14,
                   color: Colors.black,
                 ),
@@ -966,7 +986,7 @@ class _AssetHistoryState extends State<AssetHistory> {
 
   Widget _buildSkeletonTimelineItem() {
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 21),
+      padding: const EdgeInsets.symmetric(horizontal: 16),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -978,6 +998,11 @@ class _AssetHistoryState extends State<AssetHistory> {
                 decoration: const BoxDecoration(
                   color: Color(0xFF213268),
                   shape: BoxShape.circle,
+                ),
+                child: const Icon(
+                  Icons.history,
+                  color: Colors.white,
+                  size: 18,
                 ),
               ),
               Padding(
@@ -1105,7 +1130,7 @@ class _AssetHistoryState extends State<AssetHistory> {
             Text(
               label,
               style: TextStyle(
-                fontFamily: 'Inter',
+                fontFamily: 'Poppins',
                 fontSize: 12,
                 color: isActive
                     ? const Color(0xFF213268)
@@ -1116,5 +1141,24 @@ class _AssetHistoryState extends State<AssetHistory> {
         ),
       ),
     );
+  }
+
+  String _addPegawaiPrefix(String message) {
+    // Skip adding prefix if message already starts with "Pegawai"
+    if (message.startsWith('Pegawai ')) {
+      return message;
+    }
+
+    // Identify common patterns where employee ID/name appears at the start of the message
+    final RegExp employeePattern = RegExp(r'^([a-zA-Z0-9_-]+)(\s+\w+)');
+    final match = employeePattern.firstMatch(message);
+
+    if (match != null) {
+      // Replace the first word (likely an employee ID) with "Pegawai [ID]"
+      return 'Pegawai ${match.group(1)}${match.group(2)}';
+    }
+
+    // If no pattern matches, return the original message
+    return message;
   }
 }

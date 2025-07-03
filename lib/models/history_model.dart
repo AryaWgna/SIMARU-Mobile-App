@@ -23,7 +23,7 @@ class HistoryModel {
     final message = json['message'] as String;
     // Terjemahkan pesan status menjadi bahasa Indonesia
     String translatedMessage = message;
-    
+
     if (message.contains('changed status from')) {
       translatedMessage =
           message.replaceAll('changed status from', 'mengubah status dari');
@@ -39,9 +39,21 @@ class HistoryModel {
           translatedMessage.replaceAll('Disposed', 'Dimusnahkan');
     }
 
+    // Parse the action date and convert to local time
+    DateTime parsedActionDate;
+    try {
+      // Parse the ISO string from the API
+      parsedActionDate = DateTime.parse(json['action_date']);
+      // Convert to local time zone
+      parsedActionDate = parsedActionDate.toLocal();
+    } catch (e) {
+      // Fallback to current time if parsing fails
+      parsedActionDate = DateTime.now();
+    }
+
     return HistoryModel(
       historyId: json['history_id'],
-      actionDate: DateTime.parse(json['action_date']),
+      actionDate: parsedActionDate,
       user: UserInfo.fromJson(json['user']),
       message: translatedMessage,
       actionType: json['action_type'],

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'dart:convert';
 import 'auth_controller.dart';
+import '../utils/logger_util.dart';
 
 class AssetCheckinController extends ChangeNotifier {
   bool _isLoading = false;
@@ -32,7 +33,7 @@ class AssetCheckinController extends ChangeNotifier {
     if (_isLoading != loading) {
       _isLoading = loading;
       notifyListeners();
-      print('AssetCheckinController loading state set to: $_isLoading');
+      LoggerUtil.d('AssetCheckinController loading state set to: $_isLoading');
     }
   }
 
@@ -68,7 +69,7 @@ class AssetCheckinController extends ChangeNotifier {
         "condition": _selectedCondition,
       };
 
-      print('Sending return request: $requestBody');
+      LoggerUtil.i('Sending return request with asset ID: ${assetId}');
 
       final response = await ApiService.post(
         '/asset-transfers/return',
@@ -76,8 +77,8 @@ class AssetCheckinController extends ChangeNotifier {
         context: context,
       );
 
-      print('Response status: ${response.statusCode}');
-      print('Response body: ${response.body}');
+      LoggerUtil.d('Response status: ${response.statusCode}');
+      LoggerUtil.d('Response received with ${response.body.length} bytes');
 
       if (response.statusCode == 200 || response.statusCode == 201) {
         final data = json.decode(response.body);
@@ -104,7 +105,7 @@ class AssetCheckinController extends ChangeNotifier {
             errorMsg = data['error'];
           }
         } catch (e) {
-          print('Failed to parse error response: $e');
+          LoggerUtil.e('Failed to parse error response', e, StackTrace.current);
         }
 
         throw Exception(errorMsg);

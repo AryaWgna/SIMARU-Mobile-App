@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'dart:convert';
 import 'auth_controller.dart' as auth;
 import '../models/scan_result_model.dart';
+import '../utils/logger_util.dart';
 
 class ScanResultController extends ChangeNotifier {
   // Data dari API
@@ -10,6 +11,7 @@ class ScanResultController extends ChangeNotifier {
   List<AssetScanDetail> _misplacedAssets = [];
   SummaryData? _summaryData;
   RoomInfo? _roomInfo;
+  OpnameInfo? _opnameInfo;
   bool _isLoading = true;
   String? _errorMessage;
 
@@ -19,6 +21,7 @@ class ScanResultController extends ChangeNotifier {
   List<AssetScanDetail> get misplacedAssets => _misplacedAssets;
   SummaryData? get summaryData => _summaryData;
   RoomInfo? get roomInfo => _roomInfo;
+  OpnameInfo? get opnameInfo => _opnameInfo;
   bool get isLoading => _isLoading;
   String? get errorMessage => _errorMessage;
 
@@ -28,12 +31,8 @@ class ScanResultController extends ChangeNotifier {
     clearError();
 
     try {
-      // Ambil data untuk setiap status scan
-      await Future.wait([
-        _fetchAssetsByStatus('found', opnameId),
-        _fetchAssetsByStatus('missing', opnameId),
-        _fetchAssetsByStatus('misplaced', opnameId),
-      ]);
+      // Ambil semua data sekaligus dan filter berdasarkan status
+      await _fetchAllAssets(opnameId);
     } catch (e) {
       setError('Gagal memuat data: $e');
     } finally {
@@ -41,74 +40,75 @@ class ScanResultController extends ChangeNotifier {
     }
   }
 
-  // Mengambil data aset berdasarkan status scan
-  Future<void> _fetchAssetsByStatus(String status, int opnameId) async {
+  // Mengambil semua data aset sekaligus
+  Future<void> _fetchAllAssets(int opnameId) async {
     try {
-      print('Memuat aset dengan status: $status');
+      LoggerUtil.i('Memuat semua aset untuk opname ID: $opnameId');
+
+      // Menggunakan endpoint API yang baru
       final response = await auth.ApiService.get(
-        '/asset-opname-details/opname/$opnameId?scan_status=$status',
+        '/asset-opname-details/opname/$opnameId',
       );
 
-      print(
-          'Response untuk status $status: ${response.statusCode} - ${response.body}');
+      LoggerUtil.d('Response API: ${response.statusCode} - ${response.body}');
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
 
         if (data['success'] == true) {
-          // Tambahkan penanganan untuk berbagai format data yang mungkin dikembalikan
-          List<dynamic> assetsJson = [];
+          // Reset data
+          _foundAssets = [];
+          _missingAssets = [];
+          _misplacedAssets = [];
 
-          // Periksa tipe data dari data['data']
-          if (data['data'] is List) {
-            // Jika sudah berupa list, gunakan langsung
-            assetsJson = data['data'];
-          } else if (data['data'] is Map) {
-            // Jika berupa map, cek apakah ada kunci yang berisi list
-            // Ini adalah solusi sementara, lebih baik menyesuaikan dengan struktur API yang sebenarnya
-            if (data['data']['assets'] is List) {
-              assetsJson = data['data']['assets'];
-            } else {
-              // Jika tidak ada list di dalam map, gunakan list kosong
-              print(
-                  'Data assets tidak ditemukan atau bukan list: ${data['data']}');
-              assetsJson = [];
+          // Parse data dari format API yang baru
+          if (data['data'] != null && data['data']['details'] != null) {
+            List<dynamic> assetsJson = data['data']['details'];
+
+            LoggerUtil.i('Total assets loaded: ${assetsJson.length}');
+
+            // Filter dan kategorikan aset berdasarkan status
+            for (var json in assetsJson) {
+              final asset = AssetScanDetail.fromJson(json);
+
+              LoggerUtil.d(
+                  'Processing asset: ${asset.assetCode}, status: ${asset.scanStatus}');
+
+              switch (asset.scanStatus.toLowerCase()) {
+                case 'found':
+                  _foundAssets.add(asset);
+                  break;
+                case 'missing':
+                  _missingAssets.add(asset);
+                  break;
+                case 'misplaced':
+                  _misplacedAssets.add(asset);
+                  break;
+                default:
+                  LoggerUtil.w('Unknown scan status: ${asset.scanStatus}');
+              }
             }
-          } else {
-            // Jika bukan list atau map, gunakan list kosong
-            print('Tipe data tidak didukung: ${data['data']}');
-            assetsJson = [];
+
+            LoggerUtil.i('Found assets: ${_foundAssets.length}');
+            LoggerUtil.i('Missing assets: ${_missingAssets.length}');
+            LoggerUtil.i('Misplaced assets: ${_misplacedAssets.length}');
           }
 
-          final List<AssetScanDetail> assets = assetsJson
-              .where((json) => json != null)
-              .map((json) => AssetScanDetail.fromJson(json))
-              .toList();
-
-          // Simpan data summary dan room info saat first call
-          if (_summaryData == null && data['summary'] != null) {
-            try {
-              _summaryData = SummaryData.fromJson(data['summary']);
-            } catch (e) {
-              print('Error saat parsing summary: $e');
-            }
+          // Simpan data summary
+          if (data['data'] != null && data['data']['summary'] != null) {
+            _summaryData = SummaryData.fromJson(data['data']['summary']);
           }
 
-          if (_roomInfo == null && data['room_info'] != null) {
-            try {
-              _roomInfo = RoomInfo.fromJson(data['room_info']);
-            } catch (e) {
-              print('Error saat parsing room_info: $e');
-            }
+          // Simpan data room info
+          if (data['data'] != null && data['data']['room_info'] != null) {
+            _roomInfo = RoomInfo.fromJson(data['data']['room_info']);
           }
 
-          if (status == 'found') {
-            _foundAssets = assets;
-          } else if (status == 'missing') {
-            _missingAssets = assets;
-          } else if (status == 'misplaced') {
-            _misplacedAssets = assets;
+          // Simpan data opname info
+          if (data['data'] != null && data['data']['opname_info'] != null) {
+            _opnameInfo = OpnameInfo.fromJson(data['data']['opname_info']);
           }
+
           notifyListeners();
         } else {
           throw data['message'] ?? 'Gagal memuat data';
@@ -117,8 +117,7 @@ class ScanResultController extends ChangeNotifier {
         throw 'Error status code: ${response.statusCode}';
       }
     } catch (e, stackTrace) {
-      print('Error saat memuat data: $e');
-      print('Stack trace: $stackTrace');
+      LoggerUtil.e('Error saat memuat data', e, stackTrace);
       setError('Gagal memuat data: $e');
     }
   }
@@ -129,31 +128,93 @@ class ScanResultController extends ChangeNotifier {
     try {
       setLoading(true);
 
+      LoggerUtil.i('===== SAVING NOTES TO API =====');
+      LoggerUtil.d('Detail ID: $detailId');
+      LoggerUtil.d('Notes: $notes');
+
+      // Menggunakan endpoint dari dokumentasi API
+      final endpoint = '/asset-opname-details/$detailId/notes';
+      LoggerUtil.d('API Endpoint: $endpoint');
+
+      final payload = {
+        'notes': notes,
+      };
+      LoggerUtil.d('Request Payload: $payload');
+
+      // Menggunakan endpoint dari dokumentasi API
       final response = await auth.ApiService.put(
-        '/asset-opname-details/$detailId/notes',
-        body: {
-          'notes': notes,
-        },
+        endpoint,
+        body: payload,
         context: context,
       );
 
+      LoggerUtil.d('API Response Status: ${response.statusCode}');
+      LoggerUtil.d('API Response Body: ${response.body}');
+
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
+        LoggerUtil.d('API Response Decoded: $data');
 
         if (data['success'] == true) {
+          LoggerUtil.i('Notes saved successfully to API!');
+          // Perbarui data lokal
+          _updateLocalNotes(detailId, notes);
           return true;
         } else {
-          throw data['message'] ?? 'Gagal menyimpan catatan';
+          final errorMessage = data['message'] ?? 'Gagal menyimpan catatan';
+          LoggerUtil.w('API Error: $errorMessage');
+          throw errorMessage;
         }
       } else {
-        throw 'Error status code: ${response.statusCode}';
+        final errorMessage = 'Error status code: ${response.statusCode}';
+        LoggerUtil.w('API Error: $errorMessage');
+        throw errorMessage;
       }
     } catch (e) {
+      LoggerUtil.e('Exception during saveNotes', e, StackTrace.current);
       setError('Gagal menyimpan catatan: $e');
       return false;
     } finally {
+      LoggerUtil.d('===== END SAVING NOTES =====');
       setLoading(false);
     }
+  }
+
+  // Memperbarui catatan pada data lokal
+  void _updateLocalNotes(int detailId, String notes) {
+    LoggerUtil.d('Updating local notes for detailId: $detailId, notes: $notes');
+
+    // Cari dan perbarui catatan di setiap daftar aset
+    for (int i = 0; i < _foundAssets.length; i++) {
+      if (_foundAssets[i].detailId == detailId) {
+        // Gunakan metode copyWith untuk memperbarui catatan
+        _foundAssets[i] = _foundAssets[i].copyWith(notes: notes);
+        LoggerUtil.d('Updated notes in foundAssets list');
+        break;
+      }
+    }
+
+    // Lakukan hal yang sama untuk aset yang hilang
+    for (int i = 0; i < _missingAssets.length; i++) {
+      if (_missingAssets[i].detailId == detailId) {
+        _missingAssets[i] = _missingAssets[i].copyWith(notes: notes);
+        LoggerUtil.d('Updated notes in missingAssets list');
+        break;
+      }
+    }
+
+    // Lakukan hal yang sama untuk aset yang berpindah
+    for (int i = 0; i < _misplacedAssets.length; i++) {
+      if (_misplacedAssets[i].detailId == detailId) {
+        _misplacedAssets[i] = _misplacedAssets[i].copyWith(notes: notes);
+        LoggerUtil.d('Updated notes in misplacedAssets list');
+        break;
+      }
+    }
+
+    // Beri tahu listener bahwa data telah berubah
+    notifyListeners();
+    LoggerUtil.d('Notified listeners of notes update');
   }
 
   // Helper methods
@@ -179,6 +240,7 @@ class ScanResultController extends ChangeNotifier {
     _misplacedAssets = [];
     _summaryData = null;
     _roomInfo = null;
+    _opnameInfo = null;
     _isLoading = true;
     _errorMessage = null;
     notifyListeners();

@@ -170,14 +170,14 @@ class Building {
       buildingName = json['name'].toString();
     }
 
-    print('Building parsed: id=$buildingId, name=$buildingName');
+    // Coba berbagai kemungkinan key untuk address
     String? buildingAddress;
     if (json['address'] != null) {
-      // Prioritaskan name karena ini format dari API
       buildingAddress = json['address'].toString();
-    } else if (json['name'] != null) {
-      buildingName = json['name'].toString();
     }
+
+    print(
+        'Building parsed: id=$buildingId, name=$buildingName, address=$buildingAddress');
 
     return Building(
       id: buildingId,

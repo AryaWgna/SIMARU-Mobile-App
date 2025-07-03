@@ -4,8 +4,9 @@ import 'package:provider/provider.dart';
 import '../../models/notification_model.dart';
 import '../../models/notification_types.dart';
 import '../../controllers/notification_controller.dart';
+import '../../controllers/auth_controller.dart';
 
-class NotificationDetailScreen extends StatelessWidget {
+class NotificationDetailScreen extends StatefulWidget {
   final NotificationModel notification;
 
   const NotificationDetailScreen({
@@ -14,9 +15,33 @@ class NotificationDetailScreen extends StatelessWidget {
   });
 
   @override
+  State<NotificationDetailScreen> createState() =>
+      _NotificationDetailScreenState();
+}
+
+class _NotificationDetailScreenState extends State<NotificationDetailScreen> {
+  String? _employeeNumber;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadEmployeeNumber();
+  }
+
+  // Load employee number for display
+  Future<void> _loadEmployeeNumber() async {
+    final employeeNumber = await ApiService.getEmployeeNumber();
+    if (mounted) {
+      setState(() {
+        _employeeNumber = employeeNumber;
+      });
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
     final notificationType =
-        NotificationTypeExtension.fromString(notification.type);
+        NotificationTypeExtension.fromString(widget.notification.type);
     final controller =
         Provider.of<NotificationController>(context, listen: false);
 
@@ -35,6 +60,7 @@ class NotificationDetailScreen extends StatelessWidget {
           title: const Text(
             'Detail Notifikasi',
             style: TextStyle(
+              fontFamily: 'Poppins',
               fontSize: 20,
               fontWeight: FontWeight.w600,
               color: Colors.white,
@@ -53,61 +79,99 @@ class NotificationDetailScreen extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Icon dan tipe notifikasi
-            Row(
-              children: [
-                Container(
-                  width: 60,
-                  height: 60,
-                  decoration: BoxDecoration(
-                    color: notificationType.color.withOpacity(0.2),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Icon(
-                    notificationType.icon,
-                    color: notificationType.color,
-                    size: 30,
-                  ),
-                ),
-                const SizedBox(width: 16),
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+            // Header card with icon and type
+            Card(
+              elevation: 2,
+              color: Colors.white,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Row(
                   children: [
-                    Text(
-                      notificationType.title,
-                      style: const TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w500,
-                        color: Color(0xFF666666),
+                    Container(
+                      width: 60,
+                      height: 60,
+                      decoration: BoxDecoration(
+                        color: notificationType.color.withOpacity(0.2),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Icon(
+                        notificationType.icon,
+                        color: notificationType.color,
+                        size: 30,
                       ),
                     ),
-                    Text(
-                      controller.formatDateTime(notification.createdAt),
-                      style: const TextStyle(
-                        fontSize: 14,
-                        color: Colors.grey,
+                    const SizedBox(width: 16),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            notificationType.title,
+                            style: const TextStyle(
+                              fontFamily: 'Poppins',
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.black,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            controller
+                                .formatDateTime(widget.notification.createdAt),
+                            style: TextStyle(
+                              fontFamily: 'Poppins',
+                              fontSize: 14,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.grey.shade600,
+                            ),
+                          ),
+                        ],
                       ),
                     ),
                   ],
                 ),
-              ],
+              ),
             ),
 
             const SizedBox(height: 24),
 
             // Judul notifikasi
             Text(
-              notification.title,
+              'Judul',
+              style: TextStyle(
+                fontFamily: 'Poppins',
+                fontSize: 14,
+                fontWeight: FontWeight.bold,
+                color: Colors.grey.shade600,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              widget.notification.title,
               style: const TextStyle(
+                fontFamily: 'Poppins',
                 fontSize: 20,
-                fontWeight: FontWeight.w600,
+                fontWeight: FontWeight.bold,
                 color: Color(0xFF213268),
               ),
             ),
 
-            const SizedBox(height: 16),
+            const SizedBox(height: 24),
 
             // Konten notifikasi
+            Text(
+              'Pesan',
+              style: TextStyle(
+                fontFamily: 'Poppins',
+                fontSize: 14,
+                fontWeight: FontWeight.bold,
+                color: Colors.grey.shade600,
+              ),
+            ),
+            const SizedBox(height: 8),
             Container(
               width: double.infinity,
               padding: const EdgeInsets.all(16),
@@ -120,40 +184,19 @@ class NotificationDetailScreen extends StatelessWidget {
                 ),
               ),
               child: Text(
-                notification.message,
+                widget.notification.message,
                 style: const TextStyle(
+                  fontFamily: 'Poppins',
                   fontSize: 16,
+                  fontWeight: FontWeight.bold,
                   color: Colors.black87,
                   height: 1.5,
                 ),
               ),
             ),
 
-            // Informasi tentang dibaca/belum
-            if (notification.isRead && notification.readAt != null)
-              Padding(
-                padding: const EdgeInsets.only(top: 16),
-                child: Row(
-                  children: [
-                    const Icon(
-                      Icons.check_circle,
-                      color: Colors.green,
-                      size: 18,
-                    ),
-                    const SizedBox(width: 8),
-                    Text(
-                      'Dibaca pada ${controller.formatReadDateTime(notification.readAt!)}',
-                      style: const TextStyle(
-                        fontSize: 14,
-                        color: Colors.grey,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-
             // Informasi terkait aset jika ada
-            if (notification.assetCode != null)
+            if (widget.notification.assetCode != null)
               Padding(
                 padding: const EdgeInsets.only(top: 24),
                 child: Column(
@@ -162,8 +205,9 @@ class NotificationDetailScreen extends StatelessWidget {
                     const Text(
                       'Informasi Aset',
                       style: TextStyle(
+                        fontFamily: 'Poppins',
                         fontSize: 18,
-                        fontWeight: FontWeight.w600,
+                        fontWeight: FontWeight.bold,
                         color: Color(0xFF213268),
                       ),
                     ),
@@ -178,10 +222,11 @@ class NotificationDetailScreen extends StatelessWidget {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            _buildInfoRow('Kode Aset', notification.assetCode!),
-                            if (notification.assetId != null)
-                              _buildInfoRow(
-                                  'ID Aset', notification.assetId.toString()),
+                            _buildInfoRow(
+                                'Kode Aset', widget.notification.assetCode!),
+                            if (widget.notification.assetId != null)
+                              _buildInfoRow('ID Aset',
+                                  widget.notification.assetId.toString()),
                           ],
                         ),
                       ),
@@ -191,8 +236,8 @@ class NotificationDetailScreen extends StatelessWidget {
               ),
 
             // Gambar jika ada
-            if (notification.imageUrl != null &&
-                notification.imageUrl!.isNotEmpty)
+            if (widget.notification.imageUrl != null &&
+                widget.notification.imageUrl!.isNotEmpty)
               Padding(
                 padding: const EdgeInsets.only(top: 24),
                 child: Column(
@@ -201,8 +246,9 @@ class NotificationDetailScreen extends StatelessWidget {
                     const Text(
                       'Lampiran',
                       style: TextStyle(
+                        fontFamily: 'Poppins',
                         fontSize: 18,
-                        fontWeight: FontWeight.w600,
+                        fontWeight: FontWeight.bold,
                         color: Color(0xFF213268),
                       ),
                     ),
@@ -210,7 +256,7 @@ class NotificationDetailScreen extends StatelessWidget {
                     ClipRRect(
                       borderRadius: BorderRadius.circular(8),
                       child: Image.network(
-                        notification.imageUrl!,
+                        widget.notification.imageUrl!,
                         fit: BoxFit.cover,
                         width: double.infinity,
                         height: 200,
@@ -222,7 +268,8 @@ class NotificationDetailScreen extends StatelessWidget {
                             child: const Center(
                               child: Text(
                                 'Gagal memuat gambar',
-                                style: TextStyle(color: Colors.grey),
+                                style: TextStyle(
+                                    fontFamily: 'Poppins', color: Colors.grey),
                               ),
                             ),
                           );
@@ -248,9 +295,10 @@ class NotificationDetailScreen extends StatelessWidget {
             width: 100,
             child: Text(
               '$label:',
-              style: const TextStyle(
-                fontWeight: FontWeight.w500,
-                color: Colors.grey,
+              style: TextStyle(
+                fontFamily: 'Poppins',
+                fontWeight: FontWeight.bold,
+                color: Colors.grey.shade600,
               ),
             ),
           ),
@@ -258,6 +306,8 @@ class NotificationDetailScreen extends StatelessWidget {
             child: Text(
               value,
               style: const TextStyle(
+                fontFamily: 'Poppins',
+                fontWeight: FontWeight.bold,
                 color: Colors.black87,
               ),
             ),

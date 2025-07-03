@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'dart:convert';
 import 'auth_controller.dart' as auth;
+import '../utils/logger_util.dart';
+import 'package:intl/intl.dart';
 
 class AssetDetailsController extends ChangeNotifier {
   Map<String, dynamic>? _assetData;
@@ -22,6 +24,24 @@ class AssetDetailsController extends ChangeNotifier {
 
   void setAssetData(Map<String, dynamic>? data) {
     _assetData = data;
+
+    // If data contains asset_master, also set masterAssetData
+    if (data != null && data['asset_master'] != null) {
+      String assetType =
+          _getSimplifiedAssetType(data['asset_master']['asset_type'] ?? '-');
+
+      _masterAssetData = {
+        'asset_master_code': data['asset_master']['asset_master_code'] ?? '-',
+        'asset_name': data['asset_master']['asset_name'] ?? '-',
+        'asset_type': assetType,
+        'subcategory_name': data['asset_master']['subcategory_name'] ?? '-',
+        'brand_name': data['asset_master']['brands']?['brand_name'] ?? '-',
+        'needs_calibration': data['asset_master']['needs_calibration'] ?? false,
+        'is_depreciable': data['asset_master']['is_depreciable'] ?? false,
+        'description': data['asset_master']['description'] ?? '-'
+      };
+    }
+
     notifyListeners();
   }
 
@@ -38,6 +58,11 @@ class AssetDetailsController extends ChangeNotifier {
     notifyListeners();
   }
 
+  void setLoading(bool loading) {
+    _isLoading = loading;
+    notifyListeners();
+  }
+
   Future<void> fetchAssetData(String assetCode, {BuildContext? context}) async {
     _isLoading = true;
     _hasError = false;
@@ -45,26 +70,88 @@ class AssetDetailsController extends ChangeNotifier {
     notifyListeners();
 
     try {
-      print('[ASSET_DETAILS] Mengambil data aset untuk: $assetCode');
+      LoggerUtil.i('[ASSET_DETAILS] Mengambil data aset untuk: $assetCode');
 
       // Gunakan endpoint untuk mengambil data aset berdasarkan kode/QR
       final endpoint = '/assets/qr/${Uri.encodeComponent(assetCode)}';
 
-      print('[ASSET_DETAILS] Memanggil API endpoint: $endpoint');
+      LoggerUtil.d('[ASSET_DETAILS] Memanggil API endpoint: $endpoint');
       final response = await auth.ApiService.get(endpoint, context: context);
 
       if (response.statusCode == 200) {
         final responseData = jsonDecode(response.body);
+        LoggerUtil.d('[ASSET_DETAILS] Response data: $responseData');
 
         if (responseData['success'] == true && responseData['data'] != null) {
           final fullAssetData = responseData['data'];
 
-          // Set data aset
-          _assetData = fullAssetData;
+          // Log data lengkap untuk debugging
+          LoggerUtil.d('[ASSET_DETAILS] Full asset data: $fullAssetData');
+
+          // Map respons API ke format yang diharapkan aplikasi
+          Map<String, dynamic> mappedData = {
+            'asset_id': fullAssetData['asset_id'],
+            'asset_code': fullAssetData['asset_code'],
+            'asset_name': fullAssetData['asset_master']?['asset_name'] ??
+                'Tidak diketahui',
+            'asset_master_id': fullAssetData['asset_master_id'],
+            'asset_master_code': fullAssetData['asset_master']
+                ?['asset_master_code'],
+            'current_status': fullAssetData['current_status'] ?? 'available',
+            'condition': fullAssetData['condition'] ?? '-',
+            'serial_number': fullAssetData['serial_number'] ?? '-',
+            'warranty_end_date': fullAssetData['warranty_end_date'] ?? '-',
+            'purchase_date': fullAssetData['purchase_date'] ?? '-',
+            'purchase_price': fullAssetData['purchase_cost'] ?? '-',
+            'disposal_date': fullAssetData['disposal_date'] ?? '-',
+            'picture_path': fullAssetData['qr_code'] ?? '',
+            'subcategory': {
+              'subcategory_name':
+                  fullAssetData['asset_master']?['subcategory_name'] ?? '-',
+              'asset_type': _getSimplifiedAssetType(
+                  fullAssetData['asset_master']?['asset_type'] ?? '-')
+            },
+            'brands': {
+              'brand_name':
+                  fullAssetData['asset_master']?['brands']?['brand_name'] ?? '-'
+            },
+            'room': {
+              'room_name': fullAssetData['room_name'] ?? '-',
+              'building': {
+                'building_name': fullAssetData['building_name'] ?? '-'
+              }
+            },
+            'responsible_user': fullAssetData['user_id'] != null
+                ? {
+                    'user_id': fullAssetData['user_id'] ?? '-',
+                    'name': fullAssetData['employee_number'] ?? '-'
+                  }
+                : null,
+            'description': fullAssetData['asset_master']?['description'] ?? '-'
+          };
+
+          // Set data aset yang telah dimap
+          _assetData = mappedData;
 
           // Ambil data master aset
           if (fullAssetData['asset_master'] != null) {
-            _masterAssetData = fullAssetData['asset_master'];
+            String assetType = _getSimplifiedAssetType(
+                fullAssetData['asset_master']['asset_type'] ?? '-');
+
+            _masterAssetData = {
+              'asset_master_code':
+                  fullAssetData['asset_master']['asset_master_code'] ?? '-',
+              'asset_name': fullAssetData['asset_master']['asset_name'] ?? '-',
+              'asset_type': assetType,
+              'subcategory_name':
+                  fullAssetData['asset_master']['subcategory_name'] ?? '-',
+              'brand_name': fullAssetData['asset_master']['brand_name'] ?? '-',
+              'needs_calibration':
+                  fullAssetData['asset_master']['needs_calibration'] ?? false,
+              'is_depreciable':
+                  fullAssetData['asset_master']['is_depreciable'] ?? false,
+              'description': fullAssetData['asset_master']['description'] ?? '-'
+            };
             _isLoading = false;
           } else if (fullAssetData['asset_master_id'] != null) {
             // Jika ada asset_master_id tapi tidak ada nested asset_master, ambil data master
@@ -91,7 +178,11 @@ class AssetDetailsController extends ChangeNotifier {
       _hasError = true;
       _errorMessage = 'Error: $e';
       _isLoading = false;
-      print('[ASSET_DETAILS] Error saat mengambil data aset: $e');
+      LoggerUtil.e('[ASSET_DETAILS] Error saat mengambil data aset', e,
+          StackTrace.current);
+    } finally {
+      // Pastikan loading state selalu di-reset di akhir proses
+      _isLoading = false;
     }
 
     notifyListeners();
@@ -104,28 +195,44 @@ class AssetDetailsController extends ChangeNotifier {
     notifyListeners();
 
     try {
-      print(
+      LoggerUtil.i(
           '[ASSET_DETAILS] Mengambil data master aset dengan ID: $assetMasterId');
 
       // Gunakan endpoint untuk mengambil data master aset berdasarkan ID
-      final endpoint = '/assets/$assetMasterId';
+      final endpoint = '/asset-masters/$assetMasterId';
 
-      print('[ASSET_DETAILS] Memanggil API endpoint: $endpoint');
+      LoggerUtil.d('[ASSET_DETAILS] Memanggil API endpoint: $endpoint');
       final response = await auth.ApiService.get(endpoint, context: context);
 
-      print('[ASSET_DETAILS] Status response: ${response.statusCode}');
+      LoggerUtil.d('[ASSET_DETAILS] Status response: ${response.statusCode}');
 
       if (response.statusCode == 200) {
         final responseData = jsonDecode(response.body);
-        print('[ASSET_DETAILS] Response data: $responseData');
+        LoggerUtil.d('[ASSET_DETAILS] Response data: $responseData');
 
         if (responseData['success'] == true && responseData['data'] != null) {
-          _masterAssetData = responseData['data'];
+          final masterData = responseData['data'];
+
+          // Map respons API ke format yang diharapkan aplikasi
+          String assetType =
+              _getSimplifiedAssetType(masterData['asset_type'] ?? '-');
+
+          _masterAssetData = {
+            'asset_master_code': masterData['asset_master_code'] ?? '-',
+            'asset_name': masterData['asset_name'] ?? '-',
+            'asset_type': assetType,
+            'subcategory_name': masterData['subcategory_name'] ?? '-',
+            'brand_name': masterData['brand_name'] ?? '-',
+            'needs_calibration': masterData['needs_calibration'] ?? false,
+            'is_depreciable': masterData['is_depreciable'] ?? false,
+            'description': masterData['description'] ?? '-'
+          };
+
           _isLoading = false;
-          print(
+          LoggerUtil.i(
               '[ASSET_DETAILS] Data master aset berhasil diambil: $_masterAssetData');
         } else {
-          print(
+          LoggerUtil.w(
               '[ASSET_DETAILS] Response sukses tapi data tidak valid: ${responseData['message']}');
           _hasError = true;
           _errorMessage =
@@ -133,16 +240,20 @@ class AssetDetailsController extends ChangeNotifier {
           _isLoading = false;
         }
       } else {
-        print('[ASSET_DETAILS] Error API: ${response.statusCode}');
+        LoggerUtil.w('[ASSET_DETAILS] Error API: ${response.statusCode}');
         _hasError = true;
         _errorMessage =
             'Error ${response.statusCode}: Gagal mengambil data master aset';
         _isLoading = false;
       }
     } catch (e) {
-      print('[ASSET_DETAILS] Exception saat mengambil data: $e');
+      LoggerUtil.e('[ASSET_DETAILS] Exception saat mengambil data', e,
+          StackTrace.current);
       _hasError = true;
       _errorMessage = 'Error: $e';
+      _isLoading = false;
+    } finally {
+      // Pastikan loading state selalu di-reset di akhir proses
       _isLoading = false;
     }
 
@@ -152,59 +263,67 @@ class AssetDetailsController extends ChangeNotifier {
   // Fungsi untuk mendapatkan warna status
   Color getStatusColor(String status) {
     // Debug - tampilkan status yang diterima
-    print('[DETAIL DEBUG] Mendapatkan warna untuk status: $status');
+    LoggerUtil.d('[DETAIL DEBUG] Mendapatkan warna untuk status: $status');
 
-    // Gunakan status yang sudah dinormalisasi ke lowercase
-    switch (status.toLowerCase()) {
-      case 'available':
-        return const Color(0xFF659B09); // Hijau
-      case 'check out':
-        return const Color(0xFF0086C3); // Biru
-      case 'under repair':
-        return const Color(0xFFFF9900); // Oranye
-      case 'dispose':
-        return const Color(0xFF7A7A7A); // Abu-abu
-      case 'lost':
-        return const Color(0xFFDC3545); // Merah
+    // Gunakan status yang sudah dinormalisasi ke uppercase
+    switch (status.toUpperCase()) {
+      case 'AVAILABLE':
+      case 'TERSEDIA':
+        return const Color(0xFF7CB60C); // Hijau
+      case 'CHECK OUT':
+      case 'DIPINJAM':
+        return const Color(0xFFDAAE0F); // Kuning (sesuai history_screen)
+      case 'UNDER REPAIR':
+      case 'PERBAIKAN':
+        return const Color(0xFF25B1FF); // Biru (sesuai history_screen)
+      case 'DISPOSE':
+      case 'DIHAPUSKAN':
+        return const Color(0xFFACC3EF); // Abu-abu (sesuai history_screen)
+      case 'LOST':
+      case 'HILANG':
+        return const Color(0xFFFF4A2B); // Merah (sesuai history_screen)
       default:
-        print(
+        LoggerUtil.w(
             '[DETAIL DEBUG] Status tidak dikenal: $status, menggunakan default');
-        return const Color(0xFF659B09); // Default hijau
+        return const Color(0xFF7A7A7A); // Default Abu-abu
     }
   }
 
   // Fungsi untuk mendapatkan teks status
   String getStatusText(String status) {
     // Debug - tampilkan status yang diterima
-    print('[DETAIL DEBUG] Mendapatkan teks untuk status: $status');
+    LoggerUtil.d('[DETAIL DEBUG] Mendapatkan teks untuk status: $status');
 
-    // Gunakan status yang sudah dinormalisasi ke lowercase
-    switch (status.toLowerCase()) {
-      case 'available':
-        return 'Tersedia';
-      case 'check out':
-        return 'Dipinjam';
-      case 'under repair':
-        return 'Perbaikan';
-      case 'dispose':
-        return 'Dibuang';
-      case 'lost':
-        return 'Hilang';
+    // Gunakan status yang sudah dinormalisasi ke uppercase
+    switch (status.toUpperCase()) {
+      case 'AVAILABLE':
+        return 'TERSEDIA';
+      case 'CHECK OUT':
+        return 'DIPINJAM';
+      case 'UNDER REPAIR':
+        return 'PERBAIKAN';
+      case 'DISPOSE':
+        return 'DIHAPUSKAN';
+      case 'LOST':
+        return 'HILANG';
       default:
-        print(
+        LoggerUtil.w(
             '[DETAIL DEBUG] Status tidak dikenal: $status, menggunakan default');
-        return 'Tersedia';
+        return 'TERSEDIA';
     }
   }
 
   // Fungsi untuk mendapatkan ikon status
   IconData getStatusIcon(String status) {
-    switch (status.toLowerCase()) {
-      case 'lost':
+    switch (status.toUpperCase()) {
+      case 'LOST':
+      case 'HILANG':
         return Icons.help_outline;
-      case 'dispose':
+      case 'DISPOSE':
+      case 'DIHAPUSKAN':
         return Icons.delete_outline;
-      case 'under repair':
+      case 'UNDER REPAIR':
+      case 'PERBAIKAN':
         return Icons.build_outlined;
       default:
         return Icons.error_outline;
@@ -213,12 +332,15 @@ class AssetDetailsController extends ChangeNotifier {
 
   // Fungsi untuk mendapatkan pesan status unavailable
   String getStatusUnavailableMessage(String status) {
-    switch (status.toLowerCase()) {
-      case 'lost':
+    switch (status.toUpperCase()) {
+      case 'LOST':
+      case 'HILANG':
         return 'Aset Ini Dilaporkan Hilang';
-      case 'dispose':
+      case 'DISPOSE':
+      case 'DIHAPUSKAN':
         return 'Aset Ini Telah Dibuang';
-      case 'under repair':
+      case 'UNDER REPAIR':
+      case 'PERBAIKAN':
         return 'Aset Ini Sedang Dalam Perbaikan';
       default:
         return 'Aset Tidak Tersedia';
@@ -227,27 +349,33 @@ class AssetDetailsController extends ChangeNotifier {
 
   // Fungsi untuk mendapatkan warna background notifikasi
   Color getStatusBackgroundColor(String status) {
-    switch (status.toLowerCase()) {
-      case 'lost':
-        return Colors.red.shade50;
-      case 'dispose':
-        return Colors.grey.shade100;
-      case 'under repair':
-        return Colors.orange.shade50;
+    switch (status.toUpperCase()) {
+      case 'LOST':
+      case 'HILANG':
+        return Colors.white;
+      case 'DISPOSE':
+      case 'DIHAPUSKAN':
+        return Colors.white;
+      case 'UNDER REPAIR':
+      case 'PERBAIKAN':
+        return Colors.white;
       default:
-        return Colors.grey.shade100;
+        return Colors.white;
     }
   }
 
   // Fungsi untuk mendapatkan warna border notifikasi
   Color getStatusBorderColor(String status) {
-    switch (status.toLowerCase()) {
-      case 'lost':
+    switch (status.toUpperCase()) {
+      case 'LOST':
+      case 'HILANG':
         return Colors.red.shade200;
-      case 'dispose':
+      case 'DISPOSE':
+      case 'DIHAPUSKAN':
         return Colors.grey.shade300;
-      case 'under repair':
-        return Colors.orange.shade200;
+      case 'UNDER REPAIR':
+      case 'PERBAIKAN':
+        return Colors.blue.shade200;
       default:
         return Colors.grey.shade300;
     }
@@ -305,6 +433,18 @@ class AssetDetailsController extends ChangeNotifier {
     return conditionMap[formatted] ?? formatted;
   }
 
+  // Helper untuk mendapatkan tipe aset yang disederhanakan
+  String _getSimplifiedAssetType(String assetType) {
+    if (assetType == '-') return assetType;
+
+    if (assetType.toLowerCase().contains('medical') ||
+        assetType.toLowerCase().contains('medis')) {
+      return 'Medis';
+    } else {
+      return 'Non Medis';
+    }
+  }
+
   // Fungsi untuk menerjemahkan tipe aset ke Bahasa Indonesia
   String getIndonesianAssetType(String assetType) {
     if (assetType == '-') return assetType;
@@ -312,23 +452,8 @@ class AssetDetailsController extends ChangeNotifier {
     // Format teks terlebih dahulu
     String formatted = formatText(assetType);
 
-    // Map terjemahan tipe aset
-    Map<String, String> assetTypeMap = {
-      'Fixed Asset': 'Aset Tetap',
-      'Consumable': 'Barang Habis Pakai',
-      'Equipment': 'Peralatan',
-      'Furniture': 'Furnitur',
-      'It Equipment': 'Peralatan IT',
-      'Medical Equipment': 'Peralatan Medis',
-      'Non Medical': 'Non Medis',
-      'Non Medical Equipment': 'Peralatan Non Medis',
-      'Office Equipment': 'Peralatan Kantor',
-      'Vehicle': 'Kendaraan',
-      'Building': 'Bangunan',
-      'Land': 'Tanah',
-    };
-
-    return assetTypeMap[formatted] ?? formatted;
+    // Gunakan fungsi helper untuk menyederhanakan tipe aset
+    return _getSimplifiedAssetType(formatted);
   }
 
   // Format text hanya untuk Condition dan Asset Type
@@ -348,5 +473,17 @@ class AssetDetailsController extends ChangeNotifier {
     }).toList();
 
     return words.join(' ');
+  }
+
+  // Format tanggal API untuk menampilkan waktu lokal
+  String formatAPIDate(String dateString) {
+    try {
+      final date = DateTime.parse(dateString);
+      // Format tanggal dan waktu (DD MMM YYYY, HH:MM) dalam waktu lokal
+      final formatter = DateFormat('dd MMM yyyy, HH:mm');
+      return formatter.format(date.toLocal());
+    } catch (e) {
+      return '';
+    }
   }
 }

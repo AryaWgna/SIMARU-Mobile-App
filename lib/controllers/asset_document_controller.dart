@@ -7,6 +7,8 @@ import 'dart:math';
 import 'package:http/http.dart' as http;
 import 'package:path/path.dart' as path;
 import '../core/config/api_config.dart';
+import '../utils/logger_util.dart';
+import 'package:intl/intl.dart';
 
 class AssetDocumentController extends ChangeNotifier {
   List<AssetDocumentModel> _documents = [];
@@ -33,7 +35,7 @@ class AssetDocumentController extends ChangeNotifier {
     if (_isLoading != loading) {
       _isLoading = loading;
       notifyListeners();
-      print('AssetDocumentController loading state set to: $_isLoading');
+      LoggerUtil.d('AssetDocumentController loading state set to: $_isLoading');
     }
   }
 
@@ -88,6 +90,18 @@ class AssetDocumentController extends ChangeNotifier {
     notifyListeners();
   }
 
+  // Format tanggal dari API ke format lokal
+  String formatAPIDate(String dateString) {
+    try {
+      final date = DateTime.parse(dateString);
+      // Format tanggal dan waktu (DD MMM YYYY, HH:MM) dalam waktu lokal
+      final formatter = DateFormat('dd MMM yyyy, HH:mm');
+      return formatter.format(date.toLocal());
+    } catch (e) {
+      return '';
+    }
+  }
+
   // Mengambil dokumen aset berdasarkan asset_id
   Future<void> fetchAssetDocuments(int assetId, BuildContext context) async {
     try {
@@ -95,33 +109,66 @@ class AssetDocumentController extends ChangeNotifier {
       _error = null;
       notifyListeners();
 
-      // Menggunakan endpoint yang benar sesuai dengan dokumentasi API
-      final endpoint = '/asset-documents/asset/$assetId/documents';
-      print('Memanggil API endpoint: ${ApiConfig.baseUrl}$endpoint');
+      // Menggunakan endpoint untuk mendapatkan semua kategori dokumen
+      final endpoint = '/asset-documents/asset/$assetId/all-documents';
+      LoggerUtil.d('Memanggil API endpoint: ${ApiConfig.baseUrl}$endpoint');
 
       final response = await auth.ApiService.get(endpoint, context: context);
-      print('Response status: ${response.statusCode}');
-      print('Response body: ${response.body}');
+      LoggerUtil.d('Response status: ${response.statusCode}');
+      LoggerUtil.d('Response body: ${response.body}');
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
         if (data['success'] == true && data['data'] != null) {
-          final List<dynamic> documentsJson = data['data'];
-          _documents = documentsJson
-              .map((json) => AssetDocumentModel.fromJson(json))
-              .toList();
-          print('Berhasil mendapatkan ${_documents.length} dokumen');
+          // Proses dokumen reguler
+          final List<dynamic> documentsJson = data['data']['documents'] ?? [];
+
+          // Proses dokumen kalibrasi
+          final List<dynamic> calibrationDocsJson =
+              data['data']['calibrationDocuments'] ?? [];
+
+          // Proses dokumen maintenance
+          final List<dynamic> maintenanceDocsJson =
+              data['data']['maintenanceDocuments'] ?? [];
+
+          // Gabungkan semua dokumen
+          List<AssetDocumentModel> allDocuments = [];
+
+          // Tambahkan kategori dokumen reguler
+          allDocuments.addAll(documentsJson
+              .map((json) =>
+                  AssetDocumentModel.fromJson(json, docType: 'Dokumen'))
+              .toList());
+
+          // Tambahkan kategori dokumen kalibrasi
+          allDocuments.addAll(calibrationDocsJson
+              .map((json) =>
+                  AssetDocumentModel.fromJson(json, docType: 'Kalibrasi'))
+              .toList());
+
+          // Tambahkan kategori dokumen maintenance
+          allDocuments.addAll(maintenanceDocsJson
+              .map((json) =>
+                  AssetDocumentModel.fromJson(json, docType: 'Pemeliharaan'))
+              .toList());
+
+          // Sortir dokumen berdasarkan tanggal upload (terbaru ke lama)
+          allDocuments.sort((a, b) => b.uploadDate.compareTo(a.uploadDate));
+
+          _documents = allDocuments;
+          LoggerUtil.i(
+              'Berhasil mendapatkan ${_documents.length} dokumen total');
         } else {
           _error = data['message'] ?? 'Gagal mengambil data dokumen';
-          print('Error dari API: $_error');
+          LoggerUtil.w('Error dari API: $_error');
         }
       } else {
         _error = 'HTTP Error: ${response.statusCode}';
-        print('HTTP Error: ${response.statusCode}');
+        LoggerUtil.w('HTTP Error: ${response.statusCode}');
       }
     } catch (e) {
       _error = e.toString();
-      print('Error fetching asset documents: $e');
+      LoggerUtil.e('Error fetching asset documents', e, StackTrace.current);
     } finally {
       _isLoading = false;
       notifyListeners();
@@ -144,7 +191,7 @@ class AssetDocumentController extends ChangeNotifier {
       // Persiapan data untuk multipart request - menggunakan endpoint yang benar
       final url = Uri.parse(
           '${ApiConfig.baseUrl}/asset-documents/asset/$assetId/documents');
-      print('Mengunggah dokumen ke: $url');
+      LoggerUtil.d('Mengunggah dokumen ke: $url');
 
       // Ambil token autentikasi
       final token = await auth.ApiService.getAuthToken();
@@ -173,8 +220,8 @@ class AssetDocumentController extends ChangeNotifier {
       // Kirim request
       final streamedResponse = await request.send();
       final response = await http.Response.fromStream(streamedResponse);
-      print('Upload response status: ${response.statusCode}');
-      print('Upload response body: ${response.body}');
+      LoggerUtil.d('Upload response status: ${response.statusCode}');
+      LoggerUtil.d('Upload response body: ${response.body}');
 
       if (response.statusCode == 200 || response.statusCode == 201) {
         final data = jsonDecode(response.body);
@@ -197,7 +244,7 @@ class AssetDocumentController extends ChangeNotifier {
       }
     } catch (e) {
       _error = e.toString();
-      print('Error uploading document: $e');
+      LoggerUtil.e('Error uploading document', e, StackTrace.current);
       notifyListeners();
       return false;
     } finally {
@@ -215,12 +262,12 @@ class AssetDocumentController extends ChangeNotifier {
 
       // Menggunakan endpoint yang benar untuk menghapus dokumen dari aset
       final endpoint = '/asset-documents/asset/$assetId/documents/$documentId';
-      print(
+      LoggerUtil.d(
           'Memanggil API endpoint untuk hapus: ${ApiConfig.baseUrl}$endpoint');
 
       final response = await auth.ApiService.delete(endpoint, context: context);
-      print('Delete response status: ${response.statusCode}');
-      print('Delete response body: ${response.body}');
+      LoggerUtil.d('Delete response status: ${response.statusCode}');
+      LoggerUtil.d('Delete response body: ${response.body}');
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
@@ -240,7 +287,7 @@ class AssetDocumentController extends ChangeNotifier {
       }
     } catch (e) {
       _error = e.toString();
-      print('Error deleting document: $e');
+      LoggerUtil.e('Error deleting document', e, StackTrace.current);
       notifyListeners();
       return false;
     } finally {
@@ -258,11 +305,11 @@ class AssetDocumentController extends ChangeNotifier {
 
       // Menggunakan endpoint yang benar untuk mengunduh dokumen
       final endpoint = '/asset-documents/documents/$documentId/download';
-      print(
+      LoggerUtil.d(
           'Memanggil API endpoint untuk download: ${ApiConfig.baseUrl}$endpoint');
 
       final response = await auth.ApiService.get(endpoint, context: context);
-      print('Download response status: ${response.statusCode}');
+      LoggerUtil.d('Download response status: ${response.statusCode}');
 
       if (response.statusCode == 200) {
         // TODO: Implementasikan logika untuk menyimpan file ke penyimpanan lokal
@@ -280,7 +327,7 @@ class AssetDocumentController extends ChangeNotifier {
       }
     } catch (e) {
       _error = e.toString();
-      print('Error downloading document: $e');
+      LoggerUtil.e('Error downloading document', e, StackTrace.current);
       _isLoading = false;
       notifyListeners();
       return null;

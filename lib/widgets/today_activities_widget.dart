@@ -6,6 +6,7 @@ import 'package:skeletonizer/skeletonizer.dart';
 import '../controllers/recent_activity_controller.dart';
 import '../models/history_model.dart';
 import '../views/pages/history_screen.dart';
+import '../utils/logger_util.dart';
 
 class TodayActivitiesWidget extends StatefulWidget {
   const TodayActivitiesWidget({super.key});
@@ -20,14 +21,26 @@ class _TodayActivitiesWidgetState extends State<TodayActivitiesWidget> {
     super.initState();
     // Load activities when widget initializes
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      context.read<RecentActivityController>().loadRecentActivities();
+      _loadActivities();
     });
+  }
+
+  // Method to load activities for the current user
+  Future<void> _loadActivities() async {
+    try {
+      final controller = context.read<RecentActivityController>();
+      await controller.loadRecentActivities();
+    } catch (e) {
+      LoggerUtil.e('Error loading activities in TodayActivitiesWidget', e,
+          StackTrace.current);
+    }
   }
 
   void _navigateToHistoryScreen(BuildContext context) {
     // Reset controller state sebelum navigasi
     final controller = context.read<RecentActivityController>();
     controller.resetState();
+    controller.setLoading(true);
 
     // Navigasi ke history screen
     Navigator.push(
@@ -38,7 +51,9 @@ class _TodayActivitiesWidgetState extends State<TodayActivitiesWidget> {
     ).then((_) {
       // Load ulang data saat kembali ke home screen
       if (mounted) {
-        controller.loadRecentActivities();
+        LoggerUtil.d("Returned to home screen, reloading activities");
+        controller.resetState();
+        _loadActivities();
       }
     });
   }
@@ -62,12 +77,12 @@ class _TodayActivitiesWidgetState extends State<TodayActivitiesWidget> {
                   const Icon(
                     Icons.access_time,
                     color: Color(0xFF213268),
-                    size: 20,
+                    size: 24,
                   ),
                   const SizedBox(width: 8),
                   Text(
                     'Aktivitas Hari Ini',
-                    style: GoogleFonts.inter(
+                    style: GoogleFonts.poppins(
                       fontSize: 18,
                       fontWeight: FontWeight.bold,
                       color: const Color(0xFF213268),
@@ -76,18 +91,24 @@ class _TodayActivitiesWidgetState extends State<TodayActivitiesWidget> {
                   const Spacer(),
                   TextButton(
                     onPressed: () => _navigateToHistoryScreen(context),
+                    style: TextButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 8,
+                      ),
+                    ),
                     child: Text(
                       'Lihat Semua',
-                      style: GoogleFonts.inter(
+                      style: GoogleFonts.poppins(
                         fontSize: 14,
                         fontWeight: FontWeight.w500,
-                        color: Colors.blue,
+                        color: const Color(0xFF1976D2),
                       ),
                     ),
                   ),
                 ],
               ),
-              const SizedBox(height: 12),
+              const SizedBox(height: 16),
 
               // Konten aktivitas
               if (controller.isLoading)
@@ -101,7 +122,7 @@ class _TodayActivitiesWidgetState extends State<TodayActivitiesWidget> {
                     children: List.generate(
                       3,
                       (index) => Container(
-                        margin: const EdgeInsets.only(bottom: 8),
+                        margin: const EdgeInsets.only(bottom: 12),
                         padding: const EdgeInsets.all(16),
                         decoration: BoxDecoration(
                           color: Colors.white,
@@ -119,8 +140,8 @@ class _TodayActivitiesWidgetState extends State<TodayActivitiesWidget> {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Container(
-                              width: 36,
-                              height: 36,
+                              width: 40,
+                              height: 40,
                               decoration: BoxDecoration(
                                 color: Colors.grey.shade200,
                                 borderRadius: BorderRadius.circular(8),
@@ -202,7 +223,7 @@ class _TodayActivitiesWidgetState extends State<TodayActivitiesWidget> {
                         const SizedBox(height: 16),
                         Text(
                           'Tidak ada aktivitas hari ini',
-                          style: GoogleFonts.inter(
+                          style: GoogleFonts.poppins(
                             fontSize: 14,
                             color: Colors.grey[600],
                           ),
@@ -218,7 +239,7 @@ class _TodayActivitiesWidgetState extends State<TodayActivitiesWidget> {
                   itemCount:
                       todayActivities.length > 3 ? 3 : todayActivities.length,
                   separatorBuilder: (context, index) =>
-                      const SizedBox(height: 8),
+                      const SizedBox(height: 12),
                   itemBuilder: (context, index) {
                     return _buildHistoryItem(todayActivities[index]);
                   },
@@ -231,7 +252,9 @@ class _TodayActivitiesWidgetState extends State<TodayActivitiesWidget> {
   }
 
   Widget _buildHistoryItem(HistoryModel activity) {
-    final formattedTime = DateFormat('HH:mm').format(activity.actionDate);
+    // Format the time in local timezone with 24-hour clock
+    final formattedTime =
+        DateFormat('HH:mm').format(activity.actionDate.toLocal());
 
     return Container(
       width: double.infinity,
@@ -253,7 +276,7 @@ class _TodayActivitiesWidgetState extends State<TodayActivitiesWidget> {
         children: [
           Text(
             activity.assetInfo.assetName,
-            style: GoogleFonts.inter(
+            style: GoogleFonts.poppins(
               fontSize: 16,
               fontWeight: FontWeight.w600,
               color: const Color(0xFF213268),
@@ -265,34 +288,36 @@ class _TodayActivitiesWidgetState extends State<TodayActivitiesWidget> {
             children: [
               const Icon(
                 Icons.qr_code,
-                size: 16,
+                size: 18,
                 color: Colors.grey,
               ),
-              const SizedBox(width: 4),
+              const SizedBox(width: 6),
               Text(
                 activity.assetInfo.assetCode,
-                style: GoogleFonts.inter(
+                style: GoogleFonts.poppins(
                   fontSize: 14,
+                  fontWeight: FontWeight.w500,
                   color: Colors.grey[700],
                 ),
               ),
-              const SizedBox(width: 12),
+              const SizedBox(width: 16),
               const Icon(
                 Icons.access_time,
-                size: 16,
+                size: 18,
                 color: Colors.grey,
               ),
-              const SizedBox(width: 4),
+              const SizedBox(width: 6),
               Text(
                 formattedTime,
-                style: GoogleFonts.inter(
+                style: GoogleFonts.poppins(
                   fontSize: 14,
+                  fontWeight: FontWeight.w500,
                   color: Colors.grey[700],
                 ),
               ),
             ],
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: 10),
           _buildStatusMessage(activity),
         ],
       ),
@@ -300,11 +325,24 @@ class _TodayActivitiesWidgetState extends State<TodayActivitiesWidget> {
   }
 
   Widget _buildStatusMessage(HistoryModel activity) {
+    // Get the current user's employee number from controller if available
+    final controller =
+        Provider.of<RecentActivityController>(context, listen: false);
+    final currentEmployeeNumber = controller.employeeNumber;
+
     // Cek apakah pesan berisi perubahan status
     if (activity.message.contains('mengubah status dari')) {
       // Ekstrak status lama dan baru dari pesan
       final parts = activity.message.split(' ');
-      final employeeId = parts[0];
+      String employeeId = parts[0];
+
+      // If this activity matches the current user, highlight it differently
+      final isCurrentUser =
+          currentEmployeeNumber != null && employeeId == currentEmployeeNumber;
+
+      if (isCurrentUser) {
+        employeeId = "Anda";
+      }
 
       // Cari posisi kata "dari" dan "menjadi"
       final dariIndex = parts.indexOf('dari');
@@ -342,12 +380,19 @@ class _TodayActivitiesWidgetState extends State<TodayActivitiesWidget> {
 
         return RichText(
           text: TextSpan(
-            style: GoogleFonts.inter(
+            style: GoogleFonts.poppins(
               fontSize: 14,
               color: Colors.black87,
+              fontWeight: isCurrentUser ? FontWeight.bold : FontWeight.normal,
             ),
             children: [
-              TextSpan(text: '$employeeId mengubah status dari '),
+              TextSpan(
+                text: '$employeeId mengubah status dari ',
+                style: TextStyle(
+                  color:
+                      isCurrentUser ? const Color(0xFF213268) : Colors.black87,
+                ),
+              ),
               _buildStatusBadge(oldStatus),
               TextSpan(text: ' ke '),
               _buildStatusBadge(newStatus),
@@ -360,7 +405,7 @@ class _TodayActivitiesWidgetState extends State<TodayActivitiesWidget> {
     // Jika tidak berisi perubahan status, tampilkan pesan biasa
     return Text(
       activity.message,
-      style: GoogleFonts.inter(
+      style: GoogleFonts.poppins(
         fontSize: 14,
         color: Colors.black87,
       ),
@@ -376,14 +421,14 @@ class _TodayActivitiesWidgetState extends State<TodayActivitiesWidget> {
     return WidgetSpan(
       alignment: PlaceholderAlignment.middle,
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 2),
         decoration: BoxDecoration(
           color: badgeColor,
           borderRadius: BorderRadius.circular(4),
         ),
         child: Text(
           badgeText,
-          style: GoogleFonts.inter(
+          style: GoogleFonts.poppins(
             fontSize: 12,
             fontWeight: FontWeight.w600,
             color: Colors.white,
@@ -404,6 +449,7 @@ class _TodayActivitiesWidgetState extends State<TodayActivitiesWidget> {
       case 'dipinjam':
       case 'borrowed':
       case 'checked out':
+      case 'checked':
         return "DIPINJAM";
       case 'dalam perbaikan':
       case 'perbaikan':
@@ -414,6 +460,7 @@ class _TodayActivitiesWidgetState extends State<TodayActivitiesWidget> {
         return "PERBAIKAN";
       case 'dimusnahkan':
       case 'disposed':
+        return "DIMUSNAHKAN";
       case 'hilang':
       case 'lost':
         return "HILANG";
@@ -424,16 +471,18 @@ class _TodayActivitiesWidgetState extends State<TodayActivitiesWidget> {
 
   Color _getStatusColor(String status) {
     switch (status) {
-      case 'HILANG':
-        return const Color(0xFFFF5252); // Merah
-      case 'PERBAIKAN':
-        return const Color(0xFF29B6F6); // Biru
       case 'TERSEDIA':
-        return const Color(0xFF8BC34A); // Hijau
+        return const Color(0xFF5EA004);
+      case 'PERBAIKAN':
+        return const Color(0xFF0277BD);
       case 'DIPINJAM':
-        return const Color(0xFFFFB74D); // Oranye
+        return const Color(0xFFEF6C00);
+      case 'DIMUSNAHKAN':
+        return const Color(0xFF546E7A);
+      case 'HILANG':
+        return const Color(0xFFD32F2F);
       default:
-        return Colors.grey;
+        return const Color(0xFF616161);
     }
   }
 }

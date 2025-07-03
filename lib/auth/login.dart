@@ -9,6 +9,7 @@ import 'package:provider/provider.dart';
 // Import untuk mengatasi masalah anti-screenshot
 import 'dart:io';
 import 'package:no_screenshot/no_screenshot.dart';
+import '../utils/logger_util.dart'; // Import LoggerUtil
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -41,12 +42,13 @@ class _LoginScreenState extends State<LoginScreen> {
   Future<void> _disableAnyActiveScreenshotProtection() async {
     try {
       if (Platform.isAndroid || Platform.isIOS) {
-        print("LoginScreen: Memastikan anti-screenshot dinonaktifkan");
+        LoggerUtil.i("LoginScreen: Memastikan anti-screenshot dinonaktifkan");
         await _noScreenshot.screenshotOn();
-        print("LoginScreen: Anti-screenshot berhasil dinonaktifkan");
+        LoggerUtil.i("LoginScreen: Anti-screenshot berhasil dinonaktifkan");
       }
     } catch (e) {
-      print("LoginScreen: Error saat menonaktifkan anti-screenshot: $e");
+      LoggerUtil.e("LoginScreen: Error saat menonaktifkan anti-screenshot", e,
+          StackTrace.current);
     }
   }
 
@@ -54,36 +56,66 @@ class _LoginScreenState extends State<LoginScreen> {
     setState(() => _checkingToken = true);
 
     try {
-      // Cek apakah user sudah login dengan timeout yang lebih pendek
+      LoggerUtil.d("Checking for existing login token...");
+      // Check if user is already logged in
       final isLoggedIn = await ApiService.isLoggedIn();
 
       if (isLoggedIn && mounted) {
-        // Coba refresh token secara silent untuk memastikan masih valid
+        LoggerUtil.d("Token found, verifying if it's still valid...");
+        // Try to silently refresh the token to ensure it's still valid
         final refreshSuccess = await ApiService.refreshToken();
 
         if (refreshSuccess && mounted) {
-          print("Valid token found, navigating to dashboard automatically");
+          LoggerUtil.i(
+              "Valid token found, navigating to dashboard automatically");
 
-          // Set navigasi untuk auto login saat token expired
+          // Set navigation callback for when token expires
           ApiService.navigateToLogin = (BuildContext ctx) {
+            LoggerUtil.i(
+                "Auto-redirecting to login screen due to expired session");
             Navigator.of(ctx).pushAndRemoveUntil(
               MaterialPageRoute(builder: (c) => const LoginScreen()),
               (route) => false,
             );
           };
 
-          // Navigasi ke dashboard jika token valid
+          // Try to fetch user profile to ensure token is valid
+          try {
+            LoggerUtil.d("Fetching user profile to verify token validity");
+            await ApiService.getProfile(context);
+            LoggerUtil.i("Profile fetched successfully, token is valid");
+          } catch (e) {
+            LoggerUtil.e("Error fetching profile", e, StackTrace.current);
+            // If profile fetch fails due to token issues, clear stored credentials
+            if (e.toString().contains("401") ||
+                (e is ApiException &&
+                    (e.statusCode == 401 || e.code == 'SESSION_EXPIRED'))) {
+              LoggerUtil.w("Token appears to be invalid, logging out");
+              await ApiService.logout(context);
+              setState(() => _checkingToken = false);
+              return;
+            }
+            // Otherwise continue with auto-login despite profile fetch error
+          }
+
+          // Navigate to dashboard if token is valid
           Navigator.of(context).pushAndRemoveUntil(
             MaterialPageRoute(
               builder: (context) => const DashboardScreen(),
             ),
             (route) => false,
           );
+        } else {
+          LoggerUtil.w("Token refresh failed, staying on login screen");
+          // Token refresh failed, clear any stored credentials
+          await ApiService.logout(context);
         }
+      } else {
+        LoggerUtil.i("No valid login session found");
       }
     } catch (e) {
-      print("Error checking token: $e");
-      // Jika ada error, biarkan user tetap di halaman login
+      LoggerUtil.e("Error checking token", e, StackTrace.current);
+      // If there's an error, keep the user on the login page
     } finally {
       if (mounted) {
         setState(() => _checkingToken = false);
@@ -93,53 +125,22 @@ class _LoginScreenState extends State<LoginScreen> {
 
   // Fungsi untuk logging error di terminal
   void _logError(dynamic error, StackTrace stackTrace) {
-    developer.log(
-      '====== ERROR LOGIN ======',
-      name: 'LOGIN_ERROR',
-      error: error,
-    );
+    LoggerUtil.e('====== ERROR LOGIN ======', error, stackTrace);
 
-    developer.log(
-      '--- Detail Error ---',
-      name: 'LOGIN_ERROR',
-    );
+    LoggerUtil.e('--- Detail Error ---');
 
     if (error is ApiException) {
-      developer.log(
-        'Type: ApiException',
-        name: 'LOGIN_ERROR',
-      );
-      developer.log(
-        'Message: ${error.message}',
-        name: 'LOGIN_ERROR',
-      );
-      developer.log(
-        'Code: ${error.code ?? "null"}',
-        name: 'LOGIN_ERROR',
-      );
-      developer.log(
-        'Status Code: ${error.statusCode ?? "null"}',
-        name: 'LOGIN_ERROR',
-      );
-      developer.log(
-        'Details: ${error.details ?? "null"}',
-        name: 'LOGIN_ERROR',
-      );
+      LoggerUtil.e('Type: ApiException');
+      LoggerUtil.e('Message: ${error.message}');
+      LoggerUtil.e('Code: ${error.code ?? "null"}');
+      LoggerUtil.e('Status Code: ${error.statusCode ?? "null"}');
+      LoggerUtil.e('Details: ${error.details ?? "null"}');
     } else {
-      developer.log(
-        'Type: ${error.runtimeType}',
-        name: 'LOGIN_ERROR',
-      );
-      developer.log(
-        'Message: $error',
-        name: 'LOGIN_ERROR',
-      );
+      LoggerUtil.e('Type: ${error.runtimeType}');
+      LoggerUtil.e('Message: $error');
     }
 
-    developer.log(
-      '--- Stack Trace ---',
-      name: 'LOGIN_ERROR',
-    );
+    LoggerUtil.e('--- Stack Trace ---');
 
     // Format stack trace for better readability
     final formattedStackTrace = stackTrace
@@ -150,15 +151,8 @@ class _LoginScreenState extends State<LoginScreen> {
         .take(10) // Ambil 10 baris pertama saja
         .join('\n');
 
-    developer.log(
-      formattedStackTrace,
-      name: 'LOGIN_ERROR',
-    );
-
-    developer.log(
-      '=======================',
-      name: 'LOGIN_ERROR',
-    );
+    LoggerUtil.e(formattedStackTrace);
+    LoggerUtil.e('=======================');
   }
 
   Future<void> _login() async {
@@ -177,13 +171,13 @@ class _LoginScreenState extends State<LoginScreen> {
     });
 
     try {
-      print("Attempting login with: ${_emailController.text}");
+      LoggerUtil.d("Attempting login with: ${_emailController.text}");
       await ApiService.login(
         _emailController.text,
         _passwordController.text,
       );
 
-      print("Login successful, navigating to dashboard");
+      LoggerUtil.i("Login successful, navigating to dashboard");
 
       if (mounted) {
         // Set navigasi untuk auto login saat token expired
@@ -196,35 +190,34 @@ class _LoginScreenState extends State<LoginScreen> {
 
         // Ambil profil pengguna setelah login berhasil
         try {
-          print("Fetching user profile after successful login");
+          LoggerUtil.d("Fetching user profile after successful login");
           await ApiService.getProfile(context);
-          print("Profile fetched successfully");
+          LoggerUtil.i("Profile fetched successfully");
         } catch (e) {
-          print("Error fetching profile: $e");
+          LoggerUtil.e("Error fetching profile", e, StackTrace.current);
           // Lanjutkan proses meskipun gagal mengambil profil
         }
 
         // Send FCM token to server after successful login
         try {
-          print("Preparing to send FCM token to server...");
+          LoggerUtil.d("Preparing to send FCM token to server...");
           final firebaseMessagingService =
               Provider.of<FirebaseMessagingService>(context, listen: false);
-          print("FirebaseMessagingService provider obtained");
+          LoggerUtil.i("FirebaseMessagingService provider obtained");
 
           // Get auth token from ApiService
           final authToken = await ApiService.getAuthToken();
-          print("Auth token obtained: ${authToken != null}");
+          LoggerUtil.i("Auth token obtained: ${authToken != null}");
 
           if (authToken != null) {
-            print("Attempting to send FCM token to server...");
+            LoggerUtil.d("Attempting to send FCM token to server...");
             await firebaseMessagingService.sendFcmTokenToServer(authToken);
-            print("FCM token send attempt completed");
+            LoggerUtil.i("FCM token send attempt completed");
           } else {
-            print("Auth token is null, cannot send FCM token");
+            LoggerUtil.i("Auth token is null, cannot send FCM token");
           }
         } catch (e, stack) {
-          print("Error sending FCM token: $e");
-          print("Stack trace: $stack");
+          LoggerUtil.e("Error sending FCM token", e, stack);
           // Don't let FCM token error stop the login flow
         }
 
@@ -237,7 +230,7 @@ class _LoginScreenState extends State<LoginScreen> {
         );
       }
     } catch (e, stackTrace) {
-      print("Login error: $e");
+      LoggerUtil.e("Login error", e, stackTrace);
       _logError(e, stackTrace);
 
       if (mounted) {
@@ -245,11 +238,11 @@ class _LoginScreenState extends State<LoginScreen> {
 
         if (e is ApiException) {
           errorMsg = e.message;
-          print("Api Exception message: ${e.message}");
-          print("Full ApiException: ${e.toString()}");
+          LoggerUtil.i("Api Exception message: ${e.message}");
+          LoggerUtil.i("Full ApiException: ${e.toString()}");
         } else {
           errorMsg = 'Terjadi kesalahan: ${e.toString()}';
-          print("Generic error: ${e.toString()}");
+          LoggerUtil.i("Generic error: ${e.toString()}");
         }
 
         // Set error message
@@ -257,7 +250,7 @@ class _LoginScreenState extends State<LoginScreen> {
           _errorMessage = errorMsg;
         });
 
-        print("Error message is now: $_errorMessage");
+        LoggerUtil.i("Error message is now: $_errorMessage");
 
         // Snackbar dihapus sesuai permintaan
       }
@@ -271,183 +264,239 @@ class _LoginScreenState extends State<LoginScreen> {
   @override
   Widget build(BuildContext context) {
     final screenSize = MediaQuery.of(context).size;
+    final keyboardVisible = MediaQuery.of(context).viewInsets.bottom > 0;
 
     // Tampilkan halaman login langsung, tanpa loading spinner saat mengecek token
     return Scaffold(
       backgroundColor: Colors.white,
-      body: Stack(
-        children: [
-          Positioned.fill(
-            child: ImageFiltered(
-              imageFilter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-              child: Container(
-                color: Colors.white,
-              ),
-            ),
-          ),
-          _buildBlurCircle(-50, 100, 200, const Color(0xFFACC3EF)),
-          _buildBlurCircle(
-              screenSize.width - 150, 250, 150, const Color(0xFF7CE1FF)),
-          _buildBlurCircle(
-              screenSize.width - 180, -10, 180, const Color(0xFF25B1FF)),
-          _buildBlurCircle(
-              -60, screenSize.height - 200, 250, const Color(0xFF203268)),
-          Positioned(
-            top: 96,
-            left: screenSize.width / 2 - 156.5,
-            child: Hero(
-              tag: 'logo',
-              child: Image.asset(
-                'images/Logo_RS_UMMI.png',
-                width: 313,
-                height: 82,
-              ),
-            ),
-          ),
-          Positioned(
-            left: 20,
-            right: 20,
-            top: screenSize.height * 0.3,
-            child: Container(
-              padding: const EdgeInsets.all(24),
-              decoration: BoxDecoration(
-                color: Colors.white.withOpacity(0.95),
-                borderRadius: BorderRadius.circular(38),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withOpacity(0.25),
-                    blurRadius: 6.5,
-                    offset: const Offset(0, 11),
-                  ),
-                ],
-              ),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  TweenAnimationBuilder(
-                    duration: const Duration(milliseconds: 500),
-                    tween: Tween<double>(begin: 0, end: 1),
-                    builder: (context, double value, child) {
-                      return Opacity(
-                        opacity: value,
-                        child: Transform.translate(
-                          offset: Offset(0, 20 * (1 - value)),
-                          child: child,
-                        ),
-                      );
-                    },
-                    child: const Column(
-                      children: [
-                        Text(
-                          'Selamat Datang,',
-                          style: TextStyle(
-                            fontSize: 22,
-                            fontWeight: FontWeight.w600,
-                            color: Color(0xFF203268),
-                          ),
-                          textAlign: TextAlign.center,
-                        ),
-                        Text(
-                          'Silakan Masuk Terlebih Dahulu!',
-                          style: TextStyle(
-                            fontSize: 22,
-                            fontWeight: FontWeight.w600,
-                            color: Color(0xFF203268),
-                          ),
-                          textAlign: TextAlign.center,
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: 20),
-                  // Ganti container error dengan widget error yang lebih interaktif
-                  _buildErrorContainer(),
-                  Container(
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
+      // Prevent resizing which can cause jarring UI shifts
+      resizeToAvoidBottomInset: false,
+      body: GestureDetector(
+        onTap: () => FocusScope.of(context).unfocus(),
+        child: SingleChildScrollView(
+          physics: const ClampingScrollPhysics(),
+          child: SizedBox(
+            height: screenSize.height,
+            child: Stack(
+              fit: StackFit.expand,
+              children: [
+                // Background elements
+                Positioned.fill(
+                  child: ImageFiltered(
+                    imageFilter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+                    child: Container(
                       color: Colors.white,
-                      borderRadius: BorderRadius.circular(12),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withOpacity(0.05),
-                          blurRadius: 4,
-                          offset: const Offset(0, 2),
-                        ),
-                      ],
-                    ),
-                    child: Column(
-                      children: [
-                        _buildTextField(
-                          controller: _emailController,
-                          label: 'Nomor Karyawan',
-                          hint: 'Masukkan Nomor Karyawan Anda',
-                          icon: Icons.person_outline,
-                          keyboardType: TextInputType.text,
-                          onChanged: (_) {
-                            if (_errorMessage != null) {
-                              setState(() => _errorMessage = null);
-                            }
-                          },
-                        ),
-                        const SizedBox(height: 15),
-                        _buildTextField(
-                          controller: _passwordController,
-                          label: 'Password',
-                          hint: 'Masukkan Password Anda',
-                          icon: Icons.lock_outline,
-                          isPassword: true,
-                          obscureText: _obscurePassword,
-                          toggleObscureText: () {
-                            setState(
-                                () => _obscurePassword = !_obscurePassword);
-                          },
-                          onChanged: (_) {
-                            if (_errorMessage != null) {
-                              setState(() => _errorMessage = null);
-                            }
-                          },
-                        ),
-                        const SizedBox(height: 20),
-                        AnimatedContainer(
-                          duration: const Duration(milliseconds: 300),
-                          height: 45,
-                          width: double.infinity,
-                          child: ElevatedButton(
-                            onPressed: _isLoading ? null : _login,
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: const Color(0xFF203268),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(8),
-                              ),
-                              elevation: _isLoading ? 0 : 2,
-                            ),
-                            child: _isLoading
-                                ? const SizedBox(
-                                    height: 20,
-                                    width: 20,
-                                    child: CircularProgressIndicator(
-                                      color: Colors.white,
-                                      strokeWidth: 2,
-                                    ),
-                                  )
-                                : const Text(
-                                    'Masuk',
-                                    style: TextStyle(
-                                      fontSize: 16,
-                                      fontWeight: FontWeight.w600,
-                                      color: Colors.white,
-                                    ),
-                                  ),
-                          ),
-                        ),
-                      ],
                     ),
                   ),
-                ],
-              ),
+                ),
+                // Keep decorative circles visible even when keyboard appears
+                _buildBlurCircle(-50, 100, 200, const Color(0xFFACC3EF)),
+                _buildBlurCircle(
+                    screenSize.width - 150, 250, 150, const Color(0xFF7CE1FF)),
+                _buildBlurCircle(
+                    screenSize.width - 180, -10, 180, const Color(0xFF25B1FF)),
+                _buildBlurCircle(
+                    -60, screenSize.height - 200, 250, const Color(0xFF203268)),
+
+                // Content container with smooth animation for keyboard appearance
+                AnimatedPositioned(
+                  duration: const Duration(milliseconds: 300),
+                  curve: Curves.easeOutQuad,
+                  top: keyboardVisible ? 30 : 96,
+                  left: 0,
+                  right: 0,
+                  child: Column(
+                    children: [
+                      // Logo with adaptive size
+                      AnimatedContainer(
+                        duration: const Duration(milliseconds: 300),
+                        width: keyboardVisible ? 220 : 313,
+                        height: keyboardVisible ? 58 : 82,
+                        child: Hero(
+                          tag: 'logo',
+                          child: Image.asset(
+                            'images/Logo_RS_UMMI.png',
+                            fit: BoxFit.contain,
+                          ),
+                        ),
+                      ),
+
+                      // Login form with adaptive positioning
+                      AnimatedPadding(
+                        duration: const Duration(milliseconds: 300),
+                        padding: EdgeInsets.only(
+                          top: keyboardVisible ? 20 : screenSize.height * 0.15,
+                          left: 20,
+                          right: 20,
+                        ),
+                        child: Container(
+                          padding: const EdgeInsets.all(24),
+                          decoration: BoxDecoration(
+                            color: Colors.white.withOpacity(0.95),
+                            borderRadius: BorderRadius.circular(38),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black.withOpacity(0.25),
+                                blurRadius: 6.5,
+                                offset: const Offset(0, 11),
+                              ),
+                            ],
+                          ),
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              // Welcome text with adaptive visibility
+                              AnimatedOpacity(
+                                duration: const Duration(milliseconds: 200),
+                                opacity: keyboardVisible ? 0 : 1,
+                                child: AnimatedContainer(
+                                  duration: const Duration(milliseconds: 300),
+                                  height: keyboardVisible ? 0 : null,
+                                  child: keyboardVisible
+                                      ? const SizedBox.shrink()
+                                      : TweenAnimationBuilder(
+                                          duration:
+                                              const Duration(milliseconds: 500),
+                                          tween:
+                                              Tween<double>(begin: 0, end: 1),
+                                          builder:
+                                              (context, double value, child) {
+                                            return Opacity(
+                                              opacity: value,
+                                              child: Transform.translate(
+                                                offset:
+                                                    Offset(0, 20 * (1 - value)),
+                                                child: child,
+                                              ),
+                                            );
+                                          },
+                                          child: const Column(
+                                            children: [
+                                              Text(
+                                                'Selamat Datang,',
+                                                style: TextStyle(
+                                                  fontSize: 22,
+                                                  fontWeight: FontWeight.w600,
+                                                  color: Color(0xFF203268),
+                                                ),
+                                                textAlign: TextAlign.center,
+                                              ),
+                                              Text(
+                                                'Silakan Masuk Terlebih Dahulu!',
+                                                style: TextStyle(
+                                                  fontSize: 22,
+                                                  fontWeight: FontWeight.w600,
+                                                  color: Color(0xFF203268),
+                                                ),
+                                                textAlign: TextAlign.center,
+                                              ),
+                                              SizedBox(height: 20),
+                                            ],
+                                          ),
+                                        ),
+                                ),
+                              ),
+
+                              // Error container
+                              _buildErrorContainer(),
+
+                              // Login form fields
+                              Container(
+                                padding: const EdgeInsets.all(12),
+                                decoration: BoxDecoration(
+                                  color: Colors.white,
+                                  borderRadius: BorderRadius.circular(12),
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: Colors.black.withOpacity(0.05),
+                                      blurRadius: 4,
+                                      offset: const Offset(0, 2),
+                                    ),
+                                  ],
+                                ),
+                                child: Column(
+                                  children: [
+                                    _buildTextField(
+                                      controller: _emailController,
+                                      label: 'Nomor Karyawan',
+                                      hint: 'Masukkan Nomor Karyawan Anda',
+                                      icon: Icons.person_outline,
+                                      keyboardType: TextInputType.text,
+                                      onChanged: (_) {
+                                        if (_errorMessage != null) {
+                                          setState(() => _errorMessage = null);
+                                        }
+                                      },
+                                    ),
+                                    const SizedBox(height: 15),
+                                    _buildTextField(
+                                      controller: _passwordController,
+                                      label: 'Password',
+                                      hint: 'Masukkan Password Anda',
+                                      icon: Icons.lock_outline,
+                                      isPassword: true,
+                                      obscureText: _obscurePassword,
+                                      toggleObscureText: () {
+                                        setState(() => _obscurePassword =
+                                            !_obscurePassword);
+                                      },
+                                      onChanged: (_) {
+                                        if (_errorMessage != null) {
+                                          setState(() => _errorMessage = null);
+                                        }
+                                      },
+                                    ),
+                                    const SizedBox(height: 20),
+                                    AnimatedContainer(
+                                      duration:
+                                          const Duration(milliseconds: 300),
+                                      height: 45,
+                                      width: double.infinity,
+                                      child: ElevatedButton(
+                                        onPressed: _isLoading ? null : _login,
+                                        style: ElevatedButton.styleFrom(
+                                          backgroundColor:
+                                              const Color(0xFF203268),
+                                          shape: RoundedRectangleBorder(
+                                            borderRadius:
+                                                BorderRadius.circular(8),
+                                          ),
+                                          elevation: _isLoading ? 0 : 2,
+                                        ),
+                                        child: _isLoading
+                                            ? const SizedBox(
+                                                height: 20,
+                                                width: 20,
+                                                child:
+                                                    CircularProgressIndicator(
+                                                  color: Colors.white,
+                                                  strokeWidth: 2,
+                                                ),
+                                              )
+                                            : const Text(
+                                                'Masuk',
+                                                style: TextStyle(
+                                                  fontSize: 16,
+                                                  fontWeight: FontWeight.w600,
+                                                  color: Colors.white,
+                                                ),
+                                              ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
             ),
           ),
-        ],
+        ),
       ),
     );
   }
@@ -635,7 +684,7 @@ class _LoginScreenState extends State<LoginScreen> {
                   label:
                       Text('Bantuan', style: TextStyle(color: Colors.red[700])),
                   style: TextButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(horizontal: 8),
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
                     tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                   ),
                 ),
@@ -654,7 +703,7 @@ class _LoginScreenState extends State<LoginScreen> {
                   label: Text('Coba Lagi',
                       style: TextStyle(color: Colors.red[700])),
                   style: TextButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(horizontal: 8),
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
                     tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                   ),
                 ),

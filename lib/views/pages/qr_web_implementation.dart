@@ -1,15 +1,99 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:mobile_scanner/mobile_scanner.dart';
 
 // Jenis callback yang sama dengan implementasi mobile
-typedef QRViewCallback = void Function(dynamic controller);
+typedef QRViewCallback = void Function(MobileScannerController controller);
 typedef QRCodeCallback = void Function(String? code);
 
-Widget buildQRView(BuildContext context, GlobalKey key,
-    QRCodeCallback onCodeDetected, QRViewCallback onControllerCreated) {
-  // Implementasi web dengan input manual untuk QR code
-  // Sebagai pengganti pemindai yang tidak tersedia di web
-  return StatefulBuilder(builder: (context, setState) {
+// Gunakan StatefulWidget untuk mempertahankan state kamera
+class WebQRScanner extends StatefulWidget {
+  final GlobalKey key;
+  final QRCodeCallback onCodeDetected;
+  final QRViewCallback onControllerCreated;
+
+  const WebQRScanner({
+    required this.key,
+    required this.onCodeDetected,
+    required this.onControllerCreated,
+  });
+
+  @override
+  State<WebQRScanner> createState() => _WebQRScannerState();
+}
+
+class _WebQRScannerState extends State<WebQRScanner> {
+  bool isUsingCamera = false;
+  MobileScannerController? controller;
+
+  void toggleScanMode() {
+    setState(() {
+      isUsingCamera = !isUsingCamera;
+      if (isUsingCamera) {
+        controller = MobileScannerController(
+          detectionSpeed: DetectionSpeed.normal,
+          facing: CameraFacing.back,
+          torchEnabled: false,
+        );
+        widget.onControllerCreated(controller!);
+      } else {
+        controller?.dispose();
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    controller?.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (isUsingCamera) {
+      return Stack(
+        children: [
+          MobileScanner(
+            controller: controller,
+            onDetect: (capture) {
+              final List<Barcode> barcodes = capture.barcodes;
+              if (barcodes.isNotEmpty && barcodes.first.rawValue != null) {
+                widget.onCodeDetected(barcodes.first.rawValue);
+              }
+            },
+          ),
+          // Scanner Overlay
+          CustomPaint(
+            painter: ScannerOverlayPainter(
+              borderColor: const Color(0xFF213268),
+              borderRadius: 10,
+              borderLength: 30,
+              borderWidth: 10,
+              cutOutSize: 250,
+              overlayColor: Colors.black.withOpacity(0.5),
+            ),
+            child: Container(),
+          ),
+          Positioned(
+            bottom: 20,
+            left: 0,
+            right: 0,
+            child: Center(
+              child: ElevatedButton(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.white,
+                  foregroundColor: const Color(0xFF213268),
+                ),
+                onPressed: toggleScanMode,
+                child: const Text('Gunakan Input Manual'),
+              ),
+            ),
+          ),
+        ],
+      );
+    }
+
+    // Input manual untuk web
     return Container(
       color: Colors.black,
       child: Stack(
@@ -100,7 +184,7 @@ Widget buildQRView(BuildContext context, GlobalKey key,
                       ),
                       onSubmitted: (value) {
                         if (value.isNotEmpty) {
-                          onCodeDetected(value.trim());
+                          widget.onCodeDetected(value.trim());
                         }
                       },
                     ),
@@ -121,7 +205,7 @@ Widget buildQRView(BuildContext context, GlobalKey key,
                     ),
                     onPressed: () {
                       // Untuk testing/demo, ini bisa diubah ke ID yang berbeda
-                      onCodeDetected('ANMD-250324-0001');
+                      widget.onCodeDetected('ANMD-250324-0001');
                     },
                     child: Text(
                       'Gunakan ID Demo (ANMD-250324-0001)',
@@ -147,10 +231,33 @@ Widget buildQRView(BuildContext context, GlobalKey key,
                     ),
                     onPressed: () {
                       // Untuk testing dengan ID yang berbeda
-                      onCodeDetected('10');
+                      widget.onCodeDetected('10');
                     },
                     child: Text(
                       'Gunakan Asset ID: 10',
+                      style: GoogleFonts.poppins(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  ElevatedButton(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.green,
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 24,
+                        vertical: 12,
+                      ),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      elevation: 0,
+                    ),
+                    onPressed: toggleScanMode,
+                    child: Text(
+                      'Coba Gunakan Kamera',
                       style: GoogleFonts.poppins(
                         fontSize: 14,
                         fontWeight: FontWeight.w500,
@@ -164,7 +271,17 @@ Widget buildQRView(BuildContext context, GlobalKey key,
         ],
       ),
     );
-  });
+  }
+}
+
+// Function untuk membangun QR view
+Widget buildQRView(BuildContext context, GlobalKey key,
+    QRCodeCallback onCodeDetected, QRViewCallback onControllerCreated) {
+  return WebQRScanner(
+    key: key,
+    onCodeDetected: onCodeDetected,
+    onControllerCreated: onControllerCreated,
+  );
 }
 
 // Dummy methods untuk web
@@ -173,13 +290,127 @@ void handleReassemble(dynamic controller) {
 }
 
 void toggleFlash(dynamic controller) {
-  // Tidak perlu implementasi di web
+  // Tidak perlu implementasi flash di web
 }
 
 void flipCamera(dynamic controller) {
-  // Tidak perlu implementasi di web
+  // Tidak perlu implementasi flip camera di web
 }
 
 void disposeController(dynamic controller) {
-  // Tidak perlu implementasi di web
+  if (controller != null && controller is MobileScannerController) {
+    controller.dispose();
+  }
+}
+
+// Kelas untuk overlay scanner
+class ScannerOverlayPainter extends CustomPainter {
+  final Color borderColor;
+  final double borderRadius;
+  final double borderLength;
+  final double borderWidth;
+  final double cutOutSize;
+  final Color overlayColor;
+
+  ScannerOverlayPainter({
+    required this.borderColor,
+    required this.borderRadius,
+    required this.borderLength,
+    required this.borderWidth,
+    required this.cutOutSize,
+    required this.overlayColor,
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final width = size.width;
+    final height = size.height;
+    final cutOutLeft = (width - cutOutSize) / 2;
+    final cutOutTop = (height - cutOutSize) / 2;
+    final cutOutRect = Rect.fromLTWH(
+      cutOutLeft,
+      cutOutTop,
+      cutOutSize,
+      cutOutSize,
+    );
+    final cutOutRRectPath = Path()
+      ..addRRect(
+        RRect.fromRectAndRadius(
+          cutOutRect,
+          Radius.circular(borderRadius),
+        ),
+      );
+
+    // Draw overlay
+    final backgroundPath = Path()
+      ..addRect(Rect.fromLTWH(0, 0, width, height))
+      ..addPath(cutOutRRectPath, Offset.zero)
+      ..fillType = PathFillType.evenOdd;
+    canvas.drawPath(backgroundPath, Paint()..color = overlayColor);
+
+    // Draw border
+    final borderPaint = Paint()
+      ..color = borderColor
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = borderWidth;
+
+    // Top left corner
+    canvas.drawPath(
+      Path()
+        ..moveTo(cutOutLeft, cutOutTop + borderLength)
+        ..lineTo(cutOutLeft, cutOutTop + borderRadius)
+        ..arcToPoint(
+          Offset(cutOutLeft + borderRadius, cutOutTop),
+          radius: Radius.circular(borderRadius),
+        )
+        ..lineTo(cutOutLeft + borderLength, cutOutTop),
+      borderPaint,
+    );
+
+    // Top right corner
+    canvas.drawPath(
+      Path()
+        ..moveTo(cutOutLeft + cutOutSize - borderLength, cutOutTop)
+        ..lineTo(cutOutLeft + cutOutSize - borderRadius, cutOutTop)
+        ..arcToPoint(
+          Offset(cutOutLeft + cutOutSize, cutOutTop + borderRadius),
+          radius: Radius.circular(borderRadius),
+        )
+        ..lineTo(cutOutLeft + cutOutSize, cutOutTop + borderLength),
+      borderPaint,
+    );
+
+    // Bottom right corner
+    canvas.drawPath(
+      Path()
+        ..moveTo(cutOutLeft + cutOutSize, cutOutTop + cutOutSize - borderLength)
+        ..lineTo(cutOutLeft + cutOutSize, cutOutTop + cutOutSize - borderRadius)
+        ..arcToPoint(
+          Offset(
+              cutOutLeft + cutOutSize - borderRadius, cutOutTop + cutOutSize),
+          radius: Radius.circular(borderRadius),
+        )
+        ..lineTo(
+            cutOutLeft + cutOutSize - borderLength, cutOutTop + cutOutSize),
+      borderPaint,
+    );
+
+    // Bottom left corner
+    canvas.drawPath(
+      Path()
+        ..moveTo(cutOutLeft + borderLength, cutOutTop + cutOutSize)
+        ..lineTo(cutOutLeft + borderRadius, cutOutTop + cutOutSize)
+        ..arcToPoint(
+          Offset(cutOutLeft, cutOutTop + cutOutSize - borderRadius),
+          radius: Radius.circular(borderRadius),
+        )
+        ..lineTo(cutOutLeft, cutOutTop + cutOutSize - borderLength),
+      borderPaint,
+    );
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) {
+    return true;
+  }
 }
