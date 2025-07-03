@@ -5,7 +5,7 @@ workflows:
       flutter: stable
       xcode: latest
       vars:
-        IOS_DEPLOYMENT_TARGET: 13.0
+        IOS_DEPLOYMENT_TARGET: 14.0
     scripts:
       - flutter pub get
       - cd ios && pod install && cd ..
