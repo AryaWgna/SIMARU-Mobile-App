@@ -5,13 +5,33 @@ workflows:
       flutter: stable
       xcode: latest
       vars:
-        IOS_DEPLOYMENT_TARGET: 15.0
+        IOS_DEPLOYMENT_TARGET: 16.0
     scripts:
       - flutter pub get
       - chmod +x ./update_deployment_target.sh && ./update_deployment_target.sh
       - cd ios && pod repo update && cd ..
       - chmod +x ./update_mobile_scanner.sh && ./update_mobile_scanner.sh
-      - cd ios && IPHONEOS_DEPLOYMENT_TARGET=15.0 pod install && cd ..
+      - chmod +x ./force_mobile_scanner_compatibility.sh && ./force_mobile_scanner_compatibility.sh
+      - cd ios && IPHONEOS_DEPLOYMENT_TARGET=16.0 pod install && cd ..
+      - flutter build ios --simulator
+      - mkdir -p build/ios/ipa
+      - zip -r build/ios/ipa/Runner.app.zip build/ios/iphonesimulator/Runner.app
+    artifacts:
+      - build/ios/ipa/Runner.app.zip
+      
+  ios-release-downgrade:
+    name: iOS Release (Downgraded Scanner)
+    environment:
+      flutter: stable
+      xcode: latest
+      vars:
+        IOS_DEPLOYMENT_TARGET: 13.0
+    scripts:
+      - flutter pub get
+      - chmod +x ./patch_mobile_scanner.sh && ./patch_mobile_scanner.sh
+      - chmod +x ./reset_podfile.sh && ./reset_podfile.sh
+      - cd ios && pod repo update && cd ..
+      - cd ios && IPHONEOS_DEPLOYMENT_TARGET=13.0 pod install && cd ..
       - flutter build ios --simulator
       - mkdir -p build/ios/ipa
       - zip -r build/ios/ipa/Runner.app.zip build/ios/iphonesimulator/Runner.app
