@@ -13,13 +13,13 @@ if [ -d "ios/$MOBILE_SCANNER_PATH" ]; then
     # Update the deployment target in the podspec file
     if [[ "$OSTYPE" == "darwin"* ]]; then
       # macOS
-      sed -i '' 's/s.platform = :ios, .*/s.platform = :ios, '\''14.0'\''/g' "ios/$MOBILE_SCANNER_PATH/mobile_scanner.podspec"
+      sed -i '' 's/s.platform = :ios, .*/s.platform = :ios, '\''15.0'\''/g' "ios/$MOBILE_SCANNER_PATH/mobile_scanner.podspec"
     else
       # Linux
-      sed -i 's/s.platform = :ios, .*/s.platform = :ios, '\''14.0'\''/g' "ios/$MOBILE_SCANNER_PATH/mobile_scanner.podspec"
+      sed -i 's/s.platform = :ios, .*/s.platform = :ios, '\''15.0'\''/g' "ios/$MOBILE_SCANNER_PATH/mobile_scanner.podspec"
     fi
     
-    echo "Updated mobile_scanner.podspec deployment target to 14.0"
+    echo "Updated mobile_scanner.podspec deployment target to 15.0"
   else
     echo "mobile_scanner.podspec not found"
   fi
