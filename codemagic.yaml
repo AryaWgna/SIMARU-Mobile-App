@@ -8,7 +8,10 @@ workflows:
         IOS_DEPLOYMENT_TARGET: 14.0
     scripts:
       - flutter pub get
-      - cd ios && pod install && cd ..
+      - chmod +x ./update_deployment_target.sh && ./update_deployment_target.sh
+      - cd ios && pod repo update && cd ..
+      - chmod +x ./update_mobile_scanner.sh && ./update_mobile_scanner.sh
+      - cd ios && IPHONEOS_DEPLOYMENT_TARGET=14.0 pod install && cd ..
       - flutter build ios --simulator
       - mkdir -p build/ios/ipa
       - zip -r build/ios/ipa/Runner.app.zip build/ios/iphonesimulator/Runner.app
