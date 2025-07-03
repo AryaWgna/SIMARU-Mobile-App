@@ -217,15 +217,55 @@ class QRScannerController extends ChangeNotifier {
           LoggerUtil.d('Employee number: ${assetData['employee_number']}');
           LoggerUtil.d('Brand info direct: ${assetData['brand']}');
 
+          // Debug disposal date
+          LoggerUtil.d('Disposal date: ${assetData['disposal_date']}');
+          LoggerUtil.d('Disposed at: ${assetData['disposed_at']}');
+
+          // Ensure disposal date is properly set
+          if (assetData['disposal_date'] == null &&
+              assetData['disposed_at'] != null) {
+            assetData['disposal_date'] = assetData['disposed_at'];
+          }
+
           if (assetData['asset_master'] != null) {
             LoggerUtil.d(
                 'Asset master fields: ${assetData['asset_master'].keys}');
 
             // Debug brand dari asset_master
-            if (assetData['asset_master']['brand'] != null) {
+            if (assetData['asset_master']['brands'] != null) {
+              LoggerUtil.d(
+                  'Brand from asset_master: ${assetData['asset_master']['brands']}');
+            } else if (assetData['asset_master']['brand'] != null) {
               LoggerUtil.d(
                   'Brand from asset_master: ${assetData['asset_master']['brand']}');
             }
+
+            // Ensure brand information is properly structured
+            if (assetData['asset_master']['brands'] == null &&
+                assetData['asset_master']['brand'] != null) {
+              // If brands is missing but brand exists, add it to the structure
+              assetData['asset_master']['brands'] =
+                  assetData['asset_master']['brand'];
+            }
+
+            // Debug asset name
+            LoggerUtil.d(
+                'Asset name from asset_master: ${assetData['asset_master']['asset_name']}');
+          }
+
+          // Ensure asset name is set properly
+          if (assetData['asset_name'] == null &&
+              assetData['asset_master'] != null) {
+            assetData['asset_name'] = assetData['asset_master']['asset_name'];
+          }
+
+          // Check if asset has disposal date and update status accordingly
+          if ((assetData['disposal_date'] != null &&
+                  assetData['disposal_date'] != '-') ||
+              (assetData['disposed_at'] != null &&
+                  assetData['disposed_at'] != '-')) {
+            LoggerUtil.d('Asset has disposal date, updating status to DISPOSE');
+            assetData['current_status'] = 'DISPOSE';
           }
 
           return data['data'];

@@ -379,6 +379,8 @@ class _AssetMutationState extends State<AssetMutation> {
                       return _buildLossCard(history);
                     case 'found':
                       return _buildFoundCard(history);
+                    case 'dispose':
+                      return _buildDisposeCard(history);
                     default:
                       return const SizedBox.shrink();
                   }
@@ -489,6 +491,27 @@ class _AssetMutationState extends State<AssetMutation> {
       color: _mutationController.getStatusColor('FOUND'),
       children: [
         _buildInfoRow('Tanggal Ditemukan:', foundDate),
+        const SizedBox(height: 12),
+        _buildInfoRow('Catatan:', notes),
+      ],
+    );
+  }
+
+  Widget _buildDisposeCard(Map<String, dynamic> history) {
+    final disposeDate = formatAPIDate(history['dispose_date']?.toString());
+    final notes = history['dispose_notes']?.toString() ?? '-';
+
+    return _buildStatusCard(
+      title: 'DIHAPUSKAN',
+      icon: Icons.delete_outline,
+      iconWidget: const Icon(
+        Icons.delete_outline,
+        color: Color(0xFF203268),
+        size: 24,
+      ),
+      color: _mutationController.getStatusColor('DISPOSE'),
+      children: [
+        _buildInfoRow('Tanggal Penghapusan:', disposeDate),
         const SizedBox(height: 12),
         _buildInfoRow('Catatan:', notes),
       ],

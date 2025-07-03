@@ -94,9 +94,33 @@ class _AssetDetailsState extends State<AssetDetails> with RouteAware {
   }
 
   void _onRefresh() async {
+    // Aktifkan skeletonizer
+    _assetDetailsController.setLoading(true);
+
+    // Simpan data status dan updated_at sebelum refresh
+    final currentAssetData =
+        _assetDetailsController.assetData ?? widget.assetData;
+    final currentStatus =
+        currentAssetData?['current_status']?.toString().toLowerCase();
+    final currentUpdatedAt = currentAssetData?['updated_at'];
+
     // Fetch data dengan controller
-    String assetCode = widget.assetData?['asset_code'] ?? widget.qrData;
+    String assetCode = currentAssetData?['asset_code'] ?? widget.qrData;
     await _assetDetailsController.fetchAssetData(assetCode, context: context);
+
+    // Pastikan data updated_at tetap ada setelah refresh untuk status dispose dan lost
+    if (_assetDetailsController.assetData != null) {
+      final newStatus = _assetDetailsController.assetData!['current_status']
+          ?.toString()
+          .toLowerCase();
+
+      // Jika status adalah dispose atau lost, pastikan updated_at tetap ada
+      if ((newStatus == 'dispose' || newStatus == 'lost') &&
+          currentUpdatedAt != null &&
+          _assetDetailsController.assetData!['updated_at'] == null) {
+        _assetDetailsController.assetData!['updated_at'] = currentUpdatedAt;
+      }
+    }
 
     // Reset refresh controller
     _refreshController.refreshCompleted();
@@ -106,6 +130,9 @@ class _AssetDetailsState extends State<AssetDetails> with RouteAware {
 
     // Jika refresh counter mencapai 3, reset tampilan untuk mencegah zoom
     if (_assetDetailsController.refreshCount == 0 && mounted) {
+      // Simpan data aset saat ini sebelum rebuild
+      final currentAssetDataAfterRefresh = _assetDetailsController.assetData;
+
       // Trigger rebuild dengan sedikit delay
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted) {
@@ -115,7 +142,7 @@ class _AssetDetailsState extends State<AssetDetails> with RouteAware {
                   AssetDetails(
                 qrData: widget.qrData,
                 previousScreen: widget.previousScreen,
-                assetData: widget.assetData,
+                assetData: currentAssetDataAfterRefresh ?? widget.assetData,
               ),
               transitionDuration: Duration.zero,
               reverseTransitionDuration: Duration.zero,
@@ -131,7 +158,15 @@ class _AssetDetailsState extends State<AssetDetails> with RouteAware {
   void _navigateBack() {
     // Pop this screen from navigation history
     _dashboardController.popFromHistory();
-    Navigator.pop(context);
+
+    // Navigate to dashboard with home tab
+    _dashboardController.setSelectedIndex(0); // Set tab ke beranda (index 0)
+    Navigator.of(context).pushAndRemoveUntil(
+      MaterialPageRoute(
+        builder: (context) => const DashboardScreen(initialIndex: 0),
+      ),
+      (route) => false,
+    );
   }
 
   // Navigate to asset history screen with proper navigation tracking
@@ -199,7 +234,13 @@ class _AssetDetailsState extends State<AssetDetails> with RouteAware {
             '[DETAIL DEBUG] Current status dari API: ${assetData['current_status']}');
 
         final assetCode = assetData['asset_code'] ?? widget.qrData;
-        final assetName = assetData['asset_name'] ?? 'Tidak diketahui';
+
+        // Perbaikan untuk mengambil nama aset dari berbagai sumber yang mungkin
+        final assetName = assetData['asset_name'] ??
+            assetData['asset_master']?['asset_name'] ??
+            controller.masterAssetData?['asset_name'] ??
+            'Tidak diketahui';
+
         final assetMasterCode = assetData['asset_master_code'] ?? '-';
 
         // Perbaikan untuk current_status - agar sesuai dengan database
@@ -209,17 +250,30 @@ class _AssetDetailsState extends State<AssetDetails> with RouteAware {
                 'available';
         print('[DETAIL DEBUG] Status yang akan digunakan: $assetStatus');
 
-        // Informasi tambahan dengan format yang diperbaiki hanya untuk Condition dan Asset Type
-        final brand = assetData['brand']?['brand_name'] ??
-            assetData['asset_master']?['brand']?['brand_name'] ??
-            controller.masterAssetData?['brand_name'] ??
-            '-';
-        final modelNumber = assetData['model_number'] ?? '-';
+        // Cek apakah aset memiliki tanggal dihapuskan, jika ada dan valid, override status menjadi 'dispose'
+        final disposalDate =
+            assetData['disposal_date'] ?? assetData['disposed_at'] ?? '-';
+        final String effectiveStatus =
+            disposalDate != null && disposalDate != '-'
+                ? 'dispose'
+                : assetStatus;
+
+        print(
+            '[DETAIL DEBUG] Status efektif yang akan digunakan: $effectiveStatus');
 
         // Ambil data kondisi langsung dari API dan terjemahkan
         final conditionRaw = assetData['condition'] ?? '-';
         final condition = controller.getIndonesianCondition(conditionRaw);
 
+        // Perbaikan untuk mengambil data brand dengan benar dari berbagai sumber yang mungkin
+        final brand = assetData['asset_master']?['brands']?['brand_name'] ??
+            assetData['asset_master']?['brand']?['brand_name'] ??
+            assetData['brands']?['brand_name'] ??
+            assetData['brand']?['brand_name'] ??
+            controller.masterAssetData?['brand_name'] ??
+            '-';
+
+        final modelNumber = assetData['model_number'] ?? '-';
         final warrantyDate = assetData['warranty_end_date'] ?? '-';
         final serialNumber = assetData['serial_number'] ?? '-';
         final purchasePrice = assetData['purchase_cost'] != null
@@ -229,9 +283,6 @@ class _AssetDetailsState extends State<AssetDetails> with RouteAware {
                 : '-';
         final purchaseDate = assetData['purchase_date'] != null
             ? controller.formatDate(assetData['purchase_date'])
-            : '-';
-        final disposalDate = assetData['disposal_date'] != null
-            ? controller.formatDate(assetData['disposal_date'])
             : '-';
 
         // Gunakan employee_number untuk penanggung jawab
@@ -251,9 +302,12 @@ class _AssetDetailsState extends State<AssetDetails> with RouteAware {
         final assetTypeRaw = assetData['subcategory']?['asset_type'] ?? '-';
         final assetType = controller.getIndonesianAssetType(assetTypeRaw);
 
-        final locationName = assetData['room']?['room_name'] ?? '-';
-        final buildingName =
-            assetData['room']?['building']?['building_name'] ?? '-';
+        // Fix untuk lokasi ruangan dan gedung
+        final locationName =
+            assetData['room']?['room_name'] ?? assetData['room_name'] ?? '-';
+        final buildingName = assetData['room']?['building']?['building_name'] ??
+            assetData['building_name'] ??
+            '-';
         final description = assetData['description'] ?? '-';
 
         // Mengambil jalur gambar dan membangun URL lengkap
@@ -269,8 +323,16 @@ class _AssetDetailsState extends State<AssetDetails> with RouteAware {
 
         return WillPopScope(
           onWillPop: () async {
-            // Navigasi kembali ke dashboard dengan tab yang sesuai
-            _navigateBack();
+            // Navigasi kembali ke dashboard dengan tab beranda
+            _dashboardController.popFromHistory();
+            _dashboardController
+                .setSelectedIndex(0); // Set tab ke beranda (index 0)
+            Navigator.of(context).pushAndRemoveUntil(
+              MaterialPageRoute(
+                builder: (context) => const DashboardScreen(initialIndex: 0),
+              ),
+              (route) => false,
+            );
             return false; // Mencegah default back behavior
           },
           child: Scaffold(
@@ -418,12 +480,13 @@ class _AssetDetailsState extends State<AssetDetails> with RouteAware {
                                         ),
                                         decoration: BoxDecoration(
                                           color: controller
-                                              .getStatusColor(assetStatus),
+                                              .getStatusColor(effectiveStatus),
                                           borderRadius:
                                               BorderRadius.circular(5),
                                         ),
                                         child: Text(
-                                          controller.getStatusText(assetStatus),
+                                          controller
+                                              .getStatusText(effectiveStatus),
                                           style: const TextStyle(
                                             color: Colors.white,
                                             fontSize: 14,
@@ -439,9 +502,9 @@ class _AssetDetailsState extends State<AssetDetails> with RouteAware {
                           ),
 
                           // Action Buttons jika diperlukan
-                          if (assetStatus.toLowerCase() != 'lost' &&
-                              assetStatus.toLowerCase() != 'dispose' &&
-                              assetStatus.toLowerCase() != 'under repair')
+                          if (effectiveStatus.toLowerCase() != 'lost' &&
+                              effectiveStatus.toLowerCase() != 'dispose' &&
+                              effectiveStatus.toLowerCase() != 'under repair')
                             Container(
                               padding: const EdgeInsets.symmetric(vertical: 20),
                               child: Row(
@@ -449,16 +512,16 @@ class _AssetDetailsState extends State<AssetDetails> with RouteAware {
                                     MainAxisAlignment.spaceEvenly,
                                 children: [
                                   _buildActionButton(
-                                    icon:
-                                        assetStatus.toLowerCase() == 'check out'
-                                            ? Icons.login
-                                            : Icons.logout,
-                                    label:
-                                        assetStatus.toLowerCase() == 'check out'
-                                            ? 'Kembali'
-                                            : 'Pinjam',
+                                    icon: effectiveStatus.toLowerCase() ==
+                                            'check out'
+                                        ? Icons.login
+                                        : Icons.logout,
+                                    label: effectiveStatus.toLowerCase() ==
+                                            'check out'
+                                        ? 'Kembali'
+                                        : 'Pinjam',
                                     onTap: () async {
-                                      if (assetStatus.toLowerCase() ==
+                                      if (effectiveStatus.toLowerCase() ==
                                           'check out') {
                                         final result = await Navigator.push(
                                           context,
@@ -538,27 +601,27 @@ class _AssetDetailsState extends State<AssetDetails> with RouteAware {
                                   horizontal: 20, vertical: 20),
                               decoration: BoxDecoration(
                                 color: controller
-                                    .getStatusBackgroundColor(assetStatus),
+                                    .getStatusBackgroundColor(effectiveStatus),
                                 borderRadius: BorderRadius.circular(8),
                                 border: Border.all(
                                     color: controller
-                                        .getStatusBorderColor(assetStatus)),
+                                        .getStatusBorderColor(effectiveStatus)),
                               ),
                               child: Column(
                                 children: [
                                   Icon(
-                                    controller.getStatusIcon(assetStatus),
-                                    color:
-                                        controller.getStatusColor(assetStatus),
+                                    controller.getStatusIcon(effectiveStatus),
+                                    color: controller
+                                        .getStatusColor(effectiveStatus),
                                     size: 32,
                                   ),
                                   const SizedBox(height: 8),
                                   Text(
                                     controller.getStatusUnavailableMessage(
-                                        assetStatus),
+                                        effectiveStatus),
                                     style: TextStyle(
                                       color: controller
-                                          .getStatusColor(assetStatus),
+                                          .getStatusColor(effectiveStatus),
                                       fontWeight: FontWeight.bold,
                                       fontSize: 16,
                                     ),
@@ -569,7 +632,7 @@ class _AssetDetailsState extends State<AssetDetails> with RouteAware {
                                     textAlign: TextAlign.center,
                                     style: TextStyle(
                                       color: controller
-                                          .getStatusColor(assetStatus),
+                                          .getStatusColor(effectiveStatus),
                                       fontSize: 14,
                                     ),
                                   ),
@@ -648,7 +711,11 @@ class _AssetDetailsState extends State<AssetDetails> with RouteAware {
                                         'Merek',
                                         controller.masterAssetData?[
                                                 'brand_name'] ??
+                                            assetData['asset_master']?['brands']
+                                                ?['brand_name'] ??
                                             assetData['asset_master']?['brand']
+                                                ?['brand_name'] ??
+                                            assetData['brands']
                                                 ?['brand_name'] ??
                                             assetData['brand']?['brand_name'] ??
                                             brand),
@@ -716,8 +783,23 @@ class _AssetDetailsState extends State<AssetDetails> with RouteAware {
                                     _buildTableRow('Harga Beli', purchasePrice),
                                     _buildTableRow(
                                         'Tanggal Beli', purchaseDate),
-                                    _buildTableRow(
-                                        'Tanggal Dihapuskan', disposalDate),
+                                    // Tampilkan tanggal dimusnahkan atau tanggal hilang berdasarkan status
+                                    if (effectiveStatus.toLowerCase() ==
+                                        'dispose')
+                                      _buildTableRow(
+                                          'Tanggal Dimusnahkan',
+                                          assetData['updated_at'] != null
+                                              ? controller.formatDate(
+                                                  assetData['updated_at'])
+                                              : '-')
+                                    else if (effectiveStatus.toLowerCase() ==
+                                        'lost')
+                                      _buildTableRow(
+                                          'Tanggal Hilang',
+                                          assetData['updated_at'] != null
+                                              ? controller.formatDate(
+                                                  assetData['updated_at'])
+                                              : '-'),
                                   ],
                                 ),
 

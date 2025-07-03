@@ -656,33 +656,11 @@ class _AssetHistoryState extends State<AssetHistory> {
                                               const SizedBox(height: 20),
                                             ],
                                           );
-                                        } else if (actionType.toUpperCase() ==
-                                            'DOCUMENT_UPLOAD') {
-                                          final docTitle =
-                                              history.document?['title'] ?? '';
-
-                                          return Column(
-                                            children: [
-                                              _buildDocumentTimelineItem(
-                                                message: message
-                                                        .contains('uploaded')
-                                                    ? 'Pegawai ${history.employeeId} mengunggah dokumen $docTitle'
-                                                    : message
-                                                            .contains('updated')
-                                                        ? 'Pegawai ${history.employeeId} memperbarui dokumen'
-                                                        : _addPegawaiPrefix(
-                                                            message),
-                                                time: time,
-                                              ),
-                                              const SizedBox(height: 20),
-                                            ],
-                                          );
                                         } else {
                                           return Column(
                                             children: [
                                               _buildSimpleTimelineItem(
-                                                message:
-                                                    _addPegawaiPrefix(message),
+                                                message: message,
                                                 time: time,
                                               ),
                                               const SizedBox(height: 20),
@@ -788,9 +766,7 @@ class _AssetHistoryState extends State<AssetHistory> {
                     TextSpan(
                       text: oldStatus,
                       style: TextStyle(
-                        color: oldStatus == 'Tersedia'
-                            ? Colors.green
-                            : Colors.orange,
+                        color: _historyController.getStatusColor(oldStatus),
                         fontWeight: FontWeight.bold,
                       ),
                     ),
@@ -798,9 +774,7 @@ class _AssetHistoryState extends State<AssetHistory> {
                     TextSpan(
                       text: newStatus,
                       style: TextStyle(
-                        color: newStatus == 'Tersedia'
-                            ? Colors.green
-                            : Colors.orange,
+                        color: _historyController.getStatusColor(newStatus),
                         fontWeight: FontWeight.bold,
                       ),
                     ),
@@ -896,9 +870,27 @@ class _AssetHistoryState extends State<AssetHistory> {
     required String time,
   }) {
     IconData iconData = Icons.info_outline;
+    AssetHistoryItem? historyItem;
 
-    // Select appropriate icon based on the message content
-    if (message.toLowerCase().contains('create')) {
+    // Find the history item that matches this message
+    for (var item in _historyController.histories) {
+      if (item.message == message || message.contains(item.employeeId)) {
+        historyItem = item;
+        break;
+      }
+    }
+
+    // Get action type from history item if available
+    String actionType = historyItem?.actionType.toUpperCase() ?? '';
+
+    // Select appropriate icon based on the action type or message content
+    if (actionType == 'DOCUMENT_UPLOAD') {
+      iconData = Icons.description;
+    } else if (actionType == 'CALIBRATION') {
+      iconData = Icons.settings;
+    } else if (actionType == 'MAINTENANCE_SCHEDULE') {
+      iconData = Icons.build;
+    } else if (message.toLowerCase().contains('create')) {
       iconData = Icons.add_circle_outline;
     } else if (message.toLowerCase().contains('update')) {
       iconData = Icons.edit;
@@ -969,19 +961,161 @@ class _AssetHistoryState extends State<AssetHistory> {
                   ),
                 ],
               ),
-              child: Text(
-                message,
-                style: const TextStyle(
-                  fontFamily: 'Poppins',
-                  fontSize: 14,
-                  color: Colors.black,
-                ),
-              ),
+              child: _buildHistoryMessageContent(historyItem, message),
             ),
           ),
         ],
       ),
     );
+  }
+
+  // New method to build message content based on action type
+  Widget _buildHistoryMessageContent(
+      AssetHistoryItem? historyItem, String message) {
+    if (historyItem == null) {
+      return Text(
+        message,
+        style: const TextStyle(
+          fontFamily: 'Poppins',
+          fontSize: 14,
+          color: Colors.black,
+        ),
+      );
+    }
+
+    String actionType = historyItem.actionType.toUpperCase();
+    String employeeId = historyItem.employeeId;
+
+    switch (actionType) {
+      case 'CALIBRATION':
+        String notes = '';
+        if (historyItem.calibration != null &&
+            historyItem.calibration!['notes'] != null) {
+          notes = historyItem.calibration!['notes'].toString();
+        } else {
+          notes = historyItem.message;
+        }
+
+        return RichText(
+          text: TextSpan(
+            style: const TextStyle(
+              fontFamily: 'Poppins',
+              fontSize: 14,
+              color: Colors.black,
+            ),
+            children: [
+              TextSpan(
+                text: 'Pegawai $employeeId ',
+                style: const TextStyle(fontWeight: FontWeight.bold),
+              ),
+              const TextSpan(text: 'melakukan kalibrasi: '),
+              TextSpan(
+                text: notes,
+                style: const TextStyle(
+                  color: Color(0xFF25B1FF),
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ],
+          ),
+        );
+
+      case 'MAINTENANCE_SCHEDULE':
+        String description = '';
+        if (historyItem.maintenance != null &&
+            historyItem.maintenance!['description'] != null) {
+          description = historyItem.maintenance!['description'].toString();
+        } else {
+          description = historyItem.message;
+        }
+
+        return RichText(
+          text: TextSpan(
+            style: const TextStyle(
+              fontFamily: 'Poppins',
+              fontSize: 14,
+              color: Colors.black,
+            ),
+            children: [
+              TextSpan(
+                text: 'Pegawai $employeeId ',
+                style: const TextStyle(fontWeight: FontWeight.bold),
+              ),
+              const TextSpan(text: 'menjadwalkan pemeliharaan: '),
+              TextSpan(
+                text: description,
+                style: const TextStyle(
+                  color: Color(0xFF25B1FF),
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ],
+          ),
+        );
+
+      case 'DOCUMENT_UPLOAD':
+        String title = '';
+        if (historyItem.document != null &&
+            historyItem.document!['title'] != null) {
+          title = historyItem.document!['title'].toString();
+        } else {
+          title = historyItem.message;
+        }
+
+        return RichText(
+          text: TextSpan(
+            style: const TextStyle(
+              fontFamily: 'Poppins',
+              fontSize: 14,
+              color: Colors.black,
+            ),
+            children: [
+              TextSpan(
+                text: 'Pegawai $employeeId ',
+                style: const TextStyle(fontWeight: FontWeight.bold),
+              ),
+              const TextSpan(text: 'mengunggah dokumen: '),
+              TextSpan(
+                text: title,
+                style: const TextStyle(
+                  color: Color(0xFF213268),
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ],
+          ),
+        );
+
+      default:
+        // For other types, just show the message with employee ID in bold
+        if (message.startsWith('Pegawai $employeeId')) {
+          return Text(
+            message,
+            style: const TextStyle(
+              fontFamily: 'Poppins',
+              fontSize: 14,
+              color: Colors.black,
+            ),
+          );
+        } else {
+          return RichText(
+            text: TextSpan(
+              style: const TextStyle(
+                fontFamily: 'Poppins',
+                fontSize: 14,
+                color: Colors.black,
+              ),
+              children: [
+                TextSpan(
+                  text: 'Pegawai $employeeId ',
+                  style: const TextStyle(fontWeight: FontWeight.bold),
+                ),
+                TextSpan(text: message),
+              ],
+            ),
+          );
+        }
+    }
   }
 
   Widget _buildSkeletonTimelineItem() {

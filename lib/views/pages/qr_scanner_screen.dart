@@ -462,6 +462,13 @@ class _QRScannerScreenState extends State<QRScannerScreen>
         await controller.processScannedQR(qrCode, socketService, context);
 
     if (assetData != null) {
+      // Ensure asset name is set properly before navigating
+      if (assetData['asset_name'] == null &&
+          assetData['asset_master'] != null &&
+          assetData['asset_master']['asset_name'] != null) {
+        assetData['asset_name'] = assetData['asset_master']['asset_name'];
+      }
+
       // Remove success notification
       // Navigate to asset details
       if (mounted) {

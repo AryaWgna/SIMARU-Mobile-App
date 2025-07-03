@@ -158,15 +158,15 @@ class AssetHistoryItem {
       case 'returned':
         return 'Tersedia';
       case 'inactive':
-        return 'Tidak Aktif';
+        return 'Tidak aktif';
       case 'under_repair':
       case 'under repair':
-        return 'Dalam Perbaikan';
+        return 'Dalam perbaikan';
       case 'broken':
         return 'Rusak';
       case 'disposed':
       case 'dispose':
-        return 'Dibuang';
+        return 'Dihapuskan';
       case 'checked_out':
       case 'checked out':
         return 'Dipinjam';

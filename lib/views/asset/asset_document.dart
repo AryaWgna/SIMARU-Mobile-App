@@ -167,7 +167,7 @@ class _AssetDocumentState extends State<AssetDocument>
 
     LoggerUtil.d('Menggunakan asset_id: $_assetId untuk mengambil dokumen');
     // Fetch documents
-    _fetchAssetDocuments();
+    _fetchAssetDocuments(showLoading: true);
   }
 
   // Tampilkan pesan error
@@ -248,8 +248,13 @@ class _AssetDocumentState extends State<AssetDocument>
   }
 
   // Metode untuk mengambil dokumen aset
-  Future<void> _fetchAssetDocuments() async {
+  Future<void> _fetchAssetDocuments({bool showLoading = true}) async {
     if (_assetId == null) return;
+
+    if (showLoading) {
+      _documentController.setLoading(true);
+    }
+
     await _documentController.fetchAssetDocuments(_assetId!, context);
   }
 
@@ -274,7 +279,9 @@ class _AssetDocumentState extends State<AssetDocument>
   void _onRefresh() async {
     LoggerUtil.d("AssetDocument: onRefresh called");
 
-    await _fetchAssetDocuments();
+    // Immediately set loading state to show skeletonizer
+    await _fetchAssetDocuments(showLoading: true);
+
     LoggerUtil.d("AssetDocument: fetchAssetDocuments completed");
 
     _refreshController.refreshCompleted();
@@ -413,6 +420,8 @@ class _AssetDocumentState extends State<AssetDocument>
 
   @override
   Widget build(BuildContext context) {
+    final double statusBarHeight = MediaQuery.of(context).padding.top;
+
     return Scaffold(
       body: Stack(
         children: [
@@ -421,7 +430,7 @@ class _AssetDocumentState extends State<AssetDocument>
 
           // Content Section
           Positioned(
-            top: 82 + MediaQuery.of(context).padding.top,
+            top: 90 + statusBarHeight,
             left: 0,
             right: 0,
             bottom: 0,
@@ -447,9 +456,10 @@ class _AssetDocumentState extends State<AssetDocument>
                         return SmartRefresher(
                           enablePullDown: true,
                           enablePullUp: false,
-                          physics: const AlwaysScrollableScrollPhysics(),
+                          physics: const ClampingScrollPhysics(),
                           controller: _refreshController,
                           onRefresh: _onRefresh,
+                          footer: null,
                           header: const WaterDropMaterialHeader(
                             backgroundColor: Color(0xFF213268),
                             color: Colors.white,
@@ -483,7 +493,7 @@ class _AssetDocumentState extends State<AssetDocument>
     final double statusBarHeight = MediaQuery.of(context).padding.top;
 
     return PreferredSize(
-      preferredSize: const Size.fromHeight(82),
+      preferredSize: const Size.fromHeight(90),
       child: Stack(
         children: [
           // Warna biru tua untuk AppBar
@@ -491,7 +501,7 @@ class _AssetDocumentState extends State<AssetDocument>
             top: 0,
             left: 0,
             right: 0,
-            height: 82 + statusBarHeight,
+            height: 90 + statusBarHeight,
             child: Container(
               decoration: const BoxDecoration(
                 color: Color(0xFF213268),
@@ -506,7 +516,7 @@ class _AssetDocumentState extends State<AssetDocument>
             top: statusBarHeight,
             left: 0,
             right: 0,
-            height: 82,
+            height: 90,
             child: Row(
               children: [
                 IconButton(
@@ -566,9 +576,9 @@ class _AssetDocumentState extends State<AssetDocument>
   // Fungsi untuk membuat skeleton layout
   Widget _buildSkeletonLayout() {
     return ListView.separated(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
       itemCount: 3, // Tampilkan 3 skeleton item
-      separatorBuilder: (context, index) => const SizedBox(height: 12),
+      separatorBuilder: (context, index) => const SizedBox(height: 24),
       itemBuilder: (context, index) {
         return _buildSkeletonDocumentCard();
       },
@@ -578,55 +588,63 @@ class _AssetDocumentState extends State<AssetDocument>
   // Fungsi untuk membuat skeleton document card
   Widget _buildSkeletonDocumentCard() {
     return Container(
+      width: double.infinity,
+      margin: const EdgeInsets.only(bottom: 12),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(5),
+        border: Border.all(color: Colors.grey.shade200),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.1),
+            color: const Color(0xFF213268).withOpacity(0.08),
             blurRadius: 4,
+            spreadRadius: 0,
             offset: const Offset(0, 2),
           ),
         ],
       ),
       child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Padding(
-            padding: const EdgeInsets.all(12),
+          Container(
+            padding: const EdgeInsets.only(left: 15, top: 14, bottom: 14),
             child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Container(
-                  width: 200,
-                  height: 16,
-                  decoration: BoxDecoration(
-                    color: Colors.grey[300],
-                    borderRadius: BorderRadius.circular(4),
-                  ),
-                ),
-                const SizedBox(width: 8),
                 Container(
                   width: 24,
                   height: 24,
+                  margin: const EdgeInsets.only(right: 11),
+                  decoration: const BoxDecoration(
+                    color: Color(0xFF213268),
+                    shape: BoxShape.circle,
+                  ),
+                ),
+                Container(
+                  width: 200,
+                  height: 20,
                   decoration: BoxDecoration(
-                    color: Colors.grey[300],
-                    borderRadius: BorderRadius.circular(12),
+                    color: Colors.grey.shade300,
+                    borderRadius: BorderRadius.circular(4),
                   ),
                 ),
               ],
             ),
           ),
-          const Divider(height: 1, thickness: 1, color: Color(0xFFEEEEEE)),
+          Container(
+            width: double.infinity,
+            height: 1,
+            color: Colors.grey.shade200,
+          ),
           Padding(
-            padding: const EdgeInsets.all(12),
+            padding: const EdgeInsets.all(16),
             child: Column(
               children: [
                 _buildSkeletonDetailRow(),
-                const SizedBox(height: 8),
+                const SizedBox(height: 12),
                 _buildSkeletonDetailRow(),
-                const SizedBox(height: 8),
+                const SizedBox(height: 12),
                 _buildSkeletonDetailRow(),
-                const SizedBox(height: 8),
+                const SizedBox(height: 12),
                 _buildSkeletonDetailRow(),
               ],
             ),
@@ -665,29 +683,39 @@ class _AssetDocumentState extends State<AssetDocument>
 
   Widget _buildErrorView(String errorMessage) {
     return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(Icons.error, color: Colors.red, size: 48),
-          SizedBox(height: 16),
-          Text(
-            errorMessage,
-            style: TextStyle(color: Colors.red, fontSize: 16),
-            textAlign: TextAlign.center,
-          ),
-          SizedBox(height: 24),
-          ElevatedButton(
-            onPressed: _fetchAssetDocuments,
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.blue,
-              foregroundColor: Colors.white,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(8),
-              ),
+      child: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              Icons.error_outline,
+              color: Colors.red[700],
+              size: 48,
             ),
-            child: Text('Coba Lagi'),
-          ),
-        ],
+            const SizedBox(height: 16),
+            Text(
+              errorMessage,
+              style: TextStyle(
+                color: Colors.red[700],
+                fontSize: 16,
+              ),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 24),
+            ElevatedButton(
+              onPressed: () => _fetchAssetDocuments(showLoading: true),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF213268),
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8),
+                ),
+              ),
+              child: const Text('Coba Lagi'),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -697,16 +725,23 @@ class _AssetDocumentState extends State<AssetDocument>
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(Icons.folder_open, color: Colors.grey, size: 64),
-          SizedBox(height: 16),
-          Text(
+          Icon(Icons.folder_open, color: Colors.grey[400], size: 64),
+          const SizedBox(height: 16),
+          const Text(
             'Tidak ada dokumen',
-            style: TextStyle(fontSize: 18, fontWeight: FontWeight.w500),
+            style: TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.w500,
+              color: Color(0xFF666666),
+            ),
           ),
-          SizedBox(height: 8),
-          Text(
+          const SizedBox(height: 8),
+          const Text(
             'Aset ini belum memiliki dokumen terkait\n(reguler, kalibrasi, atau pemeliharaan)',
-            style: TextStyle(fontSize: 14, color: Colors.grey),
+            style: TextStyle(
+              fontSize: 14,
+              color: Color(0xFF999999),
+            ),
             textAlign: TextAlign.center,
           ),
         ],
@@ -716,10 +751,10 @@ class _AssetDocumentState extends State<AssetDocument>
 
   Widget _buildDocumentListView(List<dynamic> documents) {
     return ListView.separated(
-      padding: const EdgeInsets.all(16),
-      physics: const AlwaysScrollableScrollPhysics(),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
+      physics: const ClampingScrollPhysics(),
       itemCount: documents.length,
-      separatorBuilder: (context, index) => const SizedBox(height: 12),
+      separatorBuilder: (context, index) => const SizedBox(height: 24),
       itemBuilder: (context, index) {
         final document = documents[index];
         LoggerUtil.d('Rendering document at index $index: $document');
@@ -772,66 +807,81 @@ class _AssetDocumentState extends State<AssetDocument>
         }
       },
       child: Container(
+        width: double.infinity,
+        margin: const EdgeInsets.only(bottom: 12),
         decoration: BoxDecoration(
           color: Colors.white,
-          borderRadius: BorderRadius.circular(8),
+          borderRadius: BorderRadius.circular(5),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.1),
+              color: Colors.black.withOpacity(0.25),
               blurRadius: 4,
-              offset: const Offset(0, 2),
+              spreadRadius: 2,
+              offset: const Offset(0, 4),
             ),
           ],
         ),
         child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Padding(
-              padding: const EdgeInsets.all(12),
-              child: Column(
+              padding: const EdgeInsets.only(left: 15, top: 14, bottom: 14),
+              child: Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Expanded(
-                        child: Text(
+                  Container(
+                    width: 24,
+                    height: 24,
+                    margin: const EdgeInsets.only(right: 11),
+                    child: Icon(
+                      _getFileIcon(fileType),
+                      color: const Color(0xFF203268),
+                      size: 24,
+                    ),
+                  ),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
                           documentTitle,
                           style: const TextStyle(
                             fontFamily: 'Poppins',
                             fontSize: 16,
                             fontWeight: FontWeight.w500,
                             color: Color(0xFF213268),
+                            letterSpacing: 0.1,
                           ),
-                          maxLines: 1,
+                          maxLines: 2,
                           overflow: TextOverflow.ellipsis,
                         ),
-                      ),
-                      const SizedBox(width: 8),
-                      Icon(
-                        _getFileIcon(fileType),
-                        color: const Color(0xFF25B1FF),
-                        size: 24,
-                      ),
-                    ],
+                        // Hanya tampilkan badge untuk kategori Kalibrasi dan Pemeliharaan
+                        if (docType == 'Kalibrasi' || docType == 'Pemeliharaan')
+                          Padding(
+                            padding: const EdgeInsets.only(top: 4),
+                            child: _buildDocTypeBadge(docType),
+                          ),
+                      ],
+                    ),
                   ),
-                  const SizedBox(height: 8),
-                  // Hanya tampilkan badge untuk kategori Kalibrasi dan Pemeliharaan
-                  if (docType == 'Kalibrasi' || docType == 'Pemeliharaan')
-                    _buildDocTypeBadge(docType),
                 ],
               ),
             ),
-            const Divider(height: 1, thickness: 1, color: Color(0xFFEEEEEE)),
+            Container(
+              width: double.infinity,
+              height: 1,
+              color: const Color(0xFFAAAAAA),
+            ),
             Padding(
-              padding: const EdgeInsets.all(12),
+              padding: const EdgeInsets.all(16),
               child: Column(
                 children: [
                   _buildDocumentDetail('Nama File', fileName),
-                  const SizedBox(height: 8),
+                  const SizedBox(height: 12),
                   _buildDocumentDetail('Tipe File', fileType.toUpperCase()),
-                  const SizedBox(height: 8),
+                  const SizedBox(height: 12),
                   _buildDocumentDetail('Catatan', notes),
-                  const SizedBox(height: 8),
+                  const SizedBox(height: 12),
                   _buildDocumentDetail('Tanggal Upload', uploadDate),
                 ],
               ),
@@ -852,8 +902,9 @@ class _AssetDocumentState extends State<AssetDocument>
             label,
             style: const TextStyle(
               fontFamily: 'Poppins',
-              fontSize: 14,
-              color: Color(0xFF666666),
+              fontSize: 13,
+              color: Color(0xFF757575),
+              letterSpacing: 0.1,
             ),
           ),
         ),
@@ -862,9 +913,10 @@ class _AssetDocumentState extends State<AssetDocument>
             value,
             style: const TextStyle(
               fontFamily: 'Poppins',
-              fontSize: 14,
+              fontSize: 13,
               fontWeight: FontWeight.w500,
               color: Color(0xFF333333),
+              letterSpacing: 0.1,
             ),
           ),
         ),

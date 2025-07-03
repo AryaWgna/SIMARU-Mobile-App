@@ -330,8 +330,10 @@ class AssetMutationController extends ChangeNotifier {
       case 'PERBAIKAN':
         return const Color(0xFF25B1FF); // Biru
       case 'DISPOSE':
+      case 'DISPOSED':
       case 'DIHAPUSKAN':
-        return const Color(0xFFACC3EF); // Abu-abu
+        return const Color(
+            0xFFACC3EF); // Abu-abu (sesuai asset_details_controller)
       case 'LOSS':
       case 'LOST':
       case 'HILANG':

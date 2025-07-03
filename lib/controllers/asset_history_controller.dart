@@ -303,4 +303,45 @@ class AssetHistoryController extends ChangeNotifier {
     _isLoading = false;
     notifyListeners();
   }
+
+  // Fungsi untuk mendapatkan warna status
+  Color getStatusColor(String status) {
+    // Debug - tampilkan status yang diterima
+    LoggerUtil.d('[HISTORY DEBUG] Mendapatkan warna untuk status: $status');
+
+    // Gunakan status yang sudah dinormalisasi ke uppercase
+    switch (status.toUpperCase()) {
+      case 'AVAILABLE':
+      case 'TERSEDIA':
+        return const Color(0xFF7CB60C); // Hijau
+      case 'CHECK OUT':
+      case 'CHECKED OUT':
+      case 'DIPINJAM':
+      case 'DIPINJAM KE LOKASI':
+      case 'DIPINJAM KE KARYAWAN':
+        return const Color(0xFFDAAE0F); // Kuning
+      case 'UNDER REPAIR':
+      case 'PERBAIKAN':
+        return const Color(0xFF25B1FF); // Biru
+      case 'DISPOSE':
+      case 'DISPOSED':
+      case 'DIHAPUSKAN':
+        return const Color(
+            0xFFACC3EF); // Abu-abu (sesuai asset_details_controller)
+      case 'LOSS':
+      case 'LOST':
+      case 'HILANG':
+        return const Color(0xFFFF4A2B); // Merah
+      case 'FOUND':
+      case 'DITEMUKAN':
+        return const Color(0xFF7CB60C); // Hijau (sama seperti available)
+      case 'RETURN':
+      case 'DIKEMBALIKAN':
+        return const Color(0xFF659B09); // Hijau tua
+      default:
+        LoggerUtil.w(
+            '[HISTORY DEBUG] Status tidak dikenal: $status, menggunakan default');
+        return const Color(0xFF7A7A7A); // Default Abu-abu
+    }
+  }
 }

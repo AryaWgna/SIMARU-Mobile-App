@@ -30,12 +30,24 @@ class AssetDetailsController extends ChangeNotifier {
       String assetType =
           _getSimplifiedAssetType(data['asset_master']['asset_type'] ?? '-');
 
+      // Get brand name from various possible sources
+      String brandName = data['asset_master']['brands']?['brand_name'] ??
+          data['asset_master']['brand']?['brand_name'] ??
+          data['asset_master']['brand_name'] ??
+          '-';
+
+      // Ensure asset name is set properly
+      if (data['asset_name'] == null &&
+          data['asset_master']['asset_name'] != null) {
+        data['asset_name'] = data['asset_master']['asset_name'];
+      }
+
       _masterAssetData = {
         'asset_master_code': data['asset_master']['asset_master_code'] ?? '-',
         'asset_name': data['asset_master']['asset_name'] ?? '-',
         'asset_type': assetType,
         'subcategory_name': data['asset_master']['subcategory_name'] ?? '-',
-        'brand_name': data['asset_master']['brands']?['brand_name'] ?? '-',
+        'brand_name': brandName,
         'needs_calibration': data['asset_master']['needs_calibration'] ?? false,
         'is_depreciable': data['asset_master']['is_depreciable'] ?? false,
         'description': data['asset_master']['description'] ?? '-'
@@ -88,11 +100,20 @@ class AssetDetailsController extends ChangeNotifier {
           // Log data lengkap untuk debugging
           LoggerUtil.d('[ASSET_DETAILS] Full asset data: $fullAssetData');
 
+          // Ensure asset name is set properly in the API response
+          if (fullAssetData['asset_name'] == null &&
+              fullAssetData['asset_master'] != null &&
+              fullAssetData['asset_master']['asset_name'] != null) {
+            fullAssetData['asset_name'] =
+                fullAssetData['asset_master']['asset_name'];
+          }
+
           // Map respons API ke format yang diharapkan aplikasi
           Map<String, dynamic> mappedData = {
             'asset_id': fullAssetData['asset_id'],
             'asset_code': fullAssetData['asset_code'],
-            'asset_name': fullAssetData['asset_master']?['asset_name'] ??
+            'asset_name': fullAssetData['asset_name'] ??
+                fullAssetData['asset_master']?['asset_name'] ??
                 'Tidak diketahui',
             'asset_master_id': fullAssetData['asset_master_id'],
             'asset_master_code': fullAssetData['asset_master']
@@ -103,7 +124,11 @@ class AssetDetailsController extends ChangeNotifier {
             'warranty_end_date': fullAssetData['warranty_end_date'] ?? '-',
             'purchase_date': fullAssetData['purchase_date'] ?? '-',
             'purchase_price': fullAssetData['purchase_cost'] ?? '-',
-            'disposal_date': fullAssetData['disposal_date'] ?? '-',
+            'disposal_date': fullAssetData['disposal_date'] ??
+                fullAssetData['disposed_at'] ??
+                '-',
+            'updated_at':
+                fullAssetData['updated_at'] ?? _assetData?['updated_at'],
             'picture_path': fullAssetData['qr_code'] ?? '',
             'subcategory': {
               'subcategory_name':
@@ -112,8 +137,11 @@ class AssetDetailsController extends ChangeNotifier {
                   fullAssetData['asset_master']?['asset_type'] ?? '-')
             },
             'brands': {
-              'brand_name':
-                  fullAssetData['asset_master']?['brands']?['brand_name'] ?? '-'
+              'brand_name': fullAssetData['asset_master']?['brands']
+                      ?['brand_name'] ??
+                  fullAssetData['asset_master']?['brand']?['brand_name'] ??
+                  fullAssetData['asset_master']?['brand_name'] ??
+                  '-'
             },
             'room': {
               'room_name': fullAssetData['room_name'] ?? '-',
@@ -138,6 +166,13 @@ class AssetDetailsController extends ChangeNotifier {
             String assetType = _getSimplifiedAssetType(
                 fullAssetData['asset_master']['asset_type'] ?? '-');
 
+            // Get brand name from various possible sources
+            String brandName = fullAssetData['asset_master']['brands']
+                    ?['brand_name'] ??
+                fullAssetData['asset_master']['brand']?['brand_name'] ??
+                fullAssetData['asset_master']['brand_name'] ??
+                '-';
+
             _masterAssetData = {
               'asset_master_code':
                   fullAssetData['asset_master']['asset_master_code'] ?? '-',
@@ -145,7 +180,7 @@ class AssetDetailsController extends ChangeNotifier {
               'asset_type': assetType,
               'subcategory_name':
                   fullAssetData['asset_master']['subcategory_name'] ?? '-',
-              'brand_name': fullAssetData['asset_master']['brand_name'] ?? '-',
+              'brand_name': brandName,
               'needs_calibration':
                   fullAssetData['asset_master']['needs_calibration'] ?? false,
               'is_depreciable':
@@ -217,12 +252,18 @@ class AssetDetailsController extends ChangeNotifier {
           String assetType =
               _getSimplifiedAssetType(masterData['asset_type'] ?? '-');
 
+          // Get brand name from various possible sources
+          String brandName = masterData['brands']?['brand_name'] ??
+              masterData['brand']?['brand_name'] ??
+              masterData['brand_name'] ??
+              '-';
+
           _masterAssetData = {
             'asset_master_code': masterData['asset_master_code'] ?? '-',
             'asset_name': masterData['asset_name'] ?? '-',
             'asset_type': assetType,
             'subcategory_name': masterData['subcategory_name'] ?? '-',
-            'brand_name': masterData['brand_name'] ?? '-',
+            'brand_name': brandName,
             'needs_calibration': masterData['needs_calibration'] ?? false,
             'is_depreciable': masterData['is_depreciable'] ?? false,
             'description': masterData['description'] ?? '-'
@@ -272,11 +313,14 @@ class AssetDetailsController extends ChangeNotifier {
         return const Color(0xFF7CB60C); // Hijau
       case 'CHECK OUT':
       case 'DIPINJAM':
+      case 'CHECKOUT':
         return const Color(0xFFDAAE0F); // Kuning (sesuai history_screen)
       case 'UNDER REPAIR':
       case 'PERBAIKAN':
+      case 'UNDERREPAIR':
         return const Color(0xFF25B1FF); // Biru (sesuai history_screen)
       case 'DISPOSE':
+      case 'DISPOSED':
       case 'DIHAPUSKAN':
         return const Color(0xFFACC3EF); // Abu-abu (sesuai history_screen)
       case 'LOST':
@@ -299,10 +343,13 @@ class AssetDetailsController extends ChangeNotifier {
       case 'AVAILABLE':
         return 'TERSEDIA';
       case 'CHECK OUT':
+      case 'CHECKOUT':
         return 'DIPINJAM';
       case 'UNDER REPAIR':
+      case 'UNDERREPAIR':
         return 'PERBAIKAN';
       case 'DISPOSE':
+      case 'DISPOSED':
         return 'DIHAPUSKAN';
       case 'LOST':
         return 'HILANG';
@@ -395,10 +442,16 @@ class AssetDetailsController extends ChangeNotifier {
 
   // Format tanggal
   String formatDate(String date) {
+    if (date == '-' || date == null || date.isEmpty) {
+      return '-';
+    }
+
     try {
       final DateTime parsedDate = DateTime.parse(date);
       return '${parsedDate.year}-${parsedDate.month.toString().padLeft(2, '0')}-${parsedDate.day.toString().padLeft(2, '0')}';
     } catch (e) {
+      LoggerUtil.e('[ASSET_DETAILS] Error formatting date: $date', e,
+          StackTrace.current);
       return date;
     }
   }
