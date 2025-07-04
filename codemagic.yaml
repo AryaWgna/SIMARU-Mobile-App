@@ -7,7 +7,7 @@ workflows:
       vars:
         IOS_DEPLOYMENT_TARGET: 16.0
     scripts:
-      - flutter pub get
+      - chmod +x ./fix_skeletonizer.sh && ./fix_skeletonizer.sh
       - chmod +x ./update_deployment_target.sh && ./update_deployment_target.sh
       - cd ios && pod repo update && cd ..
       - chmod +x ./update_mobile_scanner.sh && ./update_mobile_scanner.sh
@@ -27,7 +27,7 @@ workflows:
       vars:
         IOS_DEPLOYMENT_TARGET: 13.0
     scripts:
-      - flutter pub get
+      - chmod +x ./fix_skeletonizer.sh && ./fix_skeletonizer.sh
       - chmod +x ./patch_mobile_scanner.sh && ./patch_mobile_scanner.sh
       - chmod +x ./reset_podfile.sh && ./reset_podfile.sh
       - cd ios && pod repo update && cd ..
