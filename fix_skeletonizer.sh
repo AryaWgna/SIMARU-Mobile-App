@@ -9,16 +9,36 @@ if [ -f "pubspec.yaml" ]; then
   # Create a backup of the original pubspec.yaml
   cp pubspec.yaml pubspec.yaml.bak
   
-  # Replace skeletonizer version with a compatible one
-  if [[ "$OSTYPE" == "darwin"* ]]; then
-    # macOS
-    sed -i '' 's/skeletonizer: .*/skeletonizer: ^0.7.0/g' pubspec.yaml
+  # Add skeletonizer to dependency_overrides
+  if grep -q "dependency_overrides:" pubspec.yaml; then
+    if grep -q "skeletonizer:" pubspec.yaml; then
+      if [[ "$OSTYPE" == "darwin"* ]]; then
+        # macOS
+        sed -i '' 's/skeletonizer: .*/skeletonizer: 0.4.0/g' pubspec.yaml
+      else
+        # Linux
+        sed -i 's/skeletonizer: .*/skeletonizer: 0.4.0/g' pubspec.yaml
+      fi
+    else
+      if [[ "$OSTYPE" == "darwin"* ]]; then
+        # macOS
+        sed -i '' '/dependency_overrides:/a\\  skeletonizer: 0.4.0' pubspec.yaml
+      else
+        # Linux
+        sed -i '/dependency_overrides:/a\\  skeletonizer: 0.4.0' pubspec.yaml
+      fi
+    fi
   else
-    # Linux
-    sed -i 's/skeletonizer: .*/skeletonizer: ^0.7.0/g' pubspec.yaml
+    if [[ "$OSTYPE" == "darwin"* ]]; then
+      # macOS
+      sed -i '' '$ a\\dependency_overrides:\\  skeletonizer: 0.4.0' pubspec.yaml
+    else
+      # Linux
+      sed -i '$ a\\dependency_overrides:\\  skeletonizer: 0.4.0' pubspec.yaml
+    fi
   fi
   
-  echo "Updated skeletonizer version to ^0.7.0"
+  echo "Added skeletonizer 0.4.0 to dependency_overrides"
   
   # Run flutter pub get to update dependencies
   flutter pub get
