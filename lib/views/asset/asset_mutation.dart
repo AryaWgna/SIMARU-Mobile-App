@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import '../../controllers/asset_mutation_controller.dart';
+import '../../controllers/asset/asset_mutation_controller.dart';
 import 'asset_document.dart';
 import 'asset_history.dart';
 import 'asset_details.dart';

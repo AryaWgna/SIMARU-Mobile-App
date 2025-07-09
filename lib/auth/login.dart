@@ -1,10 +1,10 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
-import '../controllers/auth_controller.dart';
+import '../controllers/auth/auth_controller.dart';
 import '../views/dashboard/dashboard.dart';
 import 'dart:async';
 import 'dart:developer' as developer;
-import '../services/firebase_messaging_service.dart';
+import '../services/firebase/firebase_messaging_service.dart';
 import 'package:provider/provider.dart';
 // Import untuk mengatasi masalah anti-screenshot
 import 'dart:io';

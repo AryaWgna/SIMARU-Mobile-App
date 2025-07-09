@@ -3,7 +3,7 @@ import 'dart:io';
 import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
 import '../../core/config/api_config.dart';
-import '../../controllers/asset_complaint_controller.dart';
+import '../../controllers/asset/asset_complaint_controller.dart';
 
 class AssetComplaintScreen extends StatefulWidget {
   final Map<String, dynamic>? assetData;

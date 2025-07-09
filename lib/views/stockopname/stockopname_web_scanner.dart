@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 import 'package:provider/provider.dart';
-import '../../controllers/stockopname_controller.dart';
+import '../../controllers/scan/stockopname_controller.dart';
 
 // Jenis callback yang sama dengan implementasi mobile
 typedef ScannerViewCallback = void Function(MobileScannerController controller);

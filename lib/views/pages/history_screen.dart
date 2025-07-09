@@ -3,11 +3,11 @@ import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:skeletonizer/skeletonizer.dart';
-import '../../controllers/recent_activity_controller.dart';
-import '../../controllers/total_asset_controller.dart';
-import '../../controllers/asset_under_repair_controller.dart';
-import '../../controllers/net_asset_value_controller.dart';
-import '../../models/history_model.dart';
+import '../../controllers/dashboard/recent_activity_controller.dart';
+import '../../controllers/asset/total_asset_controller.dart';
+import '../../controllers/asset/asset_under_repair_controller.dart';
+import '../../controllers/asset/net_asset_value_controller.dart';
+import '../../models/dashboard/history_model.dart';
 import '../../utils/logger_util.dart';
 
 class HistoryScreen extends StatefulWidget {

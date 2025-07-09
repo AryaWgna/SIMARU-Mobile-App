@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import '../../services/firebase_messaging_service.dart';
-import '../../controllers/notification_settings_controller.dart';
+import '../../services/firebase/firebase_messaging_service.dart';
+import '../../controllers/notification/notification_settings_controller.dart';
 
 class NotificationSettingsScreen extends StatefulWidget {
   const NotificationSettingsScreen({super.key});

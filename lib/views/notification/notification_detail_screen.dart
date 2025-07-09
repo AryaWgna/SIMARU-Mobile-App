@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
-import '../../models/notification_model.dart';
-import '../../models/notification_types.dart';
-import '../../controllers/notification_controller.dart';
-import '../../controllers/auth_controller.dart';
+import '../../models/notification/notification_model.dart';
+import '../../models/notification/notification_types.dart';
+import '../../controllers/notification/notification_controller.dart';
+import '../../controllers/auth/auth_controller.dart';
 
 class NotificationDetailScreen extends StatefulWidget {
   final NotificationModel notification;

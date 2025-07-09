@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
-import '../../controllers/stockopname_controller.dart';
+import '../../controllers/scan/stockopname_controller.dart';
 
 // Jenis callback yang sama dengan implementasi web
 typedef ScannerViewCallback = void Function(MobileScannerController controller);

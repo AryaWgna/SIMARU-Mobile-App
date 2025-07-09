@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
-import '../../controllers/auth_controller.dart';
-import '../../controllers/profile_controller.dart';
-import '../../controllers/dashboard_controller.dart';
+import '../../controllers/auth/auth_controller.dart';
+import '../../controllers/profile/profile_controller.dart';
+import '../../controllers/dashboard/dashboard_controller.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 import '../../auth/login.dart';

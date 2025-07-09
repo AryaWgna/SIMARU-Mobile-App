@@ -3,8 +3,8 @@ import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:skeletonizer/skeletonizer.dart';
-import '../controllers/recent_activity_controller.dart';
-import '../models/history_model.dart';
+import '../controllers/dashboard/recent_activity_controller.dart';
+import '../models/dashboard/history_model.dart';
 import '../views/pages/history_screen.dart';
 import '../utils/logger_util.dart';
 

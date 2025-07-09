@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
-import '../../controllers/auth_controller.dart';
-import '../../controllers/asset_checkin_controller.dart';
+import '../../controllers/auth/auth_controller.dart';
+import '../../controllers/asset/asset_checkin_controller.dart';
 import 'package:provider/provider.dart';
 
 class CheckInScreen extends StatefulWidget {

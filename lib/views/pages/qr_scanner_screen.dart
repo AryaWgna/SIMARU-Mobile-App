@@ -6,8 +6,8 @@ import 'package:mobile_scanner/mobile_scanner.dart';
 import 'package:provider/provider.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../asset/asset_details.dart';
-import '../../services/socket_service.dart';
-import '../../controllers/qr_scanner_controller.dart';
+import '../../services/socket/socket_service.dart';
+import '../../controllers/scan/qr_scanner_controller.dart';
 
 // Impor QR code scanner dengan conditional import
 import 'qr_mobile_implementation.dart'

@@ -6,7 +6,7 @@ import 'dart:convert';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 import 'scan_result_screen.dart';
-import '../../controllers/stockopname_controller.dart';
+import '../../controllers/scan/stockopname_controller.dart';
 import 'stockopname_scanner_stub.dart';
 import '../../utils/logger_util.dart';
 

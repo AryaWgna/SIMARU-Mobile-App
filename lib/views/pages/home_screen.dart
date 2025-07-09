@@ -3,14 +3,14 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 import 'package:pull_to_refresh_flutter3/pull_to_refresh_flutter3.dart';
 import 'package:skeletonizer/skeletonizer.dart';
-import '../../controllers/total_asset_controller.dart';
-import '../../controllers/asset_under_repair_controller.dart';
-import '../../controllers/net_asset_value_controller.dart';
-import '../../controllers/recent_activity_controller.dart';
-import '../../controllers/dashboard_controller.dart';
+import '../../controllers/asset/total_asset_controller.dart';
+import '../../controllers/asset/asset_under_repair_controller.dart';
+import '../../controllers/asset/net_asset_value_controller.dart';
+import '../../controllers/dashboard/recent_activity_controller.dart';
+import '../../controllers/dashboard/dashboard_controller.dart';
 import '../../widgets/today_activities_widget.dart';
 import '../../utils/logger_util.dart';
-import 'package:flutter_assets_monitoring/models/net_asset_model.dart';
+import 'package:flutter_assets_monitoring/models/asset/net_asset_model.dart';
 import 'package:flutter_assets_monitoring/views/notification/notification_screen.dart';
 import '../dashboard/dashboard.dart'; // Import for routeObserver
 

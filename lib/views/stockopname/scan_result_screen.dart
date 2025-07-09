@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
-import '../../controllers/scan_result_controller.dart';
-import '../../models/scan_result_model.dart';
+import '../../controllers/scan/scan_result_controller.dart';
+import '../../models/scan/scan_result_model.dart';
 
 class ScanResultScreen extends StatefulWidget {
   final List<String>? scannedAssets;

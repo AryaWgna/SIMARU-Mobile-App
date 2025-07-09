@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import '../views/notification/notification_screen.dart';
 import 'package:provider/provider.dart';
-import '../controllers/notification_badge_controller.dart';
-import '../controllers/notification_controller.dart';
+import '../controllers/notification/notification_badge_controller.dart';
+import '../controllers/notification/notification_controller.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 class CustomAppBar extends StatefulWidget implements PreferredSizeWidget {

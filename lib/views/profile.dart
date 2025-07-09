@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import '../controllers/auth_controller.dart';
+import '../controllers/auth/auth_controller.dart';
 import 'common/error_handling_screen.dart';
 import '../widgets/custom_app_bar.dart';
 import '../widgets/app_drawer.dart';

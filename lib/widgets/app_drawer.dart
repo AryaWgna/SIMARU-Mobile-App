@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import '../controllers/auth_controller.dart';
+import '../controllers/auth/auth_controller.dart';
 
 class AppDrawer extends StatelessWidget {
   const AppDrawer({super.key});

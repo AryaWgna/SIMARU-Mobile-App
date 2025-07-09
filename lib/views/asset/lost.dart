@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
-import '../../controllers/auth_controller.dart';
-import '../../controllers/asset_lost_controller.dart';
+import '../../controllers/auth/auth_controller.dart';
+import '../../controllers/asset/asset_lost_controller.dart';
 import 'package:provider/provider.dart';
 
 class LostScreen extends StatefulWidget {

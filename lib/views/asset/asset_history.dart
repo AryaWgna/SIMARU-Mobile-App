@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'dart:convert';
-import '../../controllers/asset_history_controller.dart';
-import '../../controllers/auth_controller.dart' as auth;
-import '../../models/asset_history_item_model.dart';
+import '../../controllers/asset/asset_history_controller.dart';
+import '../../controllers/auth/auth_controller.dart' as auth;
+import '../../models/asset/asset_history_item_model.dart';
 import 'asset_document.dart';
 import 'asset_mutation.dart';
 import 'asset_details.dart';

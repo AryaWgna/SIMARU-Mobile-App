@@ -3,37 +3,37 @@ import 'package:flutter_assets_monitoring/auth/login.dart';
 import 'package:provider/provider.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'views/dashboard/dashboard.dart';
-import 'controllers/recent_activity_controller.dart';
-import 'controllers/total_asset_controller.dart';
-import 'controllers/asset_under_repair_controller.dart';
-import 'controllers/net_asset_value_controller.dart';
-import 'controllers/asset_complaint_controller.dart';
-import 'controllers/complaint_controller.dart';
-import 'controllers/notification_controller.dart';
-import 'controllers/stockopname_controller.dart';
-import 'controllers/asset_document_controller.dart';
-import 'controllers/asset_history_controller.dart';
-import 'controllers/asset_mutation_controller.dart';
-import 'controllers/asset_details_controller.dart';
-import 'controllers/asset_checkin_controller.dart';
-import 'controllers/asset_checkout_controller.dart';
-import 'controllers/asset_lost_controller.dart';
-import 'controllers/profile_controller.dart';
-import 'controllers/qr_scanner_controller.dart';
-import 'controllers/dashboard_controller.dart';
-import 'controllers/notification_settings_controller.dart';
-import 'controllers/notification_badge_controller.dart';
-import 'controllers/auth_controller.dart' as auth; // Import untuk ApiService
+import 'controllers/dashboard/recent_activity_controller.dart';
+import 'controllers/asset/total_asset_controller.dart';
+import 'controllers/asset/asset_under_repair_controller.dart';
+import 'controllers/asset/net_asset_value_controller.dart';
+import 'controllers/asset/asset_complaint_controller.dart';
+import 'controllers/complaint/complaint_controller.dart';
+import 'controllers/notification/notification_controller.dart';
+import 'controllers/scan/stockopname_controller.dart';
+import 'controllers/asset/asset_document_controller.dart';
+import 'controllers/asset/asset_history_controller.dart';
+import 'controllers/asset/asset_mutation_controller.dart';
+import 'controllers/asset/asset_details_controller.dart';
+import 'controllers/asset/asset_checkin_controller.dart';
+import 'controllers/asset/asset_checkout_controller.dart';
+import 'controllers/asset/asset_lost_controller.dart';
+import 'controllers/profile/profile_controller.dart';
+import 'controllers/scan/qr_scanner_controller.dart';
+import 'controllers/dashboard/dashboard_controller.dart';
+import 'controllers/notification/notification_settings_controller.dart';
+import 'controllers/notification/notification_badge_controller.dart';
+import 'controllers/auth/auth_controller.dart' as auth; // Import untuk ApiService
 import 'dart:developer' as developer;
-import 'services/socket_service.dart';
-import 'services/firebase_messaging_service.dart';
+import 'services/socket/socket_service.dart';
+import 'services/firebase/firebase_messaging_service.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'firebase_options.dart';
 // Import untuk mengatasi masalah anti-screenshot
 import 'dart:io';
 import 'package:no_screenshot/no_screenshot.dart';
-import 'controllers/scan_result_controller.dart';
+import 'controllers/scan/scan_result_controller.dart';
 import 'utils/logger_util.dart'; // Import LoggerUtil
 import 'package:google_fonts/google_fonts.dart'; // Import for Google Fonts
 
@@ -318,7 +318,7 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
     );
   }
 }
-
 // Info Pembuat Aplikasi
 // Made by Ardwiyan (PakBos), Ahmad (Programmer Galak), 
 // Farhan (Design Maker), and Daffa (Backend Specialist)
+

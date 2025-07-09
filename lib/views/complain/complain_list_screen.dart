@@ -4,13 +4,13 @@ import 'package:provider/provider.dart';
 import 'dart:convert';
 import '../../core/config/api_config.dart';
 import 'complain_detail_screen.dart';
-import '../../controllers/complaint_controller.dart';
-import '../../controllers/dashboard_controller.dart';
-import '../../models/complaint_model.dart';
+import '../../controllers/complaint/complaint_controller.dart';
+import '../../controllers/dashboard/dashboard_controller.dart';
+import '../../models/complaint/complaint_model.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:skeletonizer/skeletonizer.dart';
 import 'package:pull_to_refresh_flutter3/pull_to_refresh_flutter3.dart';
-import '../../controllers/auth_controller.dart';
+import '../../controllers/auth/auth_controller.dart';
 import '../../utils/logger_util.dart';
 import '../dashboard/dashboard.dart';
 
