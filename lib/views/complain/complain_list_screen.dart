@@ -252,7 +252,7 @@ class _ComplainListScreenState extends State<ComplainListScreen>
                   borderRadius: BorderRadius.circular(6),
                 ),
               ),
-              const SizedBox(height: 4),
+              const SizedBox(height: 8),
               Container(
                 width: 120,
                 height: 16,
@@ -264,10 +264,10 @@ class _ComplainListScreenState extends State<ComplainListScreen>
             ],
           ),
         ),
-        const SizedBox(height: 16),
+        const SizedBox(height: 24),
         // Skeleton items
         ...List.generate(
-          5,
+          4,
           (index) => Card(
             elevation: 3,
             margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
@@ -302,23 +302,23 @@ class _ComplainListScreenState extends State<ComplainListScreen>
                               children: [
                                 Container(
                                   width: 100,
-                                  height: 14,
+                                  height: 16,
                                   decoration: BoxDecoration(
                                     color: const Color(0xFFEBEEF5),
                                     borderRadius: BorderRadius.circular(4),
                                   ),
                                 ),
                                 Container(
-                                  width: 60,
-                                  height: 20,
+                                  width: 80,
+                                  height: 24,
                                   decoration: BoxDecoration(
                                     color: const Color(0xFFEBEEF5),
-                                    borderRadius: BorderRadius.circular(10),
+                                    borderRadius: BorderRadius.circular(12),
                                   ),
                                 ),
                               ],
                             ),
-                            const SizedBox(height: 8),
+                            const SizedBox(height: 12),
                             Container(
                               width: 80,
                               height: 12,
@@ -327,9 +327,27 @@ class _ComplainListScreenState extends State<ComplainListScreen>
                                 borderRadius: BorderRadius.circular(4),
                               ),
                             ),
+                            const SizedBox(height: 8),
+                            Container(
+                              width: 60,
+                              height: 12,
+                              decoration: BoxDecoration(
+                                color: const Color(0xFFEBEEF5),
+                                borderRadius: BorderRadius.circular(4),
+                              ),
+                            ),
                             const SizedBox(height: 12),
                             Container(
-                              width: 140,
+                              width: 80,
+                              height: 12,
+                              decoration: BoxDecoration(
+                                color: const Color(0xFFEBEEF5),
+                                borderRadius: BorderRadius.circular(4),
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            Container(
+                              width: 120,
                               height: 14,
                               decoration: BoxDecoration(
                                 color: const Color(0xFFEBEEF5),
@@ -357,6 +375,15 @@ class _ComplainListScreenState extends State<ComplainListScreen>
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       Container(
+                        width: 60,
+                        height: 12,
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFEBEEF5),
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Container(
                         width: double.infinity,
                         height: 32,
                         decoration: BoxDecoration(
@@ -371,7 +398,7 @@ class _ComplainListScreenState extends State<ComplainListScreen>
                   width: double.infinity,
                   height: 45,
                   decoration: const BoxDecoration(
-                    color: Color(0xFFE5E9F2),
+                    color: Color(0xFF213268),
                     borderRadius: BorderRadius.only(
                       bottomLeft: Radius.circular(12),
                       bottomRight: Radius.circular(12),
@@ -392,15 +419,59 @@ class _ComplainListScreenState extends State<ComplainListScreen>
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Text(
-            'Error: ${controller.errorMessage}',
-            style: const TextStyle(color: Colors.red),
-            textAlign: TextAlign.center,
+          Container(
+            width: 150,
+            height: 150,
+            decoration: BoxDecoration(
+              color: const Color(0xFFFFEBEB),
+              shape: BoxShape.circle,
+            ),
+            child: Icon(
+              Icons.error_outline,
+              size: 80,
+              color: Colors.redAccent,
+            ),
           ),
-          const SizedBox(height: 16),
-          ElevatedButton(
+          const SizedBox(height: 24),
+          Text(
+            'Terjadi Kesalahan',
+            style: GoogleFonts.poppins(
+              fontSize: 20,
+              fontWeight: FontWeight.bold,
+              color: const Color(0xFF213268),
+            ),
+          ),
+          const SizedBox(height: 8),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 40),
+            child: Text(
+              controller.errorMessage ?? 'Gagal memuat data keluhan',
+              textAlign: TextAlign.center,
+              style: GoogleFonts.poppins(
+                fontSize: 14,
+                color: Colors.grey[600],
+              ),
+            ),
+          ),
+          const SizedBox(height: 24),
+          ElevatedButton.icon(
             onPressed: _loadComplaints,
-            child: const Text('Coba Lagi'),
+            icon: const Icon(Icons.refresh, color: Colors.white),
+            label: Text(
+              'Coba Lagi',
+              style: GoogleFonts.poppins(
+                fontWeight: FontWeight.w600,
+                color: Colors.white,
+              ),
+            ),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFF213268),
+              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+              elevation: 2,
+            ),
           ),
         ],
       ),
@@ -413,17 +484,58 @@ class _ComplainListScreenState extends State<ComplainListScreen>
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          const Text('Tidak ada keluhan yang ditemukan'),
-          const SizedBox(height: 16),
+          Container(
+            width: 150,
+            height: 150,
+            decoration: BoxDecoration(
+              color: const Color(0xFFEBF2FF),
+              shape: BoxShape.circle,
+            ),
+            child: Icon(
+              Icons.assignment_outlined,
+              size: 80,
+              color: const Color(0xFF213268),
+            ),
+          ),
+          const SizedBox(height: 24),
+          Text(
+            'Belum Ada Keluhan',
+            style: GoogleFonts.poppins(
+              fontSize: 20,
+              fontWeight: FontWeight.bold,
+              color: const Color(0xFF213268),
+            ),
+          ),
+          const SizedBox(height: 8),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 40),
+            child: Text(
+              'Saat ini tidak ada keluhan yang tercatat dalam sistem',
+              textAlign: TextAlign.center,
+              style: GoogleFonts.poppins(
+                fontSize: 14,
+                color: Colors.grey[600],
+              ),
+            ),
+          ),
+          const SizedBox(height: 24),
           ElevatedButton.icon(
             onPressed: _loadComplaints,
-            icon: const Icon(Icons.refresh),
-            label: const Text('Refresh'),
+            icon: const Icon(Icons.refresh, color: Colors.white),
+            label: Text(
+              'Muat Ulang',
+              style: GoogleFonts.poppins(
+                fontWeight: FontWeight.w600,
+                color: Colors.white,
+              ),
+            ),
             style: ElevatedButton.styleFrom(
               backgroundColor: const Color(0xFF213268),
+              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
               shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(8),
+                borderRadius: BorderRadius.circular(12),
               ),
+              elevation: 2,
             ),
           ),
         ],

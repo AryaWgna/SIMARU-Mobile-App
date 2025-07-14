@@ -207,10 +207,7 @@ class _HomeScreenState extends State<HomeScreen> with RouteAware {
                     if (isLoading) {
                       return Skeletonizer(
                         enabled: true,
-                        effect: ShimmerEffect(
-                          baseColor: Colors.grey.shade300,
-                          highlightColor: const Color(0xFFE5EFFF),
-                        ),
+                        effect: const ShimmerEffect(),
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
