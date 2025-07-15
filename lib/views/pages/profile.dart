@@ -10,6 +10,7 @@ import '../../utils/logger_util.dart';
 import 'package:skeletonizer/skeletonizer.dart';
 import 'package:pull_to_refresh_flutter3/pull_to_refresh_flutter3.dart';
 import '../dashboard/dashboard.dart';
+import '../webview/web_view_screen.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -361,6 +362,44 @@ class _ProfileScreenState extends State<ProfileScreen> with RouteAware {
                                     controller.profile?['roles']),
                               ),
                               const SizedBox(height: 24),
+                              SizedBox(
+                                width: double.infinity,
+                                child: ElevatedButton.icon(
+                                  onPressed: () {
+                                    Navigator.push(
+                                      context,
+                                      MaterialPageRoute(
+                                        builder: (context) =>
+                                            const WebViewScreen(
+                                          initialUrl:
+                                              'https://web-magangunbin2025.rsummi.co.id/',
+                                          title: 'Web Portal SIMARU',
+                                        ),
+                                      ),
+                                    );
+                                  },
+                                  icon: const Icon(Icons.web),
+                                  label: Text(
+                                    'Buka Web Portal',
+                                    style: GoogleFonts.poppins(
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.bold,
+                                      color: Colors.white,
+                                    ),
+                                  ),
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: const Color(0xFF213268),
+                                    foregroundColor: Colors.white,
+                                    padding: const EdgeInsets.symmetric(
+                                        vertical: 16),
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(8),
+                                    ),
+                                    elevation: 2,
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(height: 16),
                               SizedBox(
                                 width: double.infinity,
                                 child: ElevatedButton(

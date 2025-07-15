@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_assets_monitoring/auth/login.dart';
+import 'package:SIMARU/auth/login.dart';
 import 'package:provider/provider.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'views/dashboard/dashboard.dart';
@@ -23,7 +23,8 @@ import 'controllers/scan/qr_scanner_controller.dart';
 import 'controllers/dashboard/dashboard_controller.dart';
 import 'controllers/notification/notification_settings_controller.dart';
 import 'controllers/notification/notification_badge_controller.dart';
-import 'controllers/auth/auth_controller.dart' as auth; // Import untuk ApiService
+import 'controllers/auth/auth_controller.dart'
+    as auth; // Import untuk ApiService
 import 'dart:developer' as developer;
 import 'services/socket/socket_service.dart';
 import 'services/firebase/firebase_messaging_service.dart';
@@ -36,6 +37,7 @@ import 'package:no_screenshot/no_screenshot.dart';
 import 'controllers/scan/scan_result_controller.dart';
 import 'utils/logger_util.dart'; // Import LoggerUtil
 import 'package:google_fonts/google_fonts.dart'; // Import for Google Fonts
+import 'views/webview/web_view_screen.dart'; // Import WebViewScreen
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -250,6 +252,7 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
 
     return MaterialApp(
       debugShowCheckedModeBanner: false,
+      title: 'SIMARU',
       navigatorKey: auth.ApiService
           .navigatorKey, // Gunakan navigatorKey global untuk navigasi tanpa context
       navigatorObservers: [
@@ -268,6 +271,11 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
                 return const LoginScreen();
               case '/dashboard':
                 return const DashboardScreen();
+              case '/web_portal':
+                return const WebViewScreen(
+                  initialUrl: 'https://web-magangunbin2025.rsummi.co.id/',
+                  title: 'Web Portal SIMARU',
+                );
               default:
                 return _isInitialized
                     ? (_hasValidToken

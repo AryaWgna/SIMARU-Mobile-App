@@ -10,8 +10,8 @@ import '../../controllers/dashboard/recent_activity_controller.dart';
 import '../../controllers/dashboard/dashboard_controller.dart';
 import '../../widgets/today_activities_widget.dart';
 import '../../utils/logger_util.dart';
-import 'package:flutter_assets_monitoring/models/asset/net_asset_model.dart';
-import 'package:flutter_assets_monitoring/views/notification/notification_screen.dart';
+import '../../models/asset/net_asset_model.dart';
+import '../../views/notification/notification_screen.dart';
 import '../dashboard/dashboard.dart'; // Import for routeObserver
 
 class HomeScreen extends StatefulWidget {
