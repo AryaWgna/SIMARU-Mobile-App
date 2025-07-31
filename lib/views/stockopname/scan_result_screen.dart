@@ -3,12 +3,15 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 import '../../controllers/scan/scan_result_controller.dart';
 import '../../models/scan/scan_result_model.dart';
+import '../../controllers/auth/auth_controller.dart' as auth;
+import '../../core/config/api_config.dart';
 
 class ScanResultScreen extends StatefulWidget {
   final List<String>? scannedAssets;
   final String? roomName;
   final int opnameId;
   final String opnameCode;
+  final int? scannedCount;
 
   const ScanResultScreen({
     super.key,
@@ -16,6 +19,7 @@ class ScanResultScreen extends StatefulWidget {
     this.roomName,
     required this.opnameId,
     required this.opnameCode,
+    this.scannedCount,
   });
 
   @override
@@ -37,7 +41,6 @@ class _ScanResultScreenState extends State<ScanResultScreen>
     _tabController = TabController(length: 3, vsync: this);
     _scanResultController =
         Provider.of<ScanResultController>(context, listen: false);
-    _scanResultController.reset(); // Reset controller state
 
     // Listener untuk mengubah tab
     _tabController.addListener(() {
@@ -48,6 +51,7 @@ class _ScanResultScreenState extends State<ScanResultScreen>
 
     // Load data after widget is built
     WidgetsBinding.instance.addPostFrameCallback((_) {
+      _scanResultController.reset(); // Reset controller state after build
       _loadData();
     });
   }
@@ -305,7 +309,7 @@ class _ScanResultScreenState extends State<ScanResultScreen>
         body: controller.isLoading
             ? const Center(child: CircularProgressIndicator())
             : controller.errorMessage != null
-                ? Center(child: Text(controller.errorMessage!))
+                ? _buildErrorView(controller.errorMessage!)
                 : Column(
                     children: [
                       if (controller.summaryData != null)
@@ -373,6 +377,66 @@ class _ScanResultScreenState extends State<ScanResultScreen>
         ),
       );
     });
+  }
+
+  // Error view with retry button
+  Widget _buildErrorView(String errorMessage) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(24.0),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              Icons.error_outline,
+              size: 64,
+              color: Colors.red[300],
+            ),
+            const SizedBox(height: 16),
+            Text(
+              'Gagal memuat data',
+              style: GoogleFonts.poppins(
+                fontSize: 18,
+                fontWeight: FontWeight.w600,
+              ),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 8),
+            Text(
+              errorMessage,
+              style: GoogleFonts.poppins(
+                fontSize: 14,
+                color: Colors.grey[600],
+              ),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 24),
+            ElevatedButton.icon(
+              onPressed: _loadData,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF213268),
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 24,
+                  vertical: 12,
+                ),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8),
+                ),
+              ),
+              icon: const Icon(Icons.refresh),
+              label: Text(
+                'Coba Lagi',
+                style: GoogleFonts.poppins(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   Widget _buildSummaryCard(ScanResultController controller) {
@@ -688,6 +752,9 @@ class _ScanResultScreenState extends State<ScanResultScreen>
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          // Asset Image at the top for found assets too
+          _buildCompactAssetImage(asset),
+
           ListTile(
             contentPadding:
                 const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
@@ -706,7 +773,7 @@ class _ScanResultScreenState extends State<ScanResultScreen>
               ),
             ),
             title: Text(
-              assetId,
+              asset.assetName,
               style: GoogleFonts.poppins(
                 fontSize: 15,
                 fontWeight: FontWeight.w500,
@@ -719,14 +786,99 @@ class _ScanResultScreenState extends State<ScanResultScreen>
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  description,
+                  assetId,
                   style: GoogleFonts.poppins(
                     fontSize: 12,
-                    color: Colors.grey[700],
+                    color: Colors.grey[600],
+                    fontWeight: FontWeight.w500,
                   ),
-                  maxLines: 2,
+                  maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                 ),
+
+                // Description
+                if (asset.description != null && asset.description!.isNotEmpty)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 2),
+                    child: Text(
+                      asset.description!,
+                      style: GoogleFonts.poppins(
+                        fontSize: 11,
+                        color: Colors.grey[700],
+                      ),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+
+                // Brand and Model information
+                if (asset.brandName != null || asset.model != null)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 4),
+                    child: Text(
+                      '${asset.brandName ?? ''} ${asset.model ?? ''}',
+                      style: GoogleFonts.poppins(
+                        fontSize: 11,
+                        color: Colors.grey[600],
+                        fontWeight: FontWeight.w500,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+
+                // Serial Number
+                if (asset.serialNumber != null)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 2),
+                    child: Row(
+                      children: [
+                        Icon(
+                          Icons.confirmation_number,
+                          size: 12,
+                          color: Colors.grey[500],
+                        ),
+                        const SizedBox(width: 4),
+                        Expanded(
+                          child: Text(
+                            'SN: ${asset.serialNumber}',
+                            style: GoogleFonts.poppins(
+                              fontSize: 10,
+                              color: Colors.grey[600],
+                            ),
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+
+                // Category information
+                if (asset.category != null)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 2),
+                    child: Row(
+                      children: [
+                        Icon(
+                          Icons.label,
+                          size: 12,
+                          color: Colors.grey[500],
+                        ),
+                        const SizedBox(width: 4),
+                        Expanded(
+                          child: Text(
+                            asset.category!,
+                            style: GoogleFonts.poppins(
+                              fontSize: 10,
+                              color: Colors.grey[600],
+                            ),
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+
                 const SizedBox(height: 4),
                 Row(
                   children: [
@@ -761,6 +913,126 @@ class _ScanResultScreenState extends State<ScanResultScreen>
               onPressed: () => _showAddNotesDialog(asset),
             ),
           ),
+
+          // Additional asset details in compact format - Always show to include current location
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+            child: Column(
+              children: [
+                // First row: PIC and Condition
+                if (asset.pic != null || asset.condition != null)
+                  Row(
+                    children: [
+                      if (asset.pic != null)
+                        Expanded(
+                          child: Row(
+                            children: [
+                              Icon(
+                                Icons.person,
+                                size: 14,
+                                color: Colors.grey[600],
+                              ),
+                              const SizedBox(width: 4),
+                              Expanded(
+                                child: Text(
+                                  'PIC: ${asset.pic!}',
+                                  style: GoogleFonts.poppins(
+                                    fontSize: 10,
+                                    color: Colors.grey[600],
+                                  ),
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      if (asset.condition != null)
+                        Expanded(
+                          child: Row(
+                            children: [
+                              Icon(
+                                Icons.build,
+                                size: 14,
+                                color: Colors.grey[600],
+                              ),
+                              const SizedBox(width: 4),
+                              Expanded(
+                                child: Text(
+                                  'Kondisi: ${_getConditionDisplay(asset.condition)}',
+                                  style: GoogleFonts.poppins(
+                                    fontSize: 10,
+                                    color: Colors.grey[600],
+                                  ),
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                    ],
+                  ),
+
+                // Second row: Employee Name and Current Location (Always show current location)
+                Padding(
+                  padding: EdgeInsets.only(
+                      top: (asset.pic != null || asset.condition != null)
+                          ? 4
+                          : 0),
+                  child: Row(
+                    children: [
+                      if (asset.employeeName != null)
+                        Expanded(
+                          child: Row(
+                            children: [
+                              Icon(
+                                Icons.person_outline,
+                                size: 14,
+                                color: Colors.grey[600],
+                              ),
+                              const SizedBox(width: 4),
+                              Expanded(
+                                child: Text(
+                                  asset.employeeName!,
+                                  style: GoogleFonts.poppins(
+                                    fontSize: 10,
+                                    color: Colors.grey[600],
+                                  ),
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      // Always show current location for found assets
+                      Expanded(
+                        child: Row(
+                          children: [
+                            Icon(
+                              Icons.location_on,
+                              size: 14,
+                              color: Colors.grey[600],
+                            ),
+                            const SizedBox(width: 4),
+                            Expanded(
+                              child: Text(
+                                'Lokasi: ${_getCurrentLocation(asset)}',
+                                style: GoogleFonts.poppins(
+                                  fontSize: 10,
+                                  color: Colors.grey[600],
+                                ),
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+
           // Tampilkan catatan dalam format yang sama dengan detail
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
@@ -818,6 +1090,10 @@ class _ScanResultScreenState extends State<ScanResultScreen>
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          // Asset Image at the top
+          _buildAssetImage(asset),
+
+          // Header with asset code and status
           Padding(
             padding: const EdgeInsets.all(16),
             child: Row(
@@ -829,7 +1105,7 @@ class _ScanResultScreenState extends State<ScanResultScreen>
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        "ID Tag Aset:",
+                        "Kode Aset:",
                         style: GoogleFonts.poppins(
                           fontSize: 14,
                           fontWeight: FontWeight.w500,
@@ -887,33 +1163,189 @@ class _ScanResultScreenState extends State<ScanResultScreen>
               ],
             ),
           ),
-          _buildDetailRow(
-              Icons.description, "Deskripsi:", asset.assetDescription),
-          if (asset.assetType != null)
-            _buildDetailRow(Icons.category, "Tipe Aset:", asset.assetType!),
-          if (asset.assetMasterCode != null)
-            _buildDetailRow(
-                Icons.qr_code, "Kode Master:", asset.assetMasterCode!),
-          _buildDetailRow(Icons.room, "Lokasi Tercatat:",
-              asset.expectedLocationName ?? "-"),
-          if (asset.scanStatus == 'misplaced' && asset.actualLocationId != null)
-            _buildDetailRow(
-                Icons.location_on,
-                "Lokasi Sekarang:",
-                asset.actualLocationName ??
-                    "Room ID: ${asset.actualLocationId}"),
-          if (asset.scanDate != null)
-            _buildDetailRow(Icons.calendar_today, "Tanggal Scan:",
-                _formatScanDate(asset.scanDate!)),
-          if (asset.scannerName != null)
-            _buildDetailRow(Icons.person, "Dipindai Oleh:", asset.scannerName!),
-          // Tampilkan catatan sebagai bagian dari detail
-          _buildDetailRow(
-              Icons.note,
-              "Catatan:",
-              asset.notes != null && asset.notes!.isNotEmpty
-                  ? asset.notes!
-                  : "Tidak ada catatan"),
+
+          // Basic Asset Information Section
+          _buildDetailSection(
+            'Informasi Dasar',
+            [
+              _buildDetailRow(Icons.inventory, 'Nama Aset:', asset.assetName),
+              if (asset.description != null && asset.description!.isNotEmpty)
+                _buildDetailRow(
+                    Icons.description, 'Deskripsi:', asset.description!),
+              if (asset.assetType != null)
+                _buildDetailRow(Icons.category, 'Tipe Aset:',
+                    _getAssetTypeDisplay(asset.assetType!)),
+              if (asset.category != null)
+                _buildDetailRow(Icons.label, 'Kategori:', asset.category!),
+              if (asset.subcategoryName != null)
+                _buildDetailRow(Icons.label_outline, 'Sub Kategori:',
+                    asset.subcategoryName!),
+              if (asset.condition != null)
+                _buildDetailRow(Icons.build, 'Kondisi:',
+                    _getConditionDisplay(asset.condition!)),
+              if (asset.currentStatus != null)
+                _buildDetailRow(Icons.info, 'Status:',
+                    _getAssetStatusDisplay(asset.currentStatus!)),
+            ],
+          ),
+
+          const SizedBox(height: 16),
+
+          // Physical Details Section
+          if (asset.brandName != null ||
+              asset.model != null ||
+              asset.serialNumber != null)
+            _buildDetailSection(
+              'Detail Fisik',
+              [
+                if (asset.brandName != null)
+                  _buildDetailRow(Icons.business, 'Merk:', asset.brandName!),
+                if (asset.model != null)
+                  _buildDetailRow(Icons.settings, 'Model:', asset.model!),
+                if (asset.serialNumber != null)
+                  _buildDetailRow(Icons.confirmation_number, 'Serial Number:',
+                      asset.serialNumber!),
+              ],
+            ),
+
+          const SizedBox(height: 16),
+
+          // Location Information Section
+          _buildDetailSection(
+            'Informasi Lokasi',
+            [
+              // Always show current location for all assets
+              _buildDetailRow(Icons.location_on, 'Lokasi Sekarang:',
+                  _getCurrentLocation(asset)),
+              if (asset.roomName != null)
+                _buildDetailRow(Icons.room, 'Ruangan:', asset.roomName!),
+              if (asset.buildingName != null)
+                _buildDetailRow(
+                    Icons.apartment, 'Gedung:', asset.buildingName!),
+              if (asset.floorNumber != null)
+                _buildDetailRow(Icons.layers, 'Lantai:', asset.floorNumber!),
+              _buildDetailRow(Icons.location_searching, 'Lokasi Diharapkan:',
+                  asset.expectedLocationName ?? "-"),
+              if (asset.expectedBuildingName != null)
+                _buildDetailRow(Icons.apartment_outlined, 'Gedung Diharapkan:',
+                    asset.expectedBuildingName!),
+              if (asset.expectedFloorNumber != null)
+                _buildDetailRow(Icons.layers_outlined, 'Lantai Diharapkan:',
+                    asset.expectedFloorNumber!),
+            ],
+          ),
+
+          const SizedBox(height: 16),
+
+          // Employee/PIC Information Section
+          if (asset.pic != null ||
+              asset.employeeName != null ||
+              asset.employeeNumber != null)
+            _buildDetailSection(
+              'Penanggung Jawab',
+              [
+                if (asset.pic != null)
+                  _buildDetailRow(Icons.person, 'PIC:', asset.pic!),
+                if (asset.employeeName != null)
+                  _buildDetailRow(Icons.person_outline, 'Nama Karyawan:',
+                      asset.employeeName!),
+                if (asset.employeeNumber != null)
+                  _buildDetailRow(
+                      Icons.badge, 'No. Karyawan:', asset.employeeNumber!),
+              ],
+            ),
+
+          const SizedBox(height: 16),
+
+          // Purchase Information Section
+          if (asset.purchaseDate != null ||
+              asset.purchaseCost != null ||
+              asset.warrantyEndDate != null)
+            _buildDetailSection(
+              'Informasi Pembelian',
+              [
+                if (asset.purchaseDate != null)
+                  _buildDetailRow(Icons.calendar_today, 'Tanggal Beli:',
+                      _formatDate(asset.purchaseDate!)),
+                if (asset.purchaseCost != null)
+                  _buildDetailRow(Icons.attach_money, 'Harga Beli:',
+                      _formatCurrency(asset.purchaseCost!)),
+                if (asset.warrantyEndDate != null)
+                  _buildDetailRow(Icons.shield, 'Berakhir Garansi:',
+                      _formatDate(asset.warrantyEndDate!)),
+              ],
+            ),
+
+          const SizedBox(height: 16),
+
+          // Asset Master Information Section
+          if (asset.assetMasterCode != null ||
+              asset.isDepreciable != null ||
+              asset.needsCalibration != null)
+            _buildDetailSection(
+              'Informasi Master',
+              [
+                if (asset.assetMasterCode != null)
+                  _buildDetailRow(
+                      Icons.qr_code_2, 'Kode Master:', asset.assetMasterCode!),
+                if (asset.isDepreciable != null)
+                  _buildDetailRow(Icons.trending_down, 'Dapat Disusutkan:',
+                      asset.isDepreciable! ? 'Ya' : 'Tidak'),
+                if (asset.needsCalibration != null)
+                  _buildDetailRow(Icons.tune, 'Perlu Kalibrasi:',
+                      asset.needsCalibration! ? 'Ya' : 'Tidak'),
+              ],
+            ),
+
+          const SizedBox(height: 16),
+
+          // Scan Information Section
+          _buildDetailSection(
+            'Informasi Scan',
+            [
+              if (asset.scanDate != null)
+                _buildDetailRow(Icons.calendar_today, 'Tanggal Scan:',
+                    _formatScanDate(asset.scanDate!)),
+              if (asset.scannerName != null)
+                _buildDetailRow(
+                    Icons.person_outline, 'Dipindai Oleh:', asset.scannerName!),
+              _buildDetailRow(Icons.info_outline, 'Status Scan:',
+                  _getScanStatusDisplay(asset.scanStatus)),
+            ],
+          ),
+
+          const SizedBox(height: 16),
+
+          // Timestamps Section
+          if (asset.createdAt != null || asset.updatedAt != null)
+            _buildDetailSection(
+              'Riwayat',
+              [
+                if (asset.createdAt != null)
+                  _buildDetailRow(Icons.add_circle, 'Dibuat:',
+                      _formatScanDate(asset.createdAt!)),
+                if (asset.updatedAt != null)
+                  _buildDetailRow(Icons.update, 'Diperbarui:',
+                      _formatScanDate(asset.updatedAt!)),
+              ],
+            ),
+
+          const SizedBox(height: 16),
+
+          // Notes Section
+          _buildDetailSection(
+            'Catatan',
+            [
+              _buildDetailRow(
+                  Icons.note,
+                  "Catatan:",
+                  asset.notes != null && asset.notes!.isNotEmpty
+                      ? asset.notes!
+                      : "Tidak ada catatan"),
+            ],
+          ),
+
+          // Add/Edit Notes Button
           Padding(
             padding: const EdgeInsets.all(16),
             child: ElevatedButton.icon(
@@ -950,11 +1382,8 @@ class _ScanResultScreenState extends State<ScanResultScreen>
     final bool isNoteRow = label == "Catatan:";
     final bool isEmptyNote = value == "Tidak ada catatan";
 
-    // Cek apakah ini adalah baris opname ID
-    final bool isOpnameId = label.contains("Opname") || value.contains("OPN");
-
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      padding: const EdgeInsets.only(bottom: 8),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -972,7 +1401,7 @@ class _ScanResultScreenState extends State<ScanResultScreen>
             child: Text(
               label,
               style: GoogleFonts.poppins(
-                fontSize: 14,
+                fontSize: 13,
                 color: Colors.grey[600],
               ),
             ),
@@ -981,7 +1410,7 @@ class _ScanResultScreenState extends State<ScanResultScreen>
             child: Text(
               value,
               style: GoogleFonts.poppins(
-                fontSize: isOpnameId ? 13 : 14,
+                fontSize: 13,
                 fontWeight: FontWeight.w500,
                 // Gunakan gaya khusus untuk catatan kosong
                 fontStyle: isNoteRow && isEmptyNote
@@ -1018,5 +1447,419 @@ class _ScanResultScreenState extends State<ScanResultScreen>
       print('Error parsing date time: $e');
       return dateTimeStr;
     }
+  }
+
+  // Helper method to build the asset image for AssetScanDetail
+  Widget _buildAssetImage(AssetScanDetail asset) {
+    final String? imageUrl = asset.referenceImagePath != null &&
+            asset.referenceImagePath!.isNotEmpty
+        ? asset.referenceImagePath!.startsWith('http')
+            ? asset.referenceImagePath!
+            : '${ApiConfig.baseUrl}/public/images/${_extractFilename(asset.referenceImagePath!)}'
+        : null;
+
+    if (imageUrl == null) {
+      return const SizedBox.shrink(); // Don't show anything if no image
+    }
+
+    return Container(
+      width: double.infinity,
+      height: 200,
+      decoration: BoxDecoration(
+        color: Colors.grey[100],
+        borderRadius: const BorderRadius.only(
+          topLeft: Radius.circular(8),
+          topRight: Radius.circular(8),
+        ),
+        border: Border.all(color: Colors.grey[300]!),
+      ),
+      child: ClipRRect(
+        borderRadius: const BorderRadius.only(
+          topLeft: Radius.circular(8),
+          topRight: Radius.circular(8),
+        ),
+        child: Image.network(
+          imageUrl,
+          fit: BoxFit.cover,
+          loadingBuilder: (context, child, loadingProgress) {
+            if (loadingProgress == null) return child;
+            return Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  CircularProgressIndicator(
+                    value: loadingProgress.expectedTotalBytes != null
+                        ? loadingProgress.cumulativeBytesLoaded /
+                            loadingProgress.expectedTotalBytes!
+                        : null,
+                    color: const Color(0xFF213268),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    'Memuat gambar...',
+                    style: GoogleFonts.poppins(
+                      fontSize: 12,
+                      color: Colors.grey[600],
+                    ),
+                  ),
+                ],
+              ),
+            );
+          },
+          errorBuilder: (context, error, stackTrace) {
+            // Try fallback to placeholder if main URL fails
+            if (!imageUrl.contains('placeholder.png')) {
+              return Image.network(
+                '${ApiConfig.baseUrl}/public/images/placeholder.png',
+                fit: BoxFit.cover,
+                errorBuilder: (context, error, stackTrace) {
+                  return Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(
+                          Icons.image_not_supported,
+                          size: 48,
+                          color: Colors.grey[400],
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          'Gambar tidak dapat dimuat',
+                          style: GoogleFonts.poppins(
+                            fontSize: 12,
+                            color: Colors.grey[600],
+                          ),
+                        ),
+                      ],
+                    ),
+                  );
+                },
+              );
+            }
+
+            return Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(
+                    Icons.image_not_supported,
+                    size: 48,
+                    color: Colors.grey[400],
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    'Gambar tidak tersedia',
+                    style: GoogleFonts.poppins(
+                      fontSize: 12,
+                      color: Colors.grey[600],
+                    ),
+                  ),
+                ],
+              ),
+            );
+          },
+        ),
+      ),
+    );
+  }
+
+  // Helper method to build a compact asset image for found assets
+  Widget _buildCompactAssetImage(AssetScanDetail asset) {
+    final String? imageUrl = asset.referenceImagePath != null &&
+            asset.referenceImagePath!.isNotEmpty
+        ? asset.referenceImagePath!.startsWith('http')
+            ? asset.referenceImagePath!
+            : '${ApiConfig.baseUrl}/public/images/${_extractFilename(asset.referenceImagePath!)}'
+        : null;
+
+    if (imageUrl == null) {
+      return const SizedBox.shrink(); // Don't show anything if no image
+    }
+
+    return Container(
+      width: double.infinity,
+      height: 80, // Smaller height for compact view
+      decoration: BoxDecoration(
+        color: Colors.grey[100],
+        borderRadius: const BorderRadius.only(
+          topLeft: Radius.circular(8),
+          topRight: Radius.circular(8),
+        ),
+        border: Border.all(color: Colors.grey[300]!),
+      ),
+      child: ClipRRect(
+        borderRadius: const BorderRadius.only(
+          topLeft: Radius.circular(8),
+          topRight: Radius.circular(8),
+        ),
+        child: Image.network(
+          imageUrl,
+          fit: BoxFit.cover,
+          loadingBuilder: (context, child, loadingProgress) {
+            if (loadingProgress == null) return child;
+            return Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  CircularProgressIndicator(
+                    value: loadingProgress.expectedTotalBytes != null
+                        ? loadingProgress.cumulativeBytesLoaded /
+                            loadingProgress.expectedTotalBytes!
+                        : null,
+                    color: const Color(0xFF213268),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    'Memuat gambar...',
+                    style: GoogleFonts.poppins(
+                      fontSize: 12,
+                      color: Colors.grey[600],
+                    ),
+                  ),
+                ],
+              ),
+            );
+          },
+          errorBuilder: (context, error, stackTrace) {
+            // Try fallback to placeholder if main URL fails
+            if (!imageUrl.contains('placeholder.png')) {
+              return Image.network(
+                '${ApiConfig.baseUrl}/public/images/placeholder.png',
+                fit: BoxFit.cover,
+                errorBuilder: (context, error, stackTrace) {
+                  return Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(
+                          Icons.image_not_supported,
+                          size: 48,
+                          color: Colors.grey[400],
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          'Gambar tidak dapat dimuat',
+                          style: GoogleFonts.poppins(
+                            fontSize: 12,
+                            color: Colors.grey[600],
+                          ),
+                        ),
+                      ],
+                    ),
+                  );
+                },
+              );
+            }
+
+            return Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(
+                    Icons.image_not_supported,
+                    size: 48,
+                    color: Colors.grey[400],
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    'Gambar tidak tersedia',
+                    style: GoogleFonts.poppins(
+                      fontSize: 12,
+                      color: Colors.grey[600],
+                    ),
+                  ),
+                ],
+              ),
+            );
+          },
+        ),
+      ),
+    );
+  }
+
+  // Helper method to extract filename from path (following asset_details.dart pattern)
+  String _extractFilename(String path) {
+    // If path doesn't contain '/', return as is
+    if (!path.contains('/')) return path;
+
+    // If it's a full path, extract the filename
+    return path.split('/').last;
+  }
+
+  String _getAssetTypeDisplay(String? assetType) {
+    if (assetType == null) return 'Unknown';
+
+    switch (assetType.toLowerCase()) {
+      case 'medical':
+        return 'Medis';
+      case 'non_medical':
+        return 'Non-Medis';
+      case 'furniture':
+        return 'Furniture';
+      case 'electronic':
+        return 'Electronic';
+      case 'vehicle':
+        return 'Vehicle';
+      case 'building':
+        return 'Building';
+      case 'land':
+        return 'Land';
+      case 'other':
+        return 'Other';
+      default:
+        return assetType;
+    }
+  }
+
+  String _getConditionDisplay(String? condition) {
+    if (condition == null) return 'Unknown';
+
+    switch (condition.toLowerCase()) {
+      case 'good':
+        return 'Baik';
+      case 'damaged':
+        return 'Rusak';
+      case 'broken':
+        return 'Rusak Parah';
+      case 'lost':
+        return 'Hilang';
+      case 'new':
+        return 'Baru';
+      case 'used':
+        return 'Bekas';
+      case 'under_repair':
+        return 'Dalam Perbaikan';
+      case 'retired':
+        return 'Pensiun';
+      default:
+        return condition;
+    }
+  }
+
+  String _getAssetStatusDisplay(String? status) {
+    if (status == null) return 'Unknown';
+
+    switch (status.toLowerCase()) {
+      case 'active':
+        return 'Aktif';
+      case 'inactive':
+        return 'Tidak Aktif';
+      case 'damaged':
+        return 'Rusak';
+      case 'lost':
+        return 'Hilang';
+      case 'retired':
+        return 'Pensiun';
+      default:
+        return status;
+    }
+  }
+
+  String _getScanStatusDisplay(String scanStatus) {
+    if (scanStatus == 'found') return 'Ditemukan';
+    if (scanStatus == 'missing') return 'Hilang';
+    if (scanStatus == 'misplaced') return 'Pindah';
+    return scanStatus;
+  }
+
+  String _formatDate(String dateStr) {
+    try {
+      final date = DateTime.parse(dateStr).toLocal();
+      return "${date.day}/${date.month}/${date.year}";
+    } catch (e) {
+      print('Error parsing date: $e');
+      return dateStr;
+    }
+  }
+
+  String _formatCurrency(String? costString) {
+    if (costString == null || costString.isEmpty) return 'N/A';
+    try {
+      final cost = double.parse(costString);
+      return "Rp ${cost.toStringAsFixed(0).replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (Match m) => '${m[1]},')}";
+    } catch (e) {
+      return "Rp $costString";
+    }
+  }
+
+  // Helper method to build detail sections (same as in stockopname_scanner.dart)
+  Widget _buildDetailSection(String title, List<Widget> children) {
+    return Container(
+      width: double.infinity,
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: Colors.grey[300]!),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: const Color(0xFF213268).withOpacity(0.05),
+              borderRadius: const BorderRadius.only(
+                topLeft: Radius.circular(8),
+                topRight: Radius.circular(8),
+              ),
+            ),
+            child: Text(
+              title,
+              style: GoogleFonts.poppins(
+                fontSize: 14,
+                fontWeight: FontWeight.w600,
+                color: const Color(0xFF213268),
+              ),
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.all(12),
+            child: Column(
+              children: children,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  String _getCurrentLocation(AssetScanDetail asset) {
+    // For found assets, current location is where they were scanned (the room being scanned)
+    if (asset.scanStatus.toLowerCase() == 'found') {
+      if (asset.actualLocationName != null &&
+          asset.actualLocationName!.isNotEmpty) {
+        return asset.actualLocationName!;
+      } else if (widget.roomName != null && widget.roomName!.isNotEmpty) {
+        return widget.roomName!; // Use the room being scanned
+      } else if (asset.roomName != null && asset.roomName!.isNotEmpty) {
+        return asset.roomName!;
+      }
+      return "Ditemukan di ruangan scan";
+    }
+
+    // For misplaced assets, show where they were actually found
+    if (asset.scanStatus.toLowerCase() == 'misplaced') {
+      if (asset.actualLocationName != null &&
+          asset.actualLocationName!.isNotEmpty) {
+        return asset.actualLocationName!;
+      }
+      return "Lokasi tidak diketahui";
+    }
+
+    // For missing assets, they are not found anywhere
+    if (asset.scanStatus.toLowerCase() == 'missing') {
+      return "Tidak ditemukan";
+    }
+
+    // Default fallback
+    if (asset.actualLocationName != null &&
+        asset.actualLocationName!.isNotEmpty) {
+      return asset.actualLocationName!;
+    } else if (asset.roomName != null && asset.roomName!.isNotEmpty) {
+      return asset.roomName!;
+    }
+
+    return "Lokasi tidak diketahui";
   }
 }

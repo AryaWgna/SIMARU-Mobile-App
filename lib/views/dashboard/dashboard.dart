@@ -6,7 +6,7 @@ import '../pages/qr_scanner_screen.dart';
 import '../stockopname/stockopname.dart';
 import '../complain/complain_list_screen.dart';
 import '../../widgets/custom_app_bar.dart';
-import '../../controllers/auth/auth_controller.dart';
+import '../../controllers/auth/auth_controller.dart' as AuthApi;
 import '../../controllers/dashboard/dashboard_controller.dart';
 import '../../auth/login.dart';
 import 'dart:async'; // Import untuk Timer
@@ -16,6 +16,8 @@ import 'package:google_fonts/google_fonts.dart';
 import 'dart:io';
 import 'package:no_screenshot/no_screenshot.dart';
 import '../../utils/logger_util.dart';
+import '../../services/socket/socket_service.dart'
+    as SocketApi; // Import untuk ApiService dari socket
 
 // Route observer for tracking navigation
 final RouteObserver<PageRoute> routeObserver = RouteObserver<PageRoute>();
@@ -63,7 +65,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
       LoggerUtil.i("DashboardScreen screens initialized successfully");
 
       // Set navigasi otomatis untuk token expired
-      ApiService.navigateToLogin = (BuildContext ctx) {
+      AuthApi.ApiService.navigateToLogin = (BuildContext ctx) {
         Navigator.of(ctx).pushAndRemoveUntil(
           MaterialPageRoute(builder: (c) => const LoginScreen()),
           (route) => false,
@@ -101,7 +103,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
     if (!mounted) return;
 
     try {
-      final isValid = await ApiService.checkSessionValidity();
+      final isValid = await AuthApi.ApiService.checkSessionValidity();
       LoggerUtil.d(
           "Session validity check result: ${isValid ? 'valid' : 'invalid'}");
 
@@ -365,18 +367,34 @@ class _DashboardScreenState extends State<DashboardScreen> {
                         ),
                       ),
                       onPressed: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (context) => QRScannerScreen(
-                              previousScreen:
-                                  controller.getPreviousScreenName(),
+                        try {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) => QRScannerScreen(
+                                previousScreen:
+                                    controller.getPreviousScreenName(),
+                              ),
                             ),
-                          ),
-                        ).then((_) {
-                          // Refresh state jika diperlukan
-                          controller.refreshState();
-                        });
+                          ).then((_) {
+                            // Refresh state jika diperlukan
+                            if (mounted) {
+                              controller.refreshState();
+                            }
+                          }).catchError((error) {
+                            LoggerUtil.e('Error navigating to QR scanner',
+                                error, StackTrace.current);
+                            if (mounted) {
+                              showError(
+                                  'Error membuka scanner QR: ${error.toString()}');
+                            }
+                          });
+                        } catch (e) {
+                          LoggerUtil.e('Error opening QR scanner', e,
+                              StackTrace.current);
+                          showError(
+                              'Error membuka scanner QR: ${e.toString()}');
+                        }
                       },
                       child: const Icon(
                         Icons.qr_code_scanner,

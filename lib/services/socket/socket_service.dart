@@ -12,47 +12,92 @@ class SocketService extends ChangeNotifier {
   WebSocketChannel? _channel;
   bool _isConnected = false;
   String? _lastMessage;
+  bool _isConnecting = false;
 
   bool get isConnected => _isConnected;
   String? get lastMessage => _lastMessage;
+  bool get isConnecting => _isConnecting;
 
   // URL WebSocket, gunakan wss:// untuk HTTPS dan ws:// untuk HTTP
   String get _getWebSocketUrl {
-    final baseUrl = kDebugMode
-        ? ApiConfig.baseUrl.replaceFirst('http', 'ws')
-        : ApiConfig.baseUrl.replaceFirst('https', 'wss');
-    return '$baseUrl/ws';
+    // Remove /api/ from baseUrl and properly construct WebSocket URL
+    final String baseUrlWithoutApi = ApiConfig.baseUrl.replaceAll('/api/', '/');
+
+    // Replace protocol properly for WebSocket
+    String wsUrl;
+    if (baseUrlWithoutApi.startsWith('https://')) {
+      wsUrl = baseUrlWithoutApi.replaceFirst('https://', 'wss://');
+    } else if (baseUrlWithoutApi.startsWith('http://')) {
+      wsUrl = baseUrlWithoutApi.replaceFirst('http://', 'ws://');
+    } else {
+      // Fallback - add wss:// for production, ws:// for debug
+      wsUrl =
+          kDebugMode ? 'ws://$baseUrlWithoutApi' : 'wss://$baseUrlWithoutApi';
+    }
+
+    // Make sure we don't have double slashes and add ws endpoint
+    final String cleanUrl = wsUrl.endsWith('/') ? wsUrl : '$wsUrl/';
+    final String finalUrl = '${cleanUrl}ws';
+
+    LoggerUtil.d('Original baseUrl: ${ApiConfig.baseUrl}');
+    LoggerUtil.d('Base URL without /api/: $baseUrlWithoutApi');
+    LoggerUtil.d('Final WebSocket URL: $finalUrl');
+    return finalUrl;
   }
 
-  // Metode untuk menghubungkan ke WebSocket
-  void connect() {
+  // Metode untuk menghubungkan ke WebSocket dengan error handling yang lebih baik
+  Future<void> connect() async {
+    if (_isConnecting || _isConnected) {
+      LoggerUtil.d('WebSocket already connecting or connected');
+      return;
+    }
+
+    _isConnecting = true;
+    notifyListeners();
+
     try {
+      final wsUrl = _getWebSocketUrl;
+      LoggerUtil.d('Attempting to connect to WebSocket: $wsUrl');
+
       _channel = WebSocketChannel.connect(
-        Uri.parse(_getWebSocketUrl),
+        Uri.parse(wsUrl),
       );
+
       _isConnected = true;
+      _isConnecting = false;
       notifyListeners();
+
+      LoggerUtil.i('WebSocket connected successfully');
 
       // Listen untuk pesan yang masuk
       _channel!.stream.listen(
         (message) {
           _lastMessage = message;
+          LoggerUtil.d(
+              'WebSocket message received: ${message.toString().substring(0, message.toString().length > 100 ? 100 : message.toString().length)}...');
           notifyListeners();
         },
         onDone: () {
+          LoggerUtil.i('WebSocket connection closed');
           _isConnected = false;
+          _isConnecting = false;
           notifyListeners();
         },
         onError: (error) {
           LoggerUtil.e('WebSocket Error', error, StackTrace.current);
           _isConnected = false;
+          _isConnecting = false;
           notifyListeners();
         },
       );
     } catch (e) {
       LoggerUtil.e('Failed to connect to WebSocket', e, StackTrace.current);
       _isConnected = false;
+      _isConnecting = false;
       notifyListeners();
+
+      // Don't rethrow the error, just log it
+      // This prevents the app from crashing if WebSocket is not available
     }
   }
 

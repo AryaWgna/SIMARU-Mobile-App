@@ -19,6 +19,53 @@ class AssetScanDetail {
   final String? assetType;
   final String? referenceImagePath;
 
+  // Additional detailed asset information to match StockOpnameItem
+  final String? brandName;
+  final String? model;
+  final String? serialNumber;
+  final String? pic;
+  final String? category;
+  final String? condition;
+  final String? createdAt;
+  final String? updatedAt;
+
+  // Asset Master information (expanded)
+  final String? assetMasterName;
+  final String? description;
+  final String? subcategoryName;
+  final bool? isDepreciable;
+  final bool? needsCalibration;
+
+  // Physical asset details (expanded)
+  final int? brandId;
+
+  // Purchase information
+  final String? purchaseDate;
+  final String? purchaseCost;
+  final String? warrantyEndDate;
+
+  // Employee/PIC information (expanded)
+  final int? userId;
+  final String? employeeNumber;
+  final String? employeeName;
+
+  // Location details (expanded)
+  final int? roomId;
+  final String? roomName;
+  final String? buildingName;
+  final String? floorNumber;
+  final String? expectedBuildingName;
+  final String? expectedFloorNumber;
+
+  // QR and timestamps (expanded)
+  final String? qrCodePath;
+
+  // Depreciation info
+  final Map<String, dynamic>? depreciationInfo;
+
+  // Current status info
+  final String? currentStatus;
+
   AssetScanDetail({
     required this.detailId,
     required this.opnameId,
@@ -39,6 +86,44 @@ class AssetScanDetail {
     this.assetMasterId,
     this.assetType,
     this.referenceImagePath,
+    // Additional detailed asset information
+    this.brandName,
+    this.model,
+    this.serialNumber,
+    this.pic,
+    this.category,
+    this.condition,
+    this.createdAt,
+    this.updatedAt,
+    // Asset Master information (expanded)
+    this.assetMasterName,
+    this.description,
+    this.subcategoryName,
+    this.isDepreciable,
+    this.needsCalibration,
+    // Physical asset details (expanded)
+    this.brandId,
+    // Purchase information
+    this.purchaseDate,
+    this.purchaseCost,
+    this.warrantyEndDate,
+    // Employee/PIC information (expanded)
+    this.userId,
+    this.employeeNumber,
+    this.employeeName,
+    // Location details (expanded)
+    this.roomId,
+    this.roomName,
+    this.buildingName,
+    this.floorNumber,
+    this.expectedBuildingName,
+    this.expectedFloorNumber,
+    // QR and timestamps (expanded)
+    this.qrCodePath,
+    // Depreciation info
+    this.depreciationInfo,
+    // Current status info
+    this.currentStatus,
   });
 
   // Metode untuk membuat salinan objek dengan perubahan
@@ -62,6 +147,44 @@ class AssetScanDetail {
     int? assetMasterId,
     String? assetType,
     String? referenceImagePath,
+    // Additional detailed asset information
+    String? brandName,
+    String? model,
+    String? serialNumber,
+    String? pic,
+    String? category,
+    String? condition,
+    String? createdAt,
+    String? updatedAt,
+    // Asset Master information (expanded)
+    String? assetMasterName,
+    String? description,
+    String? subcategoryName,
+    bool? isDepreciable,
+    bool? needsCalibration,
+    // Physical asset details (expanded)
+    int? brandId,
+    // Purchase information
+    String? purchaseDate,
+    String? purchaseCost,
+    String? warrantyEndDate,
+    // Employee/PIC information (expanded)
+    int? userId,
+    String? employeeNumber,
+    String? employeeName,
+    // Location details (expanded)
+    int? roomId,
+    String? roomName,
+    String? buildingName,
+    String? floorNumber,
+    String? expectedBuildingName,
+    String? expectedFloorNumber,
+    // QR and timestamps (expanded)
+    String? qrCodePath,
+    // Depreciation info
+    Map<String, dynamic>? depreciationInfo,
+    // Current status info
+    String? currentStatus,
   }) {
     return AssetScanDetail(
       detailId: detailId ?? this.detailId,
@@ -83,6 +206,44 @@ class AssetScanDetail {
       assetMasterId: assetMasterId ?? this.assetMasterId,
       assetType: assetType ?? this.assetType,
       referenceImagePath: referenceImagePath ?? this.referenceImagePath,
+      // Additional detailed asset information
+      brandName: brandName ?? this.brandName,
+      model: model ?? this.model,
+      serialNumber: serialNumber ?? this.serialNumber,
+      pic: pic ?? this.pic,
+      category: category ?? this.category,
+      condition: condition ?? this.condition,
+      createdAt: createdAt ?? this.createdAt,
+      updatedAt: updatedAt ?? this.updatedAt,
+      // Asset Master information (expanded)
+      assetMasterName: assetMasterName ?? this.assetMasterName,
+      description: description ?? this.description,
+      subcategoryName: subcategoryName ?? this.subcategoryName,
+      isDepreciable: isDepreciable ?? this.isDepreciable,
+      needsCalibration: needsCalibration ?? this.needsCalibration,
+      // Physical asset details (expanded)
+      brandId: brandId ?? this.brandId,
+      // Purchase information
+      purchaseDate: purchaseDate ?? this.purchaseDate,
+      purchaseCost: purchaseCost ?? this.purchaseCost,
+      warrantyEndDate: warrantyEndDate ?? this.warrantyEndDate,
+      // Employee/PIC information (expanded)
+      userId: userId ?? this.userId,
+      employeeNumber: employeeNumber ?? this.employeeNumber,
+      employeeName: employeeName ?? this.employeeName,
+      // Location details (expanded)
+      roomId: roomId ?? this.roomId,
+      roomName: roomName ?? this.roomName,
+      buildingName: buildingName ?? this.buildingName,
+      floorNumber: floorNumber ?? this.floorNumber,
+      expectedBuildingName: expectedBuildingName ?? this.expectedBuildingName,
+      expectedFloorNumber: expectedFloorNumber ?? this.expectedFloorNumber,
+      // QR and timestamps (expanded)
+      qrCodePath: qrCodePath ?? this.qrCodePath,
+      // Depreciation info
+      depreciationInfo: depreciationInfo ?? this.depreciationInfo,
+      // Current status info
+      currentStatus: currentStatus ?? this.currentStatus,
     );
   }
 
@@ -93,7 +254,10 @@ class AssetScanDetail {
       opnameCode: json['opname_code'] ?? '',
       assetId: json['asset_id'],
       assetCode: json['asset_code'],
-      assetDescription: json['asset_description'] ?? json['asset_name'] ?? '',
+      assetDescription: json['asset_description'] ??
+          json['asset_name'] ??
+          json['asset_master_name'] ??
+          '',
       scanDate: json['scan_date'],
       scanStatus: json['scan_status'],
       actualLocationId: json['actual_location_id'],
@@ -107,8 +271,49 @@ class AssetScanDetail {
       assetMasterId: json['asset_master_id'],
       assetType: json['asset_type'],
       referenceImagePath: json['reference_image_path'],
+      // Additional detailed asset information
+      brandName: json['brand_name'],
+      model: json['model'],
+      serialNumber: json['serial_number'],
+      pic: json['pic'],
+      category: json['category'],
+      condition: json['condition'],
+      createdAt: json['created_at'],
+      updatedAt: json['updated_at'],
+      // Asset Master information (expanded)
+      assetMasterName: json['asset_master_name'],
+      description: json['description'],
+      subcategoryName: json['subcategory_name'],
+      isDepreciable: json['is_depreciable'],
+      needsCalibration: json['needs_calibration'],
+      // Physical asset details (expanded)
+      brandId: json['brand_id'],
+      // Purchase information
+      purchaseDate: json['purchase_date'],
+      purchaseCost: json['purchase_cost'],
+      warrantyEndDate: json['warranty_end_date'],
+      // Employee/PIC information (expanded)
+      userId: json['user_id'],
+      employeeNumber: json['employee_number'],
+      employeeName: json['employee_name'],
+      // Location details (expanded)
+      roomId: json['room_id'],
+      roomName: json['room_name'],
+      buildingName: json['building_name'],
+      floorNumber: json['floor_number'],
+      expectedBuildingName: json['expected_building_name'],
+      expectedFloorNumber: json['expected_floor_number'],
+      // QR and timestamps (expanded)
+      qrCodePath: json['qr_code'],
+      // Depreciation info
+      depreciationInfo: json['depreciation'],
+      // Current status info
+      currentStatus: json['current_status'],
     );
   }
+
+  // Helper method to get asset name (prioritize asset_master_name over asset_description)
+  String get assetName => assetMasterName ?? assetDescription;
 }
 
 class SummaryData {

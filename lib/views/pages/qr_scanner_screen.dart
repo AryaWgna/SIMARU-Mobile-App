@@ -8,6 +8,7 @@ import 'package:google_fonts/google_fonts.dart';
 import '../asset/asset_details.dart';
 import '../../services/socket/socket_service.dart';
 import '../../controllers/scan/qr_scanner_controller.dart';
+import '../../utils/logger_util.dart';
 
 // Impor QR code scanner dengan conditional import
 import 'qr_mobile_implementation.dart'
@@ -40,11 +41,14 @@ class _QRScannerScreenState extends State<QRScannerScreen>
 
     _qrScannerController =
         Provider.of<QRScannerController>(context, listen: false);
-    _qrScannerController.reset();
 
-    // Tambahkan state ke controller
-    _qrScannerController.setCameraInitialized(false);
-    _qrScannerController.setCameraPaused(false);
+    // Defer state changes to avoid setState during build
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _qrScannerController.reset();
+      // Tambahkan state ke controller
+      _qrScannerController.setCameraInitialized(false);
+      _qrScannerController.setCameraPaused(false);
+    });
 
     // Setup animasi naik turun
     _animationController = AnimationController(
@@ -54,13 +58,30 @@ class _QRScannerScreenState extends State<QRScannerScreen>
     _animation =
         Tween<double>(begin: -35.0, end: 35.0).animate(_animationController);
 
-    // Koneksikan socket saat layar dibuka
+    // Koneksikan socket saat layar dibuka (optional - tidak akan mengganggu jika gagal)
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      final socketService = Provider.of<SocketService>(context, listen: false);
-      if (!socketService.isConnected) {
-        socketService.connect();
-      }
+      _connectSocketSafely();
     });
+  }
+
+  // Method untuk koneksi socket yang aman tanpa mengganggu fungsi utama
+  Future<void> _connectSocketSafely() async {
+    try {
+      final socketService = Provider.of<SocketService>(context, listen: false);
+      if (!socketService.isConnected && !socketService.isConnecting) {
+        await socketService.connect();
+        if (socketService.isConnected) {
+          LoggerUtil.i('WebSocket connected successfully for QR scanner');
+        } else {
+          LoggerUtil.w(
+              'WebSocket connection failed, but QR scanner will continue to work');
+        }
+      }
+    } catch (e) {
+      LoggerUtil.w(
+          'WebSocket connection failed in QR scanner, but app will continue normally: $e');
+      // Don't show error to user, WebSocket is optional for QR functionality
+    }
   }
 
   @override
@@ -169,11 +190,15 @@ class _QRScannerScreenState extends State<QRScannerScreen>
                 }, (mobileController) {
                   // Simpan controller
                   _mobileScannerController = mobileController;
-                  controller.setQRViewController(mobileController);
-                  // Set camera sebagai initialized
-                  if (!controller.isCameraInitialized) {
-                    controller.setCameraInitialized(true);
-                  }
+                  
+                  // Defer state changes to avoid setState during build
+                  WidgetsBinding.instance.addPostFrameCallback((_) {
+                    controller.setQRViewController(mobileController);
+                    // Set camera sebagai initialized
+                    if (!controller.isCameraInitialized) {
+                      controller.setCameraInitialized(true);
+                    }
+                  });
                 }),
 
                 // Animasi Garis Scanner (hanya untuk mobile)
@@ -457,38 +482,50 @@ class _QRScannerScreenState extends State<QRScannerScreen>
       _mobileScannerController!.stop();
     }
 
-    // Process QR code using controller
-    final assetData =
-        await controller.processScannedQR(qrCode, socketService, context);
+    try {
+      // Process QR code using controller
+      // WebSocket is optional - the controller should handle cases where socket is not connected
+      final assetData =
+          await controller.processScannedQR(qrCode, socketService, context);
 
-    if (assetData != null) {
-      // Ensure asset name is set properly before navigating
-      if (assetData['asset_name'] == null &&
-          assetData['asset_master'] != null &&
-          assetData['asset_master']['asset_name'] != null) {
-        assetData['asset_name'] = assetData['asset_master']['asset_name'];
-      }
+      if (assetData != null) {
+        // Ensure asset name is set properly before navigating
+        if (assetData['asset_name'] == null &&
+            assetData['asset_master'] != null &&
+            assetData['asset_master']['asset_name'] != null) {
+          assetData['asset_name'] = assetData['asset_master']['asset_name'];
+        }
 
-      // Remove success notification
-      // Navigate to asset details
-      if (mounted) {
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(
-            builder: (context) => AssetDetails(
-              qrData: qrCode,
-              previousScreen: widget.previousScreen,
-              assetData: assetData,
+        // Navigate to asset details
+        if (mounted) {
+          Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(
+              builder: (context) => AssetDetails(
+                qrData: qrCode,
+                previousScreen: widget.previousScreen,
+                assetData: assetData,
+              ),
             ),
-          ),
-        );
-      }
-    } else if (controller.errorMessage != null) {
-      // Show error notification
-      showNotice(controller.errorMessage!, isError: true);
+          );
+        }
+      } else if (controller.errorMessage != null) {
+        // Show error notification
+        showNotice(controller.errorMessage!, isError: true);
 
-      // Resume camera
-      if (_mobileScannerController != null) {
+        // Resume camera after error
+        await Future.delayed(const Duration(seconds: 2));
+        if (_mobileScannerController != null && mounted) {
+          _mobileScannerController!.start();
+        }
+      }
+    } catch (e) {
+      LoggerUtil.e('Error processing QR code', e, StackTrace.current);
+      showNotice('Error memproses QR code: ${e.toString()}', isError: true);
+
+      // Resume camera after error
+      await Future.delayed(const Duration(seconds: 2));
+      if (_mobileScannerController != null && mounted) {
         _mobileScannerController!.start();
       }
     }

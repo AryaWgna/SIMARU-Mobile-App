@@ -24,6 +24,9 @@ class StockOpnameController extends ChangeNotifier {
   bool _isLoadingRooms = false;
   bool _isCreatingOpname = false;
 
+  // Add local progress tracking
+  Map<int, int> _localScannedCounts = {}; // Map of opnameId -> scanned count
+
   // Variabel untuk pagination
   int _currentBuildingPage = 1;
   int _totalBuildingPages = 1;
@@ -61,7 +64,47 @@ class StockOpnameController extends ChangeNotifier {
   bool get isLoadingRooms => _isLoadingRooms;
   bool get isCreatingOpname => _isCreatingOpname;
 
-  // Getters untuk pagination
+  // Add getter for local scanned counts
+  Map<int, int> get localScannedCounts => _localScannedCounts;
+
+  // Method to get local scanned count for a specific opname
+  int getLocalScannedCount(int opnameId) {
+    return _localScannedCounts[opnameId] ?? 0;
+  }
+
+  // Method to increment local scanned count
+  void incrementLocalScannedCount(int opnameId) {
+    _localScannedCounts[opnameId] = (_localScannedCounts[opnameId] ?? 0) + 1;
+
+    // Also update the pending opnames list with new count
+    final opnameIndex =
+        _pendingOpnames.indexWhere((opname) => opname.opnameId == opnameId);
+    if (opnameIndex != -1) {
+      _pendingOpnames[opnameIndex] = _pendingOpnames[opnameIndex]
+          .copyWith(scannedAssets: _localScannedCounts[opnameId]!);
+    }
+
+    notifyListeners();
+    LoggerUtil.d(
+        'Local scanned count for opname $opnameId incremented to ${_localScannedCounts[opnameId]}');
+  }
+
+  // Method to manually set local scanned count
+  void setLocalScannedCount(int opnameId, int count) {
+    _localScannedCounts[opnameId] = count;
+
+    // Also update the pending opnames list with new count
+    final opnameIndex =
+        _pendingOpnames.indexWhere((opname) => opname.opnameId == opnameId);
+    if (opnameIndex != -1) {
+      _pendingOpnames[opnameIndex] =
+          _pendingOpnames[opnameIndex].copyWith(scannedAssets: count);
+    }
+
+    notifyListeners();
+  }
+
+  // Variabel untuk pagination
   int get currentBuildingPage => _currentBuildingPage;
   int get totalBuildingPages => _totalBuildingPages;
   bool get hasMoreBuildings => _hasMoreBuildings;
@@ -148,14 +191,72 @@ class StockOpnameController extends ChangeNotifier {
         if (responseData['success'] == true && responseData['data'] != null) {
           final assetData = responseData['data'];
 
+          // Extract asset master information if available
+          final assetMaster = assetData['asset_master'];
+
+          // Extract depreciation information if available
+          final depreciationInfo = assetData['depreciation'];
+
           return StockOpnameItem(
-            assetId: assetData['id'],
+            // Basic asset information
+            assetId: assetData['asset_id'],
             assetCode: assetData['asset_code'],
-            assetName: assetData['asset_name'],
-            location: assetData['room']?['room_name'] ?? 'Tidak diketahui',
+            assetName: assetData['asset_master_name'] ??
+                assetData['asset_name'] ??
+                'Tidak diketahui',
+            location: assetData['room_name'] ?? 'Tidak diketahui',
             condition: assetData['condition'] ?? 'Tidak diketahui',
             currentStatus: assetData['current_status'] ?? 'Tidak diketahui',
             scanTime: DateTime.now(),
+
+            // Asset Master information
+            assetMasterId: assetData['asset_master_id'],
+            assetMasterCode: assetMaster?['asset_master_code'],
+            assetMasterName: assetMaster?['asset_name'],
+            description: assetMaster?['description'],
+            assetType: assetMaster?['asset_type'],
+            subcategoryName: assetMaster?['subcategory_name'],
+            referenceImagePath: assetMaster?['reference_image_path'],
+            isDepreciable: assetMaster?['is_depreciable'],
+            needsCalibration: assetMaster?['needs_calibration'],
+
+            // Physical asset details
+            serialNumber: assetData['serial_number'],
+            model: assetData['model'],
+            brandId: assetData['brand_id'],
+            brandName: assetData['brand_name'],
+
+            // Purchase information
+            purchaseDate: assetData['purchase_date'],
+            purchaseCost: assetData['purchase_cost'],
+            warrantyEndDate: assetData['warranty_end_date'],
+
+            // Employee/PIC information
+            userId: assetData['user_id'],
+            employeeNumber: assetData['employee_number'],
+            employeeName: assetData['employee_name'],
+
+            // Location details
+            roomId: assetData['room_id'],
+            roomName: assetData['room_name'],
+            buildingName: assetData['building_name'],
+            floorNumber: assetData['floor_number'],
+            actualLocationName:
+                assetData['actual_location_name'] ?? assetData['room_name'],
+            expectedLocationName:
+                assetData['expected_location_name'] ?? assetData['room_name'],
+            expectedBuildingName: assetData['expected_building_name'] ??
+                assetData['building_name'],
+            expectedFloorNumber:
+                assetData['expected_floor_number'] ?? assetData['floor_number'],
+
+            // QR and timestamps
+            qrCodePath: assetData['qr_code'],
+            createdAt: assetData['created_at'],
+            updatedAt: assetData['updated_at'],
+
+            // Depreciation info
+            depreciationInfo: depreciationInfo,
           );
         } else {
           _error = responseData['message'] ?? 'Gagal mengambil data aset';
@@ -185,94 +286,201 @@ class StockOpnameController extends ChangeNotifier {
       _error = null;
       notifyListeners();
 
+      LoggerUtil.d(
+          'Processing QR code: "$qrCode", opnameId: $opnameId, roomId: $roomId');
       final assetCode = qrCode.trim();
+      LoggerUtil.d('Trimmed asset code: "$assetCode"');
 
       // Validasi format QR yang lebih longgar
       if (assetCode.isEmpty) {
+        LoggerUtil.w('Empty asset code detected');
         _error = 'Format kode QR tidak valid';
         return false;
       }
 
       // Cek apakah asset sudah di-scan sebelumnya
       if (_scannedItems.any((item) => item.assetCode == assetCode)) {
+        LoggerUtil.w('Asset already scanned: $assetCode');
         _error = 'Aset ini sudah dipindai sebelumnya';
         return false;
       }
 
-      // Menggunakan endpoint dari dokumentasi API
-      final response = await auth.ApiService.post(
-        '/asset-opname-details',
-        body: {
-          'opname_id': opnameId,
-          'asset_code': assetCode,
-          'actual_location_id': roomId,
-        },
-        context: context,
-      );
+      // Pastikan tipe data yang dikirim sesuai dengan yang diharapkan API
+      Map<String, dynamic> requestBody = {
+        'opname_id': opnameId, // Pastikan ini adalah integer
+        'asset_code': assetCode, // String
+        'actual_location_id': roomId, // Pastikan ini adalah integer
+        'condition': 'good', // String
+      };
 
-      LoggerUtil.d('API response: ${response.statusCode} - ${response.body}');
+      LoggerUtil.d('Sending request to API: $requestBody');
 
-      if (response.statusCode == 200 || response.statusCode == 201) {
-        final data = jsonDecode(response.body);
+      try {
+        // Menggunakan endpoint dari dokumentasi API
+        final response = await auth.ApiService.post(
+          '/asset-opname-details',
+          body: requestBody,
+          context: context,
+        );
 
-        // Set as last scanned code
-        setLastScannedCode(assetCode);
+        LoggerUtil.d('API response: ${response.statusCode} - ${response.body}');
 
-        if (data['success'] == true && data['data'] != null) {
-          // Tambahkan aset ke daftar aset yang dipindai
-          final assetData = data['data'];
+        if (response.statusCode == 200 || response.statusCode == 201) {
+          final data = jsonDecode(response.body);
 
-          final asset = StockOpnameItem(
-            assetId: assetData['asset_id'],
-            assetCode: assetCode,
-            assetName: assetData['asset_name'] ?? 'Tidak diketahui',
-            location: assetData['actual_location_name'] ?? 'Tidak diketahui',
-            condition: assetData['asset_type'] ?? 'Tidak diketahui',
-            currentStatus: assetData['scan_status'] ?? 'Tidak diketahui',
-            scanTime: DateTime.now(),
-          );
+          // Set as last scanned code
+          setLastScannedCode(assetCode);
+          LoggerUtil.d('Last scanned code set to: $assetCode');
 
-          addScannedItem(asset);
+          if (data['success'] == true && data['data'] != null) {
+            // Handle array or object response
+            dynamic assetData;
 
-          _isLoading = false;
-          notifyListeners();
-          return true;
+            if (data['data'] is List) {
+              // If data is a list, get the first item
+              if ((data['data'] as List).isNotEmpty) {
+                assetData = data['data'][0];
+                LoggerUtil.d(
+                    'Data is a list. Using first element: ${json.encode(assetData)}');
+              } else {
+                LoggerUtil.w('Data is an empty list');
+                _error = 'Data aset tidak ditemukan';
+                _isLoading = false;
+                notifyListeners();
+                return false;
+              }
+            } else {
+              // Data is an object
+              assetData = data['data'];
+              LoggerUtil.d('Data is an object: ${json.encode(assetData)}');
+            }
+
+            // Handle berbagai kemungkinan tipe data dari API
+            int? assetId;
+            if (assetData['asset_id'] != null) {
+              if (assetData['asset_id'] is String) {
+                assetId = int.tryParse(assetData['asset_id']);
+              } else {
+                assetId = assetData['asset_id'];
+              }
+            }
+
+            final asset = StockOpnameItem(
+              // Basic asset information
+              assetId: assetId,
+              assetCode: assetCode,
+              assetName:
+                  assetData['asset_name']?.toString() ?? 'Tidak diketahui',
+              location: assetData['actual_location_name']?.toString() ??
+                  'Tidak diketahui',
+              condition: assetData['condition']?.toString() ?? 'good',
+              currentStatus:
+                  assetData['scan_status']?.toString() ?? 'Tidak diketahui',
+              scanTime: DateTime.now(),
+
+              // Additional detailed asset information from API
+              brandName: assetData['brand_name']?.toString(),
+              model: assetData['model']?.toString(),
+              serialNumber: assetData['serial_number']?.toString(),
+              pic: assetData['pic']?.toString(),
+              category: assetData['category']?.toString(),
+              assetType: assetData['asset_type']?.toString(),
+
+              // Location details - Use actual data from scan for current location
+              roomId: assetData['actual_location_id'] ?? assetData['room_id'],
+              roomName: assetData['actual_location_name']?.toString(),
+              buildingName: assetData['actual_building_name']?.toString() ??
+                  assetData['building_name']?.toString(),
+              floorNumber: assetData['actual_floor_number']?.toString() ??
+                  assetData['floor_number']?.toString(),
+              actualLocationName: assetData['actual_location_name']?.toString(),
+              expectedLocationName:
+                  assetData['expected_location_name']?.toString(),
+              expectedBuildingName:
+                  assetData['expected_building_name']?.toString() ??
+                      assetData['building_name']?.toString(),
+              expectedFloorNumber:
+                  assetData['expected_floor_number']?.toString() ??
+                      assetData['floor_number']?.toString(),
+
+              // QR and timestamps
+              createdAt: assetData['created_at']?.toString(),
+              updatedAt: assetData['updated_at']?.toString(),
+
+              // Reference image
+              referenceImagePath: assetData['reference_image_path']?.toString(),
+            );
+
+            LoggerUtil.i(
+                'Created asset item: ${asset.assetName} (${asset.assetCode})');
+            addScannedItem(asset);
+
+            // Check if this asset is in the allRoomAssets list and update its status
+            final assetIndex = _allRoomAssets
+                .indexWhere((item) => item.assetCode == assetCode);
+            if (assetIndex != -1) {
+              _allRoomAssets[assetIndex] = asset;
+              LoggerUtil.d('Updated asset in room assets list: $assetCode');
+            }
+            // If not found in the list, this might be an asset from another room or a new asset
+            // We can still add it to our local scanned items
+
+            // Increment local scanned count
+            incrementLocalScannedCount(opnameId);
+            LoggerUtil.d(
+                'Local scanned count incremented for opname $opnameId');
+
+            _isLoading = false;
+            notifyListeners();
+            return true;
+          } else {
+            _error = data['message']?.toString() ?? 'Gagal memindai aset';
+            LoggerUtil.w('API reported error: $_error');
+            _isLoading = false;
+            notifyListeners();
+            return false;
+          }
         } else {
-          _error = data['message'] ?? 'Gagal memindai aset';
+          Map<String, dynamic> errorData = {};
+          try {
+            errorData = jsonDecode(response.body);
+            LoggerUtil.e('API error response: $errorData');
+          } catch (e) {
+            LoggerUtil.e('Could not parse error response: ${response.body}', e,
+                StackTrace.current);
+          }
+
+          // Handle specific HTTP status codes with user-friendly messages
+          if (response.statusCode == 404) {
+            _error =
+                'Aset dengan kode ${assetCode} tidak ditemukan. Pastikan kode QR valid.';
+          } else if (response.statusCode == 401) {
+            _error = 'Sesi telah berakhir. Silakan login kembali.';
+          } else if (response.statusCode == 403) {
+            _error = 'Anda tidak memiliki akses untuk memindai aset ini.';
+          } else if (response.statusCode == 400) {
+            _error = errorData['message']?.toString() ??
+                'Format permintaan tidak valid. Coba lagi.';
+          } else if (response.statusCode == 500) {
+            _error = 'Terjadi kesalahan pada server. Silakan coba lagi nanti.';
+          } else {
+            _error = errorData['message']?.toString() ??
+                'Error ${response.statusCode}: Gagal memindai aset';
+          }
           _isLoading = false;
           notifyListeners();
           return false;
         }
-      } else {
-        final errorData = jsonDecode(response.body);
-
-        // Handle specific HTTP status codes with user-friendly messages
-        if (response.statusCode == 404) {
-          _error =
-              'Aset dengan kode ${assetCode} tidak ditemukan. Pastikan kode QR valid.';
-        } else if (response.statusCode == 401) {
-          _error = 'Sesi telah berakhir. Silakan login kembali.';
-        } else if (response.statusCode == 403) {
-          _error = 'Anda tidak memiliki akses untuk memindai aset ini.';
-        } else if (response.statusCode == 400) {
-          _error = errorData['message'] ??
-              'Format permintaan tidak valid. Coba lagi.';
-        } else if (response.statusCode == 500) {
-          _error = 'Terjadi kesalahan pada server. Silakan coba lagi nanti.';
-        } else {
-          _error = errorData['message'] ??
-              'Error ${response.statusCode}: Gagal memindai aset';
-        }
-
-        LoggerUtil.e(
-            'HTTP Error: ${response.statusCode}', _error, StackTrace.current);
+      } catch (e) {
+        LoggerUtil.e('Exception during API call', e, StackTrace.current);
+        _error = 'Gagal memindai aset: ${e.toString()}';
         _isLoading = false;
         notifyListeners();
         return false;
       }
     } catch (e) {
-      _error = 'Gagal memindai aset: ${e.toString()}';
       LoggerUtil.e('Exception during processScannedQR', e, StackTrace.current);
+      _error = 'Gagal memindai aset: ${e.toString()}';
       _isLoading = false;
       notifyListeners();
       return false;
@@ -352,15 +560,29 @@ class StockOpnameController extends ChangeNotifier {
       _error = null;
       notifyListeners();
 
+      LoggerUtil.d('Completing stockopname for opnameId: $opnameId');
+
       // Menggunakan endpoint dari dokumentasi API
       final response = await auth.ApiService.post(
         '/asset-opnames/$opnameId/complete',
-        body: {},
+        body: {}, // Empty body as per endpoint documentation
         context: context,
       );
 
+      LoggerUtil.d(
+          'Complete API response: ${response.statusCode} - ${response.body}');
+
       if (response.statusCode == 200 || response.statusCode == 201) {
-        final data = jsonDecode(response.body);
+        Map<String, dynamic> data;
+        try {
+          data = jsonDecode(response.body);
+          LoggerUtil.d('Success response decoded: $data');
+        } catch (e) {
+          LoggerUtil.e(
+              'Error decoding success response', e, StackTrace.current);
+          _error = 'Format respons tidak valid';
+          return false;
+        }
 
         if (data['success'] == true) {
           // Simpan summary
@@ -368,20 +590,41 @@ class StockOpnameController extends ChangeNotifier {
             _summary = data['data'];
           }
 
+          // Update status of the opname in the local list
+          final index =
+              _pendingOpnames.indexWhere((op) => op.opnameId == opnameId);
+          if (index != -1) {
+            _pendingOpnames[index] =
+                _pendingOpnames[index].copyWith(status: 'completed');
+          }
+
           // Refresh list opname setelah selesai
-          await fetchPendingOpnames(context);
+          await fetchPendingOpnames(context, resetList: true);
           return true;
         } else {
-          _error = data['message'] ?? 'Gagal menyelesaikan stockopname';
+          _error =
+              data['message']?.toString() ?? 'Gagal menyelesaikan stockopname';
+          LoggerUtil.w('API reported error: $_error');
           return false;
         }
       } else {
-        final data = jsonDecode(response.body);
-        _error = data['message'] ?? 'Gagal menyelesaikan stockopname';
+        Map<String, dynamic> errorData = {};
+        try {
+          errorData = jsonDecode(response.body);
+          LoggerUtil.e('API error response on complete: $errorData');
+        } catch (e) {
+          LoggerUtil.e('Could not parse error response', e, StackTrace.current);
+        }
+
+        _error = errorData['message']?.toString() ??
+            'Gagal menyelesaikan stockopname: Error ${response.statusCode}';
+        LoggerUtil.e('Complete failed with status ${response.statusCode}',
+            _error, StackTrace.current);
         return false;
       }
     } catch (e) {
-      _error = e.toString();
+      _error = 'Error: ${e.toString()}';
+      LoggerUtil.e('Exception completing stockopname', e, StackTrace.current);
       return false;
     } finally {
       _isLoading = false;
@@ -389,10 +632,38 @@ class StockOpnameController extends ChangeNotifier {
     }
   }
 
-  // Menghapus item dari daftar
+  // Menghapus aset dari daftar yang telah dipindai
   void removeItem(String assetCode) {
-    _scannedItems.removeWhere((item) => item.assetCode == assetCode);
-    notifyListeners();
+    // Hapus dari daftar yang dipindai
+    final removedItem = _scannedItems.firstWhere(
+      (item) => item.assetCode == assetCode,
+      orElse: () => null as StockOpnameItem,
+    );
+
+    if (removedItem != null) {
+      _scannedItems.removeWhere((item) => item.assetCode == assetCode);
+
+      // Update status in allRoomAssets if the asset exists there
+      final assetIndex =
+          _allRoomAssets.indexWhere((item) => item.assetCode == assetCode);
+      if (assetIndex != -1) {
+        // Reset to pending status
+        final currentAsset = _allRoomAssets[assetIndex];
+        _allRoomAssets[assetIndex] = StockOpnameItem(
+          assetId: currentAsset.assetId,
+          assetCode: currentAsset.assetCode,
+          assetName: currentAsset.assetName,
+          location: currentAsset.location,
+          condition: currentAsset.condition,
+          currentStatus: 'pending', // Reset to pending
+          scanTime: DateTime.now(),
+          notes: currentAsset.notes, // Preserve any notes
+        );
+        LoggerUtil.d('Reset asset status in room assets list: $assetCode');
+      }
+
+      notifyListeners();
+    }
   }
 
   // Reset daftar item
@@ -964,19 +1235,90 @@ class StockOpnameController extends ChangeNotifier {
     notifyListeners();
   }
 
-  // Memuat daftar stock opname yang sedang berjalan
-  Future<void> fetchPendingOpnames(BuildContext context) async {
+  // Variabel untuk pagination pending opnames
+  int _currentPendingOpnamesPage = 1;
+  int _totalPendingOpnamesPages = 1;
+  bool _hasMorePendingOpnames = true;
+  int _pendingOpnamesLimit = 10;
+  bool _isLoadingMorePendingOpnames = false;
+
+  // Getters untuk pagination pending opnames
+  int get currentPendingOpnamesPage => _currentPendingOpnamesPage;
+  int get totalPendingOpnamesPages => _totalPendingOpnamesPages;
+  bool get hasMorePendingOpnames => _hasMorePendingOpnames;
+  bool get isLoadingMorePendingOpnames => _isLoadingMorePendingOpnames;
+
+  // Memuat daftar stock opname yang sedang berjalan dengan pagination
+  Future<void> fetchPendingOpnames(BuildContext context,
+      {bool resetList = true}) async {
+    // Jika ini adalah request baru (bukan load more), reset pagination
+    if (resetList) {
+      _currentPendingOpnamesPage = 1;
+      _pendingOpnames = [];
+      _hasMorePendingOpnames = true;
+    }
+
     try {
-      final response = await auth.ApiService.get(
-          '/asset-opnames?status=pending',
-          context: context);
+      // Construct URL with pagination parameters
+      String endpoint =
+          '/asset-opnames?status=pending&page=$_currentPendingOpnamesPage&limit=$_pendingOpnamesLimit';
+
+      final response = await auth.ApiService.get(endpoint, context: context);
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
         if (data['success'] == true) {
-          final List<dynamic> opnamesJson = data['data'];
-          _pendingOpnames =
+          // Process pagination info if available
+          if (data['pagination'] != null) {
+            _totalPendingOpnamesPages = data['pagination']['total_pages'] ?? 1;
+            _hasMorePendingOpnames = data['pagination']['has_next'] ?? false;
+            _currentPendingOpnamesPage =
+                data['pagination']['current_page'] ?? 1;
+            LoggerUtil.d(
+                'Pending Opnames Pagination: Page $_currentPendingOpnamesPage of $_totalPendingOpnamesPages, Has more: $_hasMorePendingOpnames');
+          }
+
+          final List<dynamic> opnamesJson = data['data'] ?? [];
+          final newOpnames =
               opnamesJson.map((json) => StockOpname.fromJson(json)).toList();
+
+          // Tambahkan opnames baru ke daftar yang ada (atau ganti jika ini adalah request baru)
+          if (resetList) {
+            _pendingOpnames = newOpnames;
+          } else {
+            _pendingOpnames.addAll(newOpnames);
+          }
+
+          LoggerUtil.i(
+              'Successfully loaded ${newOpnames.length} pending opnames, total now: ${_pendingOpnames.length}');
+
+          // Restore local scanned counts
+          for (var opname in _pendingOpnames) {
+            // If we have a local count, compare with API count and use the higher value
+            if (_localScannedCounts.containsKey(opname.opnameId)) {
+              final localCount = _localScannedCounts[opname.opnameId]!;
+              if (localCount > opname.scannedAssets) {
+                // Our local count is higher, update the opname object
+                final index = _pendingOpnames
+                    .indexWhere((o) => o.opnameId == opname.opnameId);
+                if (index != -1) {
+                  _pendingOpnames[index] = _pendingOpnames[index]
+                      .copyWith(scannedAssets: localCount);
+                }
+              } else {
+                // API count is higher, update our local count
+                _localScannedCounts[opname.opnameId] = opname.scannedAssets;
+              }
+            } else {
+              // Initialize local count from API
+              _localScannedCounts[opname.opnameId] = opname.scannedAssets;
+            }
+          }
+
+          // Increment page for next load if there are more opnames
+          if (_hasMorePendingOpnames) {
+            _currentPendingOpnamesPage++;
+          }
         } else {
           _error = data['message'] ?? 'Gagal memuat data stock opname';
         }
@@ -988,6 +1330,38 @@ class StockOpnameController extends ChangeNotifier {
       LoggerUtil.e('Error saat memuat pending opnames', e, StackTrace.current);
     }
     notifyListeners();
+  }
+
+  // Load more pending opnames
+  Future<void> loadMorePendingOpnames(BuildContext context) async {
+    // Avoid duplicate requests or loading when we don't have more data
+    if (!_hasMorePendingOpnames || _isLoadingMorePendingOpnames) {
+      LoggerUtil.d(
+          'Load more pending opnames skipped: hasMore=$_hasMorePendingOpnames, loadingMore=$_isLoadingMorePendingOpnames');
+      return;
+    }
+
+    LoggerUtil.d(
+        'Loading more pending opnames, current page: $_currentPendingOpnamesPage, total pages: $_totalPendingOpnamesPages');
+
+    try {
+      // Set loading flag
+      _isLoadingMorePendingOpnames = true;
+      notifyListeners();
+
+      // Call fetchPendingOpnames with resetList=false to append data
+      await fetchPendingOpnames(context, resetList: false);
+    } catch (e, stackTrace) {
+      _error = 'Gagal memuat data stock opname tambahan: ${e.toString()}';
+      LoggerUtil.e(
+          'Exception saat memuat pending opnames tambahan', e, stackTrace);
+    } finally {
+      // Reset loading flag
+      _isLoadingMorePendingOpnames = false;
+      notifyListeners();
+      LoggerUtil.d(
+          'Pending opnames load more completed. Total opnames: ${_pendingOpnames.length}, hasMore: $_hasMorePendingOpnames, currentPage: $_currentPendingOpnamesPage');
+    }
   }
 
   // Membuat stock opname baru
@@ -1009,7 +1383,7 @@ class StockOpnameController extends ChangeNotifier {
 
         if (data['success'] == true) {
           // Refresh daftar opname yang sedang berjalan
-          await fetchPendingOpnames(context);
+          await fetchPendingOpnames(context, resetList: true);
 
           // Return data untuk diteruskan ke StockopnameScanner
           return StockOpname.fromJson(data['data']);
@@ -1040,7 +1414,7 @@ class StockOpnameController extends ChangeNotifier {
 
       await Future.wait([
         fetchBuildings(context),
-        fetchPendingOpnames(context),
+        fetchPendingOpnames(context, resetList: true),
       ]);
     } catch (e) {
       _error = e.toString();
@@ -1137,10 +1511,818 @@ class StockOpnameController extends ChangeNotifier {
     });
   }
 
+  // Add these properties to the StockOpnameController class
+  List<StockOpnameItem> _allRoomAssets = [];
+  bool _isLoadingRoomAssets = false;
+
+  // Getter for all room assets
+  List<StockOpnameItem> get allRoomAssets => _allRoomAssets;
+  bool get isLoadingRoomAssets => _isLoadingRoomAssets;
+
+  // Fetch all assets for a specific room
+  Future<void> fetchRoomAssets(
+      int roomId, int opnameId, BuildContext context) async {
+    try {
+      _isLoadingRoomAssets = true;
+      notifyListeners();
+
+      // Get ALL room assets directly from assets endpoint with room_id filter
+      final response = await auth.ApiService.get(
+        '/assets?room_id=$roomId',
+        context: context,
+      );
+
+      LoggerUtil.d('Fetching room assets for room ID: $roomId');
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+
+        if (data['success'] == true && data['data'] != null) {
+          // Extract assets directly from room assets API
+          final List<dynamic> assetsList = data['data'];
+
+          // Extract all assets and set them as pending by default
+          _allRoomAssets = [];
+
+          LoggerUtil.d(
+              'Processing ${assetsList.length} assets from room $roomId');
+
+          // Process all assets in the room
+          for (final asset in assetsList) {
+            final item = StockOpnameItem(
+              // Basic asset information
+              assetId: asset['asset_id'],
+              assetCode: asset['asset_code'] ?? '',
+              assetName: asset['asset_master_name'] ??
+                  asset['asset_name'] ??
+                  'Tidak diketahui',
+              location: asset['room_name'] ?? 'Tidak diketahui',
+              condition: asset['condition'] ?? 'good',
+              currentStatus: 'pending', // Default all room assets to pending
+              scanTime: DateTime.now(),
+              notes: '',
+
+              // Asset Master information
+              assetMasterId: asset['asset_master_id'],
+              assetMasterCode: asset['asset_master_code'],
+              assetMasterName: asset['asset_master_name'],
+              description: asset['description'],
+              assetType: asset['asset_type'],
+              subcategoryName: asset['subcategory_name'],
+              referenceImagePath: asset['reference_image_path'] ??
+                  asset['picture_path'] ??
+                  asset['qr_code'] ??
+                  '',
+              isDepreciable: asset['is_depreciable'],
+              needsCalibration: asset['needs_calibration'],
+
+              // Physical asset details
+              serialNumber: asset['serial_number'],
+              model: asset['model'],
+              brandId: asset['brand_id'],
+              brandName: asset['brand_name'],
+
+              // Purchase information
+              purchaseDate: asset['purchase_date'],
+              purchaseCost: asset['purchase_cost'],
+              warrantyEndDate: asset['warranty_end_date'],
+
+              // Employee/PIC information
+              userId: asset['user_id'],
+              employeeNumber: asset['employee_number'],
+              employeeName: asset['employee_name'],
+              pic: asset['pic'],
+
+              // Location details
+              roomId: asset['room_id'],
+              roomName: asset['room_name'],
+              buildingName: asset['building_name'],
+              floorNumber: asset['floor_number'],
+              actualLocationName: asset[
+                  'room_name'], // For unscanned assets, actual = expected = room
+              expectedLocationName: asset['room_name'],
+              expectedBuildingName: asset['building_name'],
+              expectedFloorNumber: asset['floor_number'],
+
+              // QR and timestamps
+              qrCodePath: asset['qr_code'],
+              createdAt: asset['created_at'],
+              updatedAt: asset['updated_at'],
+
+              // Category information
+              category: asset['category'],
+            );
+
+            _allRoomAssets.add(item);
+          }
+
+          LoggerUtil.i(
+              'Fetched ${_allRoomAssets.length} assets for room $roomId');
+        } else {
+          // If no data is returned, fall back to mock data
+          _allRoomAssets = [];
+          LoggerUtil.w(
+              'No assets returned for room $roomId, falling back to mock data');
+          await mockRoomAssets(roomId, opnameId);
+        }
+      } else {
+        // Handle error response
+        _allRoomAssets = [];
+
+        try {
+          final errorData = jsonDecode(response.body);
+          _error =
+              errorData['message']?.toString() ?? 'Failed to fetch room assets';
+          LoggerUtil.e('Error from API: $_error');
+        } catch (e) {
+          _error = 'Failed to fetch room assets: ${response.statusCode}';
+          LoggerUtil.e('Error parsing response: $e');
+        }
+
+        LoggerUtil.e('Error fetching room assets: $_error');
+        await mockRoomAssets(roomId, opnameId);
+      }
+    } catch (e) {
+      _error = 'Error fetching room assets: ${e.toString()}';
+      LoggerUtil.e('Exception fetching room assets', e, StackTrace.current);
+      await mockRoomAssets(roomId, opnameId);
+    } finally {
+      _isLoadingRoomAssets = false;
+      notifyListeners();
+    }
+  }
+
+  // Mock room assets if the API doesn't have the endpoint yet
+  Future<void> mockRoomAssets(int roomId, int opnameId) async {
+    // This is a temporary method to create mock data if the API endpoint isn't available
+    try {
+      _isLoadingRoomAssets = true;
+      notifyListeners();
+
+      await Future.delayed(
+          const Duration(milliseconds: 800)); // Simulate network delay
+
+      // Create mock data based on total assets for the opname
+      final int totalAssets = getTotalAssets(opnameId);
+
+      // Asset types for more realistic data
+      final List<String> assetTypes = [
+        'Patient Monitor',
+        'Hospital Bed',
+        'Ventilator',
+        'ECG Machine',
+        'Wheelchair',
+        'Infusion Pump',
+        'Defibrillator',
+        'Ultrasound',
+        'X-Ray Machine',
+        'MRI Scanner',
+        'CT Scanner',
+        'Blood Pressure Monitor',
+        'Oxygen Tank',
+        'Nebulizer',
+        'Surgical Instruments',
+        'Stethoscope'
+      ];
+
+      final List<String> assetConditions = ['good', 'damaged'];
+
+      _allRoomAssets = [];
+
+      // Make sure we generate more assets than just what's scanned
+      int mockTotal = math.max(10, totalAssets); // At least 10 assets
+
+      // Generate mix of found, missing, pending assets
+      for (int i = 0; i < mockTotal; i++) {
+        final String assetCode =
+            'ASSET-${roomId.toString().padLeft(3, '0')}-${(i + 1).toString().padLeft(4, '0')}';
+        final String assetType = assetTypes[i % assetTypes.length];
+        final String condition =
+            assetConditions[i % 2]; // Alternate between good and damaged
+
+        // Determine status based on position
+        String status;
+        if (i < _scannedItems.length) {
+          // Already scanned assets
+          status = 'found';
+        } else if (i >= mockTotal - 3) {
+          // Last 3 assets are missing
+          status = 'missing';
+        } else {
+          // Rest are pending
+          status = 'pending';
+        }
+
+        // Check if already in scanned items
+        final existingScannedItem = _scannedItems
+                .where((item) => item.assetCode == assetCode)
+                .isEmpty
+            ? null
+            : _scannedItems.firstWhere((item) => item.assetCode == assetCode);
+
+        if (existingScannedItem != null) {
+          status = existingScannedItem.currentStatus;
+        }
+
+        final StockOpnameItem asset = StockOpnameItem(
+          assetId: 1000 + i,
+          assetCode: assetCode,
+          assetName: assetType,
+          location: 'Room $roomId',
+          condition: condition,
+          currentStatus: status,
+          scanTime: DateTime.now().subtract(Duration(minutes: i)),
+          notes: i % 5 == 0 ? 'Sample note for $assetType' : null,
+
+          // Add mock image data
+          referenceImagePath:
+              i % 3 == 0 ? 'placeholder.png' : null, // Some assets have images
+          brandName: i % 2 == 0 ? 'Brand ${i + 1}' : null,
+          model: i % 3 == 0 ? 'Model-${i + 1}' : null,
+          serialNumber: 'SN${(1000 + i).toString()}',
+          category: assetTypes[i % assetTypes.length],
+          assetType: i % 2 == 0 ? 'medical' : 'non_medical',
+
+          // Location details
+          roomId: roomId,
+          roomName: 'Room $roomId',
+          actualLocationName: 'Room $roomId',
+          expectedLocationName: 'Room $roomId',
+          expectedBuildingName: 'Building Mock',
+          expectedFloorNumber: '1',
+        );
+
+        _allRoomAssets.add(asset);
+      }
+
+      // Add specific missing assets to ensure we have some
+      for (int i = 0; i < 3; i++) {
+        final String assetCode = 'MISSING-${opnameId}-${i + 1}';
+        final String assetType =
+            assetTypes[(mockTotal + i) % assetTypes.length];
+
+        final StockOpnameItem missingItem = StockOpnameItem(
+          assetId: -1000 - i, // Use negative IDs for placeholders
+          assetCode: assetCode,
+          assetName: 'Asset Tidak Ditemukan ${i + 1}',
+          location: 'Room $roomId',
+          condition: 'unknown',
+          currentStatus: 'missing',
+          scanTime: DateTime.now(),
+          notes: 'Aset hilang atau tidak ditemukan',
+
+          // Location details for missing items
+          roomId: roomId,
+          roomName: 'Room $roomId',
+          actualLocationName: '',
+          expectedLocationName: 'Room $roomId',
+          expectedBuildingName: 'Building Mock',
+          expectedFloorNumber: '1',
+        );
+
+        _allRoomAssets.add(missingItem);
+      }
+
+      // Make sure allRoomAssets contains all scannedItems
+      for (final scannedItem in _scannedItems) {
+        if (!_allRoomAssets
+            .any((asset) => asset.assetCode == scannedItem.assetCode)) {
+          _allRoomAssets.add(scannedItem);
+        }
+      }
+
+      // Log details of the generated assets
+      int foundCount = _allRoomAssets
+          .where((asset) => asset.currentStatus == 'found')
+          .length;
+      int missingCount = _allRoomAssets
+          .where((asset) => asset.currentStatus == 'missing')
+          .length;
+      int pendingCount = _allRoomAssets
+          .where((asset) => asset.currentStatus == 'pending')
+          .length;
+      int misplacedCount = _allRoomAssets
+          .where((asset) => asset.currentStatus == 'misplaced')
+          .length;
+
+      LoggerUtil.i(
+          'Created ${_allRoomAssets.length} mock assets for room $roomId (Found: $foundCount, Missing: $missingCount, Pending: $pendingCount, Misplaced: $misplacedCount)');
+    } catch (e) {
+      _error = 'Error creating mock assets: ${e.toString()}';
+      LoggerUtil.e('Exception creating mock assets', e, StackTrace.current);
+    } finally {
+      _isLoadingRoomAssets = false;
+      notifyListeners();
+    }
+  }
+
+  // Helper to get the total assets count for an opname
+  int getTotalAssets(int opnameId) {
+    final opname = _pendingOpnames.firstWhere(
+      (o) => o.opnameId == opnameId,
+      orElse: () => StockOpname(
+        opnameId: opnameId,
+        opnameCode: 'UNKNOWN',
+        roomId: 0,
+        roomName: 'Unknown',
+        totalAssets: 10, // Default if not found
+        scannedAssets: 0,
+        status: 'pending',
+      ),
+    );
+
+    return opname.totalAssets > 0 ? opname.totalAssets : 10;
+  }
+
+  // Method to load existing scanned items for an opname from API
+  Future<void> loadExistingScannedItems(int opnameId) async {
+    try {
+      LoggerUtil.d('Loading existing scanned items for opname: $opnameId');
+
+      final response =
+          await auth.ApiService.get('/asset-opname-details/opname/$opnameId');
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+
+        if (data['success'] == true &&
+            data['data'] != null &&
+            data['data']['details'] != null) {
+          List<dynamic> assetsJson = data['data']['details'];
+
+          // Clear existing scanned items and reload from API
+          _scannedItems.clear();
+
+          for (var json in assetsJson) {
+            try {
+              // Only add items that were actually scanned (have scan_date and found/misplaced status)
+              if (json['scan_date'] != null &&
+                  (json['scan_status'] == 'found' ||
+                      json['scan_status'] == 'misplaced')) {
+                final item = StockOpnameItem(
+                  // Basic asset information
+                  assetId: json['asset_id'],
+                  assetCode: json['asset_code'] ?? '',
+                  assetName: json['asset_name'] ?? 'Unknown Asset',
+                  location: json['actual_location_name'] ?? '',
+                  condition: json['condition'] ?? 'good',
+                  currentStatus: json['scan_status'] ?? 'found',
+                  scanTime: json['scan_date'] != null
+                      ? DateTime.tryParse(json['scan_date']) ?? DateTime.now()
+                      : DateTime.now(),
+                  notes: json['notes'],
+
+                  // Additional detailed asset information
+                  brandName: json['brand_name'],
+                  model: json['model'],
+                  serialNumber: json['serial_number'],
+                  pic: json['pic'],
+                  category: json['category'],
+                  assetType: json['asset_type'],
+                  referenceImagePath: json['reference_image_path'],
+
+                  // Location details
+                  roomId: json['actual_location_id'],
+                  roomName: json['actual_location_name'],
+                  actualLocationName: json['actual_location_name'],
+                  expectedLocationName: json['expected_location_name'],
+                  expectedBuildingName: json['expected_building_name'],
+                  expectedFloorNumber: json['expected_floor_number'],
+
+                  // QR and timestamps
+                  createdAt: json['created_at'],
+                  updatedAt: json['updated_at'],
+                );
+
+                _scannedItems.add(item);
+              }
+            } catch (e) {
+              LoggerUtil.w('Error parsing scanned asset: $e');
+            }
+          }
+
+          // Update local scanned count to match loaded items
+          setLocalScannedCount(opnameId, _scannedItems.length);
+
+          LoggerUtil.i(
+              'Loaded ${_scannedItems.length} existing scanned items for opname $opnameId');
+          notifyListeners();
+        }
+      }
+    } catch (e) {
+      LoggerUtil.e(
+          'Error loading existing scanned items', e, StackTrace.current);
+      // Don't throw error, just log it - this is not critical
+    }
+  }
+
+  // Method to fetch all room assets (new endpoint-based approach)
+  Future<List<Map<String, dynamic>>> fetchAllRoomAssets(int roomId) async {
+    try {
+      LoggerUtil.d('Fetching all assets for room ID: $roomId');
+
+      // Use assets endpoint with room_id filter to get ALL assets in the room
+      final response = await auth.ApiService.get('/assets?room_id=$roomId');
+
+      LoggerUtil.d('API Response: ${response.statusCode} - ${response.body}');
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+
+        if (data['success'] == true && data['data'] != null) {
+          List<dynamic> assetsJson = data['data'];
+          LoggerUtil.d('Total assets loaded from API: ${assetsJson.length}');
+
+          // Convert all room assets to our format
+          List<Map<String, dynamic>> allAssets = [];
+
+          for (var json in assetsJson) {
+            try {
+              // Get asset data from the room assets API
+              final roomName = json['room_name'] ?? '';
+
+              allAssets.add({
+                'asset_id': json['asset_id'],
+                'asset_code': json['asset_code']?.toString() ?? '',
+                'asset_name': json['asset_master_name']?.toString() ??
+                    json['asset_name']?.toString() ??
+                    'Unknown Asset',
+                'scan_status':
+                    'pending', // Default to pending since these are all room assets
+                'condition': json['condition']?.toString() ?? 'good',
+                'actual_location_name': roomName,
+                'expected_location_name': roomName,
+                'expected_building_name':
+                    json['building_name']?.toString() ?? '',
+                'expected_floor_number': json['floor_number']?.toString() ?? '',
+                'notes': '',
+                'scan_date': null,
+                // Additional detailed asset information
+                'brand_name': json['brand_name']?.toString() ?? '',
+                'model': json['model']?.toString() ?? '',
+                'serial_number': json['serial_number']?.toString() ?? '',
+                'asset_type': json['asset_type']?.toString() ?? '',
+                'category': json['category']?.toString() ?? '',
+                'pic': json['pic']?.toString() ?? '',
+                'employee_name': json['employee_name']?.toString() ?? '',
+                'employee_number': json['employee_number']?.toString() ?? '',
+                'purchase_date': json['purchase_date']?.toString() ?? '',
+                'purchase_cost': json['purchase_cost']?.toString() ?? '',
+                'warranty_end_date':
+                    json['warranty_end_date']?.toString() ?? '',
+                'building_name': json['building_name']?.toString() ?? '',
+                'floor_number': json['floor_number']?.toString() ?? '',
+                'qr_code': json['qr_code']?.toString() ?? '',
+                'current_status':
+                    json['current_status']?.toString() ?? 'active',
+                'created_at': json['created_at']?.toString() ?? '',
+                'updated_at': json['updated_at']?.toString() ?? '',
+                'reference_image_path':
+                    json['reference_image_path']?.toString() ??
+                        json['picture_path']?.toString() ??
+                        json['qr_code']?.toString() ??
+                        '',
+                // Asset master information
+                'asset_master_id': json['asset_master_id'],
+                'asset_master_code':
+                    json['asset_master_code']?.toString() ?? '',
+                'asset_master_name':
+                    json['asset_master_name']?.toString() ?? '',
+                'description': json['description']?.toString() ?? '',
+                'is_depreciable': json['is_depreciable'] ?? false,
+                'needs_calibration': json['needs_calibration'] ?? false,
+                'subcategory_name': json['subcategory_name']?.toString() ?? '',
+                // Room and user information
+                'room_id': json['room_id'],
+                'user_id': json['user_id'],
+                'brand_id': json['brand_id'],
+              });
+            } catch (e) {
+              LoggerUtil.w('Error parsing asset: $e');
+            }
+          }
+
+          LoggerUtil.d('Final asset count from room: ${allAssets.length}');
+          return allAssets;
+        } else {
+          throw Exception('Invalid API response format');
+        }
+      } else {
+        throw Exception('API returned status ${response.statusCode}');
+      }
+    } catch (e) {
+      LoggerUtil.e('Error fetching room assets', e, StackTrace.current);
+      // Fallback: try to get data from opname endpoint if room endpoint fails
+      return await fetchOpnameAssetsAsFallback(roomId);
+    }
+  }
+
+  // Fallback method to get data from opname endpoint if room endpoint fails
+  Future<List<Map<String, dynamic>>> fetchOpnameAssetsAsFallback(
+      int opnameId) async {
+    try {
+      LoggerUtil.w(
+          'Using opname endpoint as fallback for opname ID: $opnameId');
+
+      final response =
+          await auth.ApiService.get('/asset-opname-details/opname/$opnameId');
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+
+        if (data['success'] == true &&
+            data['data'] != null &&
+            data['data']['details'] != null) {
+          List<dynamic> assetsJson = data['data']['details'];
+
+          // Convert to list of maps for easier processing
+          List<Map<String, dynamic>> allAssets = [];
+
+          for (var json in assetsJson) {
+            try {
+              allAssets.add({
+                'asset_id': json['asset_id'],
+                'asset_code': json['asset_code']?.toString() ?? '',
+                'asset_name': json['asset_name']?.toString() ?? 'Unknown Asset',
+                'scan_status': json['scan_status']?.toString() ?? 'pending',
+                'condition': json['condition']?.toString() ?? 'unknown',
+                'actual_location_name':
+                    json['actual_location_name']?.toString() ?? '',
+                'expected_location_name':
+                    json['expected_location_name']?.toString() ?? '',
+                'expected_building_name':
+                    json['expected_building_name']?.toString() ?? '',
+                'expected_floor_number':
+                    json['expected_floor_number']?.toString() ?? '',
+                'notes': json['notes']?.toString(),
+                'scan_date': json['scan_date']?.toString(),
+              });
+            } catch (e) {
+              LoggerUtil.w('Error parsing asset: $e');
+            }
+          }
+
+          // Add placeholder for unscanned assets based on summary
+          if (data['data']['summary'] != null) {
+            final summary = data['data']['summary'];
+            final int totalAssets = summary['total_assets'] ?? 0;
+            final assetsInDetails = allAssets.length;
+
+            if (assetsInDetails < totalAssets) {
+              int unscannedToAdd = totalAssets - assetsInDetails;
+              for (int i = 0; i < unscannedToAdd; i++) {
+                allAssets.add({
+                  'asset_id': 888888 + i,
+                  'asset_code': 'PENDING-$opnameId-${i + 1}',
+                  'asset_name': 'Asset Belum Dipindai ${i + 1}',
+                  'scan_status': 'pending',
+                  'condition': 'unknown',
+                  'actual_location_name': '',
+                  'expected_location_name': '',
+                  'expected_building_name': '',
+                  'expected_floor_number': '',
+                  'notes': 'Asset belum dipindai',
+                  'scan_date': null,
+                });
+              }
+            }
+          }
+
+          return allAssets;
+        }
+      }
+
+      // If fallback also fails, return empty list
+      return [];
+    } catch (e) {
+      LoggerUtil.e('Fallback method also failed', e, StackTrace.current);
+      return [];
+    }
+  }
+
+  // Method to fetch room info including building details from server
+  Future<Map<String, String?>> fetchRoomBuildingInfo(int roomId) async {
+    try {
+      LoggerUtil.d('Fetching room building info for room ID: $roomId');
+
+      // Try to get room info from rooms endpoint first
+      final response = await auth.ApiService.get('/rooms/$roomId');
+
+      LoggerUtil.d(
+          'Room info API Response: ${response.statusCode} - ${response.body}');
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+
+        if (data['success'] == true && data['data'] != null) {
+          final roomData = data['data'];
+
+          String? buildingName = roomData['building_name']?.toString();
+          String? floorNumber = roomData['floor_number']?.toString();
+
+          LoggerUtil.d(
+              'Room info - Building: $buildingName, Floor: $floorNumber');
+
+          return {
+            'building_name': buildingName,
+            'floor_number': floorNumber,
+          };
+        }
+      }
+
+      // Fallback: get building info from assets in that room
+      LoggerUtil.d('Fallback: Getting building info from room assets');
+      final roomAssets = await fetchAllRoomAssets(roomId);
+
+      if (roomAssets.isNotEmpty) {
+        final firstAsset = roomAssets.first;
+        String? buildingName = firstAsset['building_name']?.toString();
+        String? floorNumber = firstAsset['floor_number']?.toString();
+
+        LoggerUtil.d(
+            'From assets - Building: $buildingName, Floor: $floorNumber');
+
+        return {
+          'building_name': buildingName,
+          'floor_number': floorNumber,
+        };
+      }
+
+      LoggerUtil.w('No building info found for room $roomId');
+      return {
+        'building_name': null,
+        'floor_number': null,
+      };
+    } catch (e) {
+      LoggerUtil.e('Error fetching room building info', e, StackTrace.current);
+      return {
+        'building_name': null,
+        'floor_number': null,
+      };
+    }
+  }
+
   @override
   void dispose() {
     _buildingSearchDebounce?.cancel();
     _roomSearchDebounce?.cancel();
     super.dispose();
+  }
+
+  // Method to fetch complete asset details from server
+  Future<StockOpnameItem?> fetchAssetDetails(
+      String assetCode, BuildContext context) async {
+    try {
+      LoggerUtil.d('Fetching detailed asset information for: $assetCode');
+
+      final response = await auth.ApiService.get(
+        '/assets/qr/${Uri.encodeComponent(assetCode)}',
+        context: context,
+      );
+
+      LoggerUtil.d(
+          'Asset details API response: ${response.statusCode} - ${response.body}');
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+
+        if (data['success'] == true && data['data'] != null) {
+          final assetData = data['data'];
+
+          // Extract asset master information if available
+          final assetMaster = assetData['asset_master'];
+
+          // Extract depreciation information if available
+          final depreciationInfo = assetData['depreciation'];
+
+          return StockOpnameItem(
+            // Basic asset information
+            assetId: assetData['asset_id'],
+            assetCode: assetData['asset_code'],
+            assetName: assetData['asset_master_name'] ??
+                assetData['asset_name'] ??
+                'Tidak diketahui',
+            location: assetData['room_name'] ?? 'Tidak diketahui',
+            condition: assetData['condition'] ?? 'Tidak diketahui',
+            currentStatus: assetData['current_status'] ?? 'Tidak diketahui',
+            scanTime: DateTime.now(),
+
+            // Asset Master information
+            assetMasterId: assetData['asset_master_id'],
+            assetMasterCode: assetMaster?['asset_master_code'],
+            assetMasterName: assetMaster?['asset_name'],
+            description: assetMaster?['description'],
+            assetType: assetMaster?['asset_type'],
+            subcategoryName: assetMaster?['subcategory_name'],
+            referenceImagePath: assetMaster?['reference_image_path'] ??
+                assetData['reference_image_path'] ??
+                assetData['qr_code'],
+            isDepreciable: assetMaster?['is_depreciable'],
+            needsCalibration: assetMaster?['needs_calibration'],
+
+            // Physical asset details
+            serialNumber: assetData['serial_number'],
+            model: assetData['model'],
+            brandId: assetData['brand_id'],
+            brandName: assetData['brand_name'],
+
+            // Purchase information
+            purchaseDate: assetData['purchase_date'],
+            purchaseCost: assetData['purchase_cost'],
+            warrantyEndDate: assetData['warranty_end_date'],
+
+            // Employee/PIC information
+            userId: assetData['user_id'],
+            employeeNumber: assetData['employee_number'],
+            employeeName: assetData['employee_name'],
+            pic: assetData['pic'],
+
+            // Location details
+            roomId: assetData['room_id'],
+            roomName: assetData['room_name'],
+            buildingName: assetData['building_name'],
+            floorNumber: assetData['floor_number'],
+            actualLocationName:
+                assetData['actual_location_name'] ?? assetData['room_name'],
+            expectedLocationName:
+                assetData['expected_location_name'] ?? assetData['room_name'],
+            expectedBuildingName: assetData['expected_building_name'] ??
+                assetData['building_name'],
+            expectedFloorNumber:
+                assetData['expected_floor_number'] ?? assetData['floor_number'],
+
+            // QR and timestamps
+            qrCodePath: assetData['qr_code'],
+            createdAt: assetData['created_at'],
+            updatedAt: assetData['updated_at'],
+
+            // Depreciation info
+            depreciationInfo: depreciationInfo,
+
+            // Category information
+            category: assetData['category'],
+          );
+        } else {
+          LoggerUtil.w(
+              'Invalid response format or no data: ${data['message']}');
+          return null;
+        }
+      } else {
+        LoggerUtil.e('Failed to fetch asset details: ${response.statusCode}');
+        return null;
+      }
+    } catch (e) {
+      LoggerUtil.e('Exception fetching asset details', e, StackTrace.current);
+      return null;
+    }
+  }
+
+  // Method to save notes for scanned assets to API
+  Future<bool> saveAssetNotes(
+      String assetCode, String notes, BuildContext context) async {
+    try {
+      LoggerUtil.d('Saving notes for asset: $assetCode');
+
+      // Find the scanned asset to get its detail information
+      final scannedAsset = _scannedItems.firstWhere(
+        (item) => item.assetCode == assetCode,
+        orElse: () => throw Exception('Asset not found in scanned items'),
+      );
+
+      // For now, we'll simulate API call since we need the detail_id from opname-details endpoint
+      // In a real scenario, you would need to get the detail_id from the asset-opname-details endpoint first
+      LoggerUtil.d(
+          'Simulating notes save for asset: $assetCode with notes: $notes');
+
+      // Simulate API delay
+      await Future.delayed(const Duration(milliseconds: 800));
+
+      // Update local asset notes
+      final assetIndex =
+          _scannedItems.indexWhere((item) => item.assetCode == assetCode);
+      if (assetIndex != -1) {
+        _scannedItems[assetIndex] =
+            _scannedItems[assetIndex].copyWith(notes: notes);
+
+        // Also update in allRoomAssets if it exists there
+        final roomAssetIndex =
+            _allRoomAssets.indexWhere((item) => item.assetCode == assetCode);
+        if (roomAssetIndex != -1) {
+          _allRoomAssets[roomAssetIndex] =
+              _allRoomAssets[roomAssetIndex].copyWith(notes: notes);
+        }
+
+        notifyListeners();
+        LoggerUtil.i('Notes saved locally for asset: $assetCode');
+        return true;
+      }
+
+      return false;
+    } catch (e) {
+      LoggerUtil.e('Error saving asset notes', e, StackTrace.current);
+      _error = 'Gagal menyimpan catatan: ${e.toString()}';
+      notifyListeners();
+      return false;
+    }
   }
 }

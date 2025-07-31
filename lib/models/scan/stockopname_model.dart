@@ -58,6 +58,56 @@ class StockOpnameItem {
   final String condition;
   final String currentStatus;
   final DateTime scanTime;
+  final String? notes;
+
+  // Asset Master information
+  final int? assetMasterId;
+  final String? assetMasterCode;
+  final String? assetMasterName;
+  final String? description;
+  final String? assetType;
+  final String? subcategoryName;
+  final String? referenceImagePath;
+  final bool? isDepreciable;
+  final bool? needsCalibration;
+
+  // Physical asset details
+  final String? serialNumber;
+  final String? model;
+  final int? brandId;
+  final String? brandName;
+
+  // Purchase information
+  final String? purchaseDate;
+  final String? purchaseCost;
+  final String? warrantyEndDate;
+
+  // Employee/PIC information
+  final int? userId;
+  final String? employeeNumber;
+  final String? employeeName;
+  final String? pic;
+
+  // Location details
+  final int? roomId;
+  final String? roomName;
+  final String? buildingName;
+  final String? floorNumber;
+  final String? actualLocationName;
+  final String? expectedLocationName;
+  final String? expectedBuildingName;
+  final String? expectedFloorNumber;
+
+  // QR and timestamps
+  final String? qrCodePath;
+  final String? createdAt;
+  final String? updatedAt;
+
+  // Depreciation info
+  final Map<String, dynamic>? depreciationInfo;
+
+  // Category information
+  final String? category;
 
   StockOpnameItem({
     this.assetId,
@@ -67,19 +117,103 @@ class StockOpnameItem {
     required this.condition,
     required this.currentStatus,
     required this.scanTime,
+    this.notes,
+    // Asset Master fields
+    this.assetMasterId,
+    this.assetMasterCode,
+    this.assetMasterName,
+    this.description,
+    this.assetType,
+    this.subcategoryName,
+    this.referenceImagePath,
+    this.isDepreciable,
+    this.needsCalibration,
+    // Physical asset details
+    this.serialNumber,
+    this.model,
+    this.brandId,
+    this.brandName,
+    // Purchase information
+    this.purchaseDate,
+    this.purchaseCost,
+    this.warrantyEndDate,
+    // Employee/PIC information
+    this.userId,
+    this.employeeNumber,
+    this.employeeName,
+    this.pic,
+    // Location details
+    this.roomId,
+    this.roomName,
+    this.buildingName,
+    this.floorNumber,
+    this.actualLocationName,
+    this.expectedLocationName,
+    this.expectedBuildingName,
+    this.expectedFloorNumber,
+    // QR and timestamps
+    this.qrCodePath,
+    this.createdAt,
+    this.updatedAt,
+    // Depreciation info
+    this.depreciationInfo,
+    // Category information
+    this.category,
   });
 
   factory StockOpnameItem.fromJson(Map<String, dynamic> json) {
     return StockOpnameItem(
       assetId: json['asset_id'],
       assetCode: json['asset_code'] ?? '',
-      assetName: json['asset_name'] ?? '',
-      location: json['location'] ?? '',
+      assetName: json['asset_name'] ?? json['asset_master_name'] ?? '',
+      location: json['location'] ?? json['room_name'] ?? '',
       condition: json['condition'] ?? '',
-      currentStatus: json['current_status'] ?? '',
+      currentStatus: json['current_status'] ?? json['scan_status'] ?? '',
       scanTime: json['scan_time'] != null
           ? DateTime.parse(json['scan_time'])
           : DateTime.now(),
+      notes: json['notes'],
+      // Asset Master fields
+      assetMasterId: json['asset_master_id'],
+      assetMasterCode: json['asset_master_code'],
+      assetMasterName: json['asset_master_name'],
+      description: json['description'],
+      assetType: json['asset_type'],
+      subcategoryName: json['subcategory_name'],
+      referenceImagePath: json['reference_image_path'],
+      isDepreciable: json['is_depreciable'],
+      needsCalibration: json['needs_calibration'],
+      // Physical asset details
+      serialNumber: json['serial_number'],
+      model: json['model'],
+      brandId: json['brand_id'],
+      brandName: json['brand_name'],
+      // Purchase information
+      purchaseDate: json['purchase_date'],
+      purchaseCost: json['purchase_cost'],
+      warrantyEndDate: json['warranty_end_date'],
+      // Employee/PIC information
+      userId: json['user_id'],
+      employeeNumber: json['employee_number'],
+      employeeName: json['employee_name'],
+      pic: json['pic'],
+      // Location details
+      roomId: json['room_id'],
+      roomName: json['room_name'],
+      buildingName: json['building_name'],
+      floorNumber: json['floor_number'],
+      actualLocationName: json['actual_location_name'],
+      expectedLocationName: json['expected_location_name'],
+      expectedBuildingName: json['expected_building_name'],
+      expectedFloorNumber: json['expected_floor_number'],
+      // QR and timestamps
+      qrCodePath: json['qr_code'],
+      createdAt: json['created_at'],
+      updatedAt: json['updated_at'],
+      // Depreciation info
+      depreciationInfo: json['depreciation'],
+      // Category information
+      category: json['category'],
     );
   }
 
@@ -92,7 +226,154 @@ class StockOpnameItem {
       'condition': condition,
       'current_status': currentStatus,
       'scan_time': scanTime.toIso8601String(),
+      'notes': notes,
+      // Asset Master fields
+      'asset_master_id': assetMasterId,
+      'asset_master_code': assetMasterCode,
+      'asset_master_name': assetMasterName,
+      'description': description,
+      'asset_type': assetType,
+      'subcategory_name': subcategoryName,
+      'reference_image_path': referenceImagePath,
+      'is_depreciable': isDepreciable,
+      'needs_calibration': needsCalibration,
+      // Physical asset details
+      'serial_number': serialNumber,
+      'model': model,
+      'brand_id': brandId,
+      'brand_name': brandName,
+      // Purchase information
+      'purchase_date': purchaseDate,
+      'purchase_cost': purchaseCost,
+      'warranty_end_date': warrantyEndDate,
+      // Employee/PIC information
+      'user_id': userId,
+      'employee_number': employeeNumber,
+      'employee_name': employeeName,
+      'pic': pic,
+      // Location details
+      'room_id': roomId,
+      'room_name': roomName,
+      'building_name': buildingName,
+      'floor_number': floorNumber,
+      'actual_location_name': actualLocationName,
+      'expected_location_name': expectedLocationName,
+      'expected_building_name': expectedBuildingName,
+      'expected_floor_number': expectedFloorNumber,
+      // QR and timestamps
+      'qr_code': qrCodePath,
+      'created_at': createdAt,
+      'updated_at': updatedAt,
+      // Depreciation info
+      'depreciation': depreciationInfo,
+      // Category information
+      'category': category,
     };
+  }
+
+  // Add copyWith method to create a new instance with updated fields
+  StockOpnameItem copyWith({
+    int? assetId,
+    String? assetCode,
+    String? assetName,
+    String? location,
+    String? condition,
+    String? currentStatus,
+    DateTime? scanTime,
+    String? notes,
+    // Asset Master fields
+    int? assetMasterId,
+    String? assetMasterCode,
+    String? assetMasterName,
+    String? description,
+    String? assetType,
+    String? subcategoryName,
+    String? referenceImagePath,
+    bool? isDepreciable,
+    bool? needsCalibration,
+    // Physical asset details
+    String? serialNumber,
+    String? model,
+    int? brandId,
+    String? brandName,
+    // Purchase information
+    String? purchaseDate,
+    String? purchaseCost,
+    String? warrantyEndDate,
+    // Employee/PIC information
+    int? userId,
+    String? employeeNumber,
+    String? employeeName,
+    String? pic,
+    // Location details
+    int? roomId,
+    String? roomName,
+    String? buildingName,
+    String? floorNumber,
+    String? actualLocationName,
+    String? expectedLocationName,
+    String? expectedBuildingName,
+    String? expectedFloorNumber,
+    // QR and timestamps
+    String? qrCodePath,
+    String? createdAt,
+    String? updatedAt,
+    // Depreciation info
+    Map<String, dynamic>? depreciationInfo,
+    // Category information
+    String? category,
+  }) {
+    return StockOpnameItem(
+      assetId: assetId ?? this.assetId,
+      assetCode: assetCode ?? this.assetCode,
+      assetName: assetName ?? this.assetName,
+      location: location ?? this.location,
+      condition: condition ?? this.condition,
+      currentStatus: currentStatus ?? this.currentStatus,
+      scanTime: scanTime ?? this.scanTime,
+      notes: notes ?? this.notes,
+      // Asset Master fields
+      assetMasterId: assetMasterId ?? this.assetMasterId,
+      assetMasterCode: assetMasterCode ?? this.assetMasterCode,
+      assetMasterName: assetMasterName ?? this.assetMasterName,
+      description: description ?? this.description,
+      assetType: assetType ?? this.assetType,
+      subcategoryName: subcategoryName ?? this.subcategoryName,
+      referenceImagePath: referenceImagePath ?? this.referenceImagePath,
+      isDepreciable: isDepreciable ?? this.isDepreciable,
+      needsCalibration: needsCalibration ?? this.needsCalibration,
+      // Physical asset details
+      serialNumber: serialNumber ?? this.serialNumber,
+      model: model ?? this.model,
+      brandId: brandId ?? this.brandId,
+      brandName: brandName ?? this.brandName,
+      // Purchase information
+      purchaseDate: purchaseDate ?? this.purchaseDate,
+      purchaseCost: purchaseCost ?? this.purchaseCost,
+      warrantyEndDate: warrantyEndDate ?? this.warrantyEndDate,
+      // Employee/PIC information
+      userId: userId ?? this.userId,
+      employeeNumber: employeeNumber ?? this.employeeNumber,
+      employeeName: employeeName ?? this.employeeName,
+      pic: pic ?? this.pic,
+      // Location details
+      roomId: roomId ?? this.roomId,
+      roomName: roomName ?? this.roomName,
+      buildingName: buildingName ?? this.buildingName,
+      floorNumber: floorNumber ?? this.floorNumber,
+      actualLocationName: actualLocationName ?? this.actualLocationName,
+      expectedLocationName: expectedLocationName ?? this.expectedLocationName,
+      expectedBuildingName: expectedBuildingName ?? this.expectedBuildingName,
+      expectedFloorNumber: expectedFloorNumber ?? this.expectedFloorNumber,
+      // QR and timestamps
+      qrCodePath: qrCodePath ?? this.qrCodePath,
+      createdAt: createdAt ?? this.createdAt,
+      updatedAt: updatedAt ?? this.updatedAt,
+      // Depreciation info
+      depreciationInfo: depreciationInfo ?? this.depreciationInfo,
+      // Category information
+      category: category ?? this.category,
+    );
   }
 }
 
@@ -251,6 +532,7 @@ class StockOpname {
   final String roomName;
   final int totalAssets;
   final int scannedAssets;
+  final String status;
 
   StockOpname({
     required this.opnameId,
@@ -259,6 +541,7 @@ class StockOpname {
     required this.roomName,
     required this.totalAssets,
     required this.scannedAssets,
+    this.status = 'pending',
   });
 
   factory StockOpname.fromJson(Map<String, dynamic> json) {
@@ -269,6 +552,28 @@ class StockOpname {
       roomName: json['room_name'] ?? '',
       totalAssets: json['total_assets'] ?? 0,
       scannedAssets: json['scanned_assets'] ?? 0,
+      status: json['status'] ?? 'pending',
+    );
+  }
+
+  // Add copyWith method to create a new instance with updated fields
+  StockOpname copyWith({
+    int? opnameId,
+    String? opnameCode,
+    int? roomId,
+    String? roomName,
+    int? totalAssets,
+    int? scannedAssets,
+    String? status,
+  }) {
+    return StockOpname(
+      opnameId: opnameId ?? this.opnameId,
+      opnameCode: opnameCode ?? this.opnameCode,
+      roomId: roomId ?? this.roomId,
+      roomName: roomName ?? this.roomName,
+      totalAssets: totalAssets ?? this.totalAssets,
+      scannedAssets: scannedAssets ?? this.scannedAssets,
+      status: status ?? this.status,
     );
   }
 }

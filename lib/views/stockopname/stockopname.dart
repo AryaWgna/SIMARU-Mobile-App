@@ -70,7 +70,7 @@ class _StockopnameScreenState extends State<StockopnameScreen> with RouteAware {
     }
 
     // Refresh data
-    _stockOpnameController.fetchPendingOpnames(context);
+    _stockOpnameController.fetchPendingOpnames(context, resetList: true);
   }
 
   @override
@@ -129,7 +129,7 @@ class _StockopnameScreenState extends State<StockopnameScreen> with RouteAware {
 
       await Future.wait([
         _stockOpnameController.fetchBuildings(context),
-        _stockOpnameController.fetchPendingOpnames(context),
+        _stockOpnameController.fetchPendingOpnames(context, resetList: true),
       ]);
 
       // Setelah data dimuat, tandai first load selesai
@@ -156,7 +156,47 @@ class _StockopnameScreenState extends State<StockopnameScreen> with RouteAware {
 
   // Navigasi ke halaman scanner
   void _navigateToScanner(int opnameId, String opnameCode, int roomId,
-      String roomName, int totalAssets) {
+      String roomName, int totalAssets) async {
+    // Get building and floor info from server based on room ID
+    String? buildingName;
+    String? floorNumber;
+
+    // First check if selectedBuilding is available (when creating new opname)
+    if (_stockOpnameController.selectedBuilding?.name != null) {
+      buildingName = _stockOpnameController.selectedBuilding!.name;
+      print('DEBUG: Got building from selectedBuilding = $buildingName');
+    }
+
+    // Get building info from server based on room ID
+    try {
+      print(
+          'DEBUG: Fetching room building info from server for roomId = $roomId');
+      final roomBuildingInfo =
+          await _stockOpnameController.fetchRoomBuildingInfo(roomId);
+
+      final serverBuilding = roomBuildingInfo['building_name'];
+      final serverFloor = roomBuildingInfo['floor_number'];
+
+      print('DEBUG: Server building = $serverBuilding');
+      print('DEBUG: Server floor = $serverFloor');
+
+      // Use server data (more reliable than selectedBuilding)
+      if (serverBuilding != null && serverBuilding.isNotEmpty) {
+        buildingName = serverBuilding;
+        print('DEBUG: Using building from server = $buildingName');
+      }
+
+      if (serverFloor != null && serverFloor.isNotEmpty) {
+        floorNumber = serverFloor;
+        print('DEBUG: Using floor from server = $floorNumber');
+      }
+    } catch (e) {
+      print('DEBUG: Exception in fetchRoomBuildingInfo: $e');
+    }
+
+    print(
+        'DEBUG: Final buildingName = $buildingName, floorNumber = $floorNumber');
+
     Navigator.push(
       context,
       MaterialPageRoute(
@@ -167,11 +207,15 @@ class _StockopnameScreenState extends State<StockopnameScreen> with RouteAware {
           roomName: roomName,
           totalAssets: totalAssets,
           previousScreen: 'stockopname',
+          buildingName: buildingName,
+          floorNumber: floorNumber,
         ),
       ),
     ).then((_) {
       // Refresh data setelah kembali dari scan
-      _stockOpnameController.fetchPendingOpnames(context);
+      _stockOpnameController.fetchPendingOpnames(context, resetList: true);
+      // Also refresh the scanned items count for this specific opname
+      _stockOpnameController.loadExistingScannedItems(opnameId);
     });
   }
 
@@ -185,9 +229,10 @@ class _StockopnameScreenState extends State<StockopnameScreen> with RouteAware {
       color: Colors.white,
       child: SmartRefresher(
         enablePullDown: true,
-        enablePullUp: false,
+        enablePullUp: true, // Enable pull up for load more
         controller: _refreshController,
         onRefresh: _handleRefresh,
+        onLoading: _handleLoadMore, // Add load more handler
         physics: const BouncingScrollPhysics(
           parent: AlwaysScrollableScrollPhysics(),
         ),
@@ -694,7 +739,8 @@ class _StockopnameScreenState extends State<StockopnameScreen> with RouteAware {
                         ElevatedButton(
                           onPressed: () {
                             controller.clearError();
-                            controller.fetchPendingOpnames(context);
+                            controller.fetchPendingOpnames(context,
+                                resetList: true);
                           },
                           style: ElevatedButton.styleFrom(
                             backgroundColor: Colors.red[800],
@@ -735,16 +781,60 @@ class _StockopnameScreenState extends State<StockopnameScreen> with RouteAware {
                     ),
                   )
                 else
-                  ListView.separated(
-                    shrinkWrap: true,
-                    physics: const NeverScrollableScrollPhysics(),
-                    itemCount: controller.pendingOpnames.length,
-                    separatorBuilder: (context, index) =>
-                        const SizedBox(height: 8),
-                    itemBuilder: (context, index) {
-                      final opname = controller.pendingOpnames[index];
-                      return _buildOpnameCard(opname, controller);
-                    },
+                  Column(
+                    children: [
+                      ListView.separated(
+                        shrinkWrap: true,
+                        physics: const NeverScrollableScrollPhysics(),
+                        itemCount: controller.pendingOpnames.length,
+                        separatorBuilder: (context, index) =>
+                            const SizedBox(height: 8),
+                        itemBuilder: (context, index) {
+                          final opname = controller.pendingOpnames[index];
+                          return _buildOpnameCard(opname, controller);
+                        },
+                      ),
+
+                      // Load more indicator for pending opnames
+                      if (controller.hasMorePendingOpnames ||
+                          controller.isLoadingMorePendingOpnames)
+                        Container(
+                          padding: const EdgeInsets.symmetric(vertical: 16.0),
+                          alignment: Alignment.center,
+                          child: controller.isLoadingMorePendingOpnames
+                              ? Column(
+                                  children: [
+                                    const SizedBox(
+                                      width: 24,
+                                      height: 24,
+                                      child: CircularProgressIndicator(
+                                        strokeWidth: 2,
+                                        valueColor:
+                                            AlwaysStoppedAnimation<Color>(
+                                                Color(0xFF213268)),
+                                      ),
+                                    ),
+                                    const SizedBox(height: 8),
+                                    Text(
+                                      'Memuat stock opname lainnya...',
+                                      style: GoogleFonts.poppins(
+                                        fontSize: 14,
+                                        fontWeight: FontWeight.w500,
+                                        color: Colors.grey[700],
+                                      ),
+                                    ),
+                                  ],
+                                )
+                              : Text(
+                                  'Tarik ke atas untuk memuat lebih banyak',
+                                  style: GoogleFonts.poppins(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w400,
+                                    color: Colors.grey[600],
+                                  ),
+                                ),
+                        ),
+                    ],
                   ),
               ],
             ),
@@ -756,9 +846,10 @@ class _StockopnameScreenState extends State<StockopnameScreen> with RouteAware {
 
   Widget _buildOpnameCard(
       StockOpname opname, StockOpnameController controller) {
-    final progress = opname.totalAssets > 0
-        ? opname.scannedAssets / opname.totalAssets
-        : 0.0;
+    final localCount = controller.getLocalScannedCount(opname.opnameId);
+    final progress =
+        opname.totalAssets > 0 ? localCount / opname.totalAssets : 0.0;
+    final isCompleted = opname.status == 'completed';
 
     return Container(
       width: double.infinity,
@@ -772,9 +863,11 @@ class _StockopnameScreenState extends State<StockopnameScreen> with RouteAware {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Expanded(
+                flex: 3,
                 child: Text(
                   'Stock Opname ${opname.roomName}',
                   style: GoogleFonts.poppins(
@@ -782,21 +875,25 @@ class _StockopnameScreenState extends State<StockopnameScreen> with RouteAware {
                     fontWeight: FontWeight.w600,
                     color: const Color(0xFF213268),
                   ),
+                  maxLines: 2,
                   overflow: TextOverflow.ellipsis,
                 ),
               ),
+              const SizedBox(width: 8),
               Container(
                 padding:
                     const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
                 decoration: BoxDecoration(
-                  color: Colors.blue.withOpacity(0.1),
+                  color: isCompleted
+                      ? Colors.green.withOpacity(0.1)
+                      : Colors.blue.withOpacity(0.1),
                   borderRadius: BorderRadius.circular(4),
                 ),
                 child: Text(
-                  'Sedang Berlangsung',
+                  isCompleted ? 'Selesai' : 'Sedang Berlangsung',
                   style: GoogleFonts.poppins(
                     fontSize: 12,
-                    color: Colors.blue,
+                    color: isCompleted ? Colors.green : Colors.blue,
                     fontWeight: FontWeight.w500,
                   ),
                 ),
@@ -825,7 +922,7 @@ class _StockopnameScreenState extends State<StockopnameScreen> with RouteAware {
           Row(
             children: [
               Text(
-                'Progress: ${opname.scannedAssets}/${opname.totalAssets} aset',
+                'Progress: ${controller.getLocalScannedCount(opname.opnameId)}/${opname.totalAssets} aset',
                 style: GoogleFonts.poppins(
                   fontSize: 14,
                   color: Colors.grey[700],
@@ -837,35 +934,43 @@ class _StockopnameScreenState extends State<StockopnameScreen> with RouteAware {
           LinearProgressIndicator(
             value: progress,
             backgroundColor: Colors.grey[200],
-            valueColor: const AlwaysStoppedAnimation<Color>(Color(0xFF213268)),
+            valueColor: AlwaysStoppedAnimation<Color>(
+                isCompleted ? Colors.green : const Color(0xFF213268)),
           ),
           const SizedBox(height: 12),
           Row(
             children: [
               Expanded(
                 child: ElevatedButton.icon(
-                  onPressed: () {
-                    _navigateToScanner(
-                      opname.opnameId,
-                      opname.opnameCode,
-                      opname.roomId,
-                      opname.roomName,
-                      opname.totalAssets,
-                    );
-                  },
+                  onPressed: isCompleted
+                      ? null // Disable button if completed
+                      : () {
+                          _navigateToScanner(
+                            opname.opnameId,
+                            opname.opnameCode,
+                            opname.roomId,
+                            opname.roomName,
+                            opname.totalAssets,
+                          );
+                        },
                   style: ElevatedButton.styleFrom(
                     backgroundColor: Colors.white,
                     foregroundColor: const Color(0xFF213268),
                     minimumSize: const Size(double.infinity, 36),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(6),
-                      side: const BorderSide(color: Color(0xFF213268)),
+                      side: BorderSide(
+                          color: isCompleted
+                              ? Colors.grey
+                              : const Color(0xFF213268)),
                     ),
                     elevation: 0,
+                    disabledForegroundColor: Colors.grey.withOpacity(0.38),
+                    disabledBackgroundColor: Colors.grey.withOpacity(0.12),
                   ),
                   icon: const Icon(Icons.qr_code_scanner, size: 16),
                   label: Text(
-                    'Lanjutkan Scan',
+                    isCompleted ? 'Scan Selesai' : 'Lanjutkan Scan',
                     style: GoogleFonts.poppins(
                       fontSize: 14,
                       fontWeight: FontWeight.w500,
@@ -1217,109 +1322,153 @@ class _StockopnameScreenState extends State<StockopnameScreen> with RouteAware {
                   maxChildSize: 0.9,
                   expand: false,
                   builder: (_, controller) {
-                    return Column(
-                      children: [
-                        // Header
-                        Padding(
-                          padding: const EdgeInsets.all(16.0),
-                          child: Row(
-                            children: [
-                              Text(
-                                'Pilih Gedung',
-                                style: GoogleFonts.poppins(
-                                  fontSize: 18,
-                                  fontWeight: FontWeight.bold,
-                                  color: const Color(0xFF213268),
+                    return NotificationListener<ScrollNotification>(
+                      onNotification: (ScrollNotification scrollInfo) {
+                        // Check if scrolling near the bottom
+                        if (scrollInfo.metrics.pixels >=
+                            scrollInfo.metrics.maxScrollExtent - 200) {
+                          // Check if we can load more
+                          if (!_isLoadingMoreBuildings &&
+                              updatedController.hasMoreBuildings &&
+                              !updatedController.isLoadingBuildings) {
+                            LoggerUtil.d(
+                                'NotificationListener: Loading more buildings');
+
+                            // Set local loading state
+                            setSheetState(() {
+                              _isLoadingMoreBuildings = true;
+                            });
+
+                            // Load more data
+                            updatedController
+                                .loadMoreBuildings(context)
+                                .then((_) {
+                              // Reset local loading state
+                              if (mounted) {
+                                setSheetState(() {
+                                  _isLoadingMoreBuildings = false;
+                                });
+                              }
+                            }).catchError((error) {
+                              // Handle error and reset loading state
+                              LoggerUtil.e('Error loading more buildings',
+                                  error, StackTrace.current);
+                              if (mounted) {
+                                setSheetState(() {
+                                  _isLoadingMoreBuildings = false;
+                                });
+                              }
+                            });
+                          }
+                        }
+                        return false; // Allow the notification to continue
+                      },
+                      child: Column(
+                        children: [
+                          // Header
+                          Padding(
+                            padding: const EdgeInsets.all(16.0),
+                            child: Row(
+                              children: [
+                                Text(
+                                  'Pilih Gedung',
+                                  style: GoogleFonts.poppins(
+                                    fontSize: 18,
+                                    fontWeight: FontWeight.bold,
+                                    color: const Color(0xFF213268),
+                                  ),
+                                ),
+                                const Spacer(),
+                                IconButton(
+                                  icon: const Icon(Icons.close),
+                                  onPressed: () => Navigator.pop(context),
+                                ),
+                              ],
+                            ),
+                          ),
+
+                          // Search bar
+                          Padding(
+                            padding:
+                                const EdgeInsets.symmetric(horizontal: 16.0),
+                            child: Container(
+                              decoration: BoxDecoration(
+                                color: Colors.grey.shade200,
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              child: TextField(
+                                onChanged: (query) {
+                                  setSheetState(() {
+                                    currentQuery = query;
+                                  });
+
+                                  // Cancel previous debounce
+                                  if (_buildingSearchDebounce?.isActive ??
+                                      false) {
+                                    _buildingSearchDebounce!.cancel();
+                                  }
+
+                                  // Create new debounce
+                                  _buildingSearchDebounce = Timer(
+                                      const Duration(milliseconds: 500), () {
+                                    if (query.isNotEmpty) {
+                                      print(
+                                          'Debounce search buildings: $query');
+                                      // Reset pagination and clear previous results
+                                      updatedController.searchBuildings(
+                                          query, context);
+                                    } else {
+                                      // Jika query kosong, ambil semua gedung
+                                      updatedController.fetchBuildings(context,
+                                          resetList: true);
+                                    }
+                                  });
+                                },
+                                decoration: InputDecoration(
+                                  hintText: 'Cari gedung...',
+                                  prefixIcon: const Icon(Icons.search),
+                                  border: InputBorder.none,
+                                  contentPadding:
+                                      const EdgeInsets.symmetric(vertical: 15),
+                                  suffixIcon: currentQuery.isNotEmpty
+                                      ? IconButton(
+                                          icon: const Icon(Icons.clear),
+                                          onPressed: () {
+                                            setSheetState(() {
+                                              currentQuery = '';
+                                            });
+                                            // Reset text field
+                                            FocusScope.of(context).unfocus();
+                                            // Refresh data with reset
+                                            updatedController.resetSearch();
+                                            updatedController.fetchBuildings(
+                                                context,
+                                                resetList: true);
+                                          },
+                                        )
+                                      : null,
                                 ),
                               ),
-                              const Spacer(),
-                              IconButton(
-                                icon: const Icon(Icons.close),
-                                onPressed: () => Navigator.pop(context),
-                              ),
-                            ],
-                          ),
-                        ),
-
-                        // Search bar
-                        Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 16.0),
-                          child: Container(
-                            decoration: BoxDecoration(
-                              color: Colors.grey.shade200,
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                            child: TextField(
-                              onChanged: (query) {
-                                setSheetState(() {
-                                  currentQuery = query;
-                                });
-
-                                // Cancel previous debounce
-                                if (_buildingSearchDebounce?.isActive ??
-                                    false) {
-                                  _buildingSearchDebounce!.cancel();
-                                }
-
-                                // Create new debounce
-                                _buildingSearchDebounce = Timer(
-                                    const Duration(milliseconds: 500), () {
-                                  if (query.isNotEmpty) {
-                                    print('Debounce search buildings: $query');
-                                    // Reset pagination and clear previous results
-                                    updatedController.searchBuildings(
-                                        query, context);
-                                  } else {
-                                    // Jika query kosong, ambil semua gedung
-                                    updatedController.fetchBuildings(context,
-                                        resetList: true);
-                                  }
-                                });
-                              },
-                              decoration: InputDecoration(
-                                hintText: 'Cari gedung...',
-                                prefixIcon: const Icon(Icons.search),
-                                border: InputBorder.none,
-                                contentPadding:
-                                    const EdgeInsets.symmetric(vertical: 15),
-                                suffixIcon: currentQuery.isNotEmpty
-                                    ? IconButton(
-                                        icon: const Icon(Icons.clear),
-                                        onPressed: () {
-                                          setSheetState(() {
-                                            currentQuery = '';
-                                          });
-                                          // Reset text field
-                                          FocusScope.of(context).unfocus();
-                                          // Refresh data with reset
-                                          updatedController.resetSearch();
-                                          updatedController.fetchBuildings(
-                                              context,
-                                              resetList: true);
-                                        },
-                                      )
-                                    : null,
-                              ),
                             ),
                           ),
-                        ),
 
-                        const SizedBox(height: 8),
+                          const SizedBox(height: 8),
 
-                        // Content - Skeleton or results
-                        Expanded(
-                          child: updatedController.isLoadingBuildings &&
-                                  updatedController.buildings.isEmpty
-                              ? _buildSkeletonList() // Skeleton loader saat loading awal
-                              : updatedController.buildings.isEmpty &&
-                                      !updatedController.isLoadingBuildings
-                                  ? _buildEmptyResults(currentQuery)
-                                  : _buildBuildingListWithLoadMore(
-                                      updatedController,
-                                      scrollController,
-                                      context),
-                        ),
-                      ],
+                          // Content - Skeleton or results
+                          Expanded(
+                            child: updatedController.isLoadingBuildings &&
+                                    updatedController.buildings.isEmpty
+                                ? _buildSkeletonList() // Skeleton loader saat loading awal
+                                : updatedController.buildings.isEmpty &&
+                                        !updatedController.isLoadingBuildings
+                                    ? _buildEmptyResults(currentQuery)
+                                    : _buildBuildingListWithLoadMore(
+                                        updatedController,
+                                        scrollController,
+                                        context),
+                          ),
+                        ],
+                      ),
                     );
                   },
                 );
@@ -1927,12 +2076,30 @@ class _StockopnameScreenState extends State<StockopnameScreen> with RouteAware {
 
   // Menangani refresh dengan lebih efisien
   Future<void> _handleRefresh() async {
-    // Reset pencarian terlebih dahulu
-    _stockOpnameController.resetSearch();
+    try {
+      // Reset pencarian terlebih dahulu
+      _stockOpnameController.resetSearch();
 
-    // Tidak perlu menggunakan Skeletonizer saat refresh
-    await _stockOpnameController.loadAllData(context);
-    _refreshController.refreshCompleted();
+      await _stockOpnameController.loadAllData(context);
+      _refreshController.refreshCompleted();
+    } catch (e) {
+      _refreshController.refreshFailed();
+    }
+  }
+
+  Future<void> _handleLoadMore() async {
+    try {
+      // Only load more if there are more pending opnames to load
+      if (_stockOpnameController.hasMorePendingOpnames) {
+        await _stockOpnameController.loadMorePendingOpnames(context);
+        _refreshController.loadComplete();
+      } else {
+        _refreshController.loadNoData();
+      }
+    } catch (e) {
+      LoggerUtil.e('Error loading more pending opnames', e, StackTrace.current);
+      _refreshController.loadFailed();
+    }
   }
 
   // Dialog bantuan troubleshooting
