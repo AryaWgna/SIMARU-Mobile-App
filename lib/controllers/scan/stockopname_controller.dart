@@ -368,6 +368,8 @@ class StockOpnameController extends ChangeNotifier {
             final asset = StockOpnameItem(
               // Basic asset information
               assetId: assetId,
+              detailId: assetData[
+                  'detail_id'], // Parse detailId from API response for notes functionality
               assetCode: assetCode,
               assetName:
                   assetData['asset_name']?.toString() ?? 'Tidak diketahui',
@@ -1235,6 +1237,18 @@ class StockOpnameController extends ChangeNotifier {
     notifyListeners();
   }
 
+  // Reset pagination pending opnames ke halaman 1
+  void resetPendingOpnamesPagination() {
+    _currentPendingOpnamesPage = 1;
+    _totalPendingOpnamesPages = 1;
+    _hasMorePendingOpnames = true;
+    _isLoadingMorePendingOpnames = false;
+    // Clear existing pending opnames list
+    _pendingOpnames = [];
+    LoggerUtil.d('Reset pending opnames pagination to page 1');
+    notifyListeners();
+  }
+
   // Variabel untuk pagination pending opnames
   int _currentPendingOpnamesPage = 1;
   int _totalPendingOpnamesPages = 1;
@@ -1315,9 +1329,11 @@ class StockOpnameController extends ChangeNotifier {
             }
           }
 
-          // Increment page for next load if there are more opnames
-          if (_hasMorePendingOpnames) {
+          // Increment page for next load only if this was a load more request (not reset)
+          if (_hasMorePendingOpnames && !resetList) {
             _currentPendingOpnamesPage++;
+            LoggerUtil.d(
+                'Incremented page to $_currentPendingOpnamesPage for next load more');
           }
         } else {
           _error = data['message'] ?? 'Gagal memuat data stock opname';
@@ -1552,6 +1568,8 @@ class StockOpnameController extends ChangeNotifier {
             final item = StockOpnameItem(
               // Basic asset information
               assetId: asset['asset_id'],
+              detailId:
+                  null, // Room assets don't have detailId until they are scanned
               assetCode: asset['asset_code'] ?? '',
               assetName: asset['asset_master_name'] ??
                   asset['asset_name'] ??
@@ -1726,6 +1744,9 @@ class StockOpnameController extends ChangeNotifier {
 
         final StockOpnameItem asset = StockOpnameItem(
           assetId: 1000 + i,
+          detailId: status == 'found'
+              ? (2000 + i)
+              : null, // Mock detailId for found assets
           assetCode: assetCode,
           assetName: assetType,
           location: 'Room $roomId',
@@ -1758,11 +1779,10 @@ class StockOpnameController extends ChangeNotifier {
       // Add specific missing assets to ensure we have some
       for (int i = 0; i < 3; i++) {
         final String assetCode = 'MISSING-${opnameId}-${i + 1}';
-        final String assetType =
-            assetTypes[(mockTotal + i) % assetTypes.length];
 
         final StockOpnameItem missingItem = StockOpnameItem(
           assetId: -1000 - i, // Use negative IDs for placeholders
+          detailId: null, // Missing items don't have detailId
           assetCode: assetCode,
           assetName: 'Asset Tidak Ditemukan ${i + 1}',
           location: 'Room $roomId',
@@ -1862,6 +1882,8 @@ class StockOpnameController extends ChangeNotifier {
                 final item = StockOpnameItem(
                   // Basic asset information
                   assetId: json['asset_id'],
+                  detailId: json[
+                      'detail_id'], // Parse detailId for notes functionality
                   assetCode: json['asset_code'] ?? '',
                   assetName: json['asset_name'] ?? 'Unknown Asset',
                   location: json['actual_location_name'] ?? '',
@@ -2281,7 +2303,9 @@ class StockOpnameController extends ChangeNotifier {
   Future<bool> saveAssetNotes(
       String assetCode, String notes, BuildContext context) async {
     try {
-      LoggerUtil.d('Saving notes for asset: $assetCode');
+      LoggerUtil.i('===== SAVING NOTES TO API =====');
+      LoggerUtil.d('Asset Code: $assetCode');
+      LoggerUtil.d('Notes: $notes');
 
       // Find the scanned asset to get its detail information
       final scannedAsset = _scannedItems.firstWhere(
@@ -2289,40 +2313,94 @@ class StockOpnameController extends ChangeNotifier {
         orElse: () => throw Exception('Asset not found in scanned items'),
       );
 
-      // For now, we'll simulate API call since we need the detail_id from opname-details endpoint
-      // In a real scenario, you would need to get the detail_id from the asset-opname-details endpoint first
-      LoggerUtil.d(
-          'Simulating notes save for asset: $assetCode with notes: $notes');
-
-      // Simulate API delay
-      await Future.delayed(const Duration(milliseconds: 800));
-
-      // Update local asset notes
-      final assetIndex =
-          _scannedItems.indexWhere((item) => item.assetCode == assetCode);
-      if (assetIndex != -1) {
-        _scannedItems[assetIndex] =
-            _scannedItems[assetIndex].copyWith(notes: notes);
-
-        // Also update in allRoomAssets if it exists there
-        final roomAssetIndex =
-            _allRoomAssets.indexWhere((item) => item.assetCode == assetCode);
-        if (roomAssetIndex != -1) {
-          _allRoomAssets[roomAssetIndex] =
-              _allRoomAssets[roomAssetIndex].copyWith(notes: notes);
-        }
-
+      // Check if we have detailId
+      if (scannedAsset.detailId == null) {
+        LoggerUtil.e('Detail ID is null for asset: $assetCode');
+        _error = 'Detail ID tidak tersedia untuk asset $assetCode';
         notifyListeners();
-        LoggerUtil.i('Notes saved locally for asset: $assetCode');
-        return true;
+        return false;
       }
 
-      return false;
+      LoggerUtil.d('Detail ID: ${scannedAsset.detailId}');
+
+      // Using the same endpoint as ScanResultController
+      final endpoint = '/asset-opname-details/${scannedAsset.detailId}/notes';
+      LoggerUtil.d('API Endpoint: $endpoint');
+
+      final payload = {
+        'notes': notes,
+      };
+      LoggerUtil.d('Request Payload: $payload');
+
+      // Using the same API method as ScanResultController
+      final response = await auth.ApiService.put(
+        endpoint,
+        body: payload,
+        context: context,
+      );
+
+      LoggerUtil.d('API Response Status: ${response.statusCode}');
+      LoggerUtil.d('API Response Body: ${response.body}');
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        LoggerUtil.d('API Response Decoded: $data');
+
+        if (data['success'] == true) {
+          LoggerUtil.i('Notes saved successfully to API!');
+
+          // Update local asset notes
+          _updateLocalNotes(assetCode, notes);
+          return true;
+        } else {
+          final errorMessage = data['message'] ?? 'Gagal menyimpan catatan';
+          LoggerUtil.w('API Error: $errorMessage');
+          _error = errorMessage;
+          notifyListeners();
+          return false;
+        }
+      } else {
+        final errorMessage = 'Error status code: ${response.statusCode}';
+        LoggerUtil.w('API Error: $errorMessage');
+        _error = errorMessage;
+        notifyListeners();
+        return false;
+      }
     } catch (e) {
-      LoggerUtil.e('Error saving asset notes', e, StackTrace.current);
+      LoggerUtil.e('Exception during saveAssetNotes', e, StackTrace.current);
       _error = 'Gagal menyimpan catatan: ${e.toString()}';
       notifyListeners();
       return false;
+    } finally {
+      LoggerUtil.d('===== END SAVING NOTES =====');
     }
+  }
+
+  // Helper method to update local notes data
+  void _updateLocalNotes(String assetCode, String notes) {
+    LoggerUtil.d(
+        'Updating local notes for assetCode: $assetCode, notes: $notes');
+
+    // Update in scanned items
+    final assetIndex =
+        _scannedItems.indexWhere((item) => item.assetCode == assetCode);
+    if (assetIndex != -1) {
+      _scannedItems[assetIndex] =
+          _scannedItems[assetIndex].copyWith(notes: notes);
+      LoggerUtil.d('Updated notes in scannedItems list');
+    }
+
+    // Also update in allRoomAssets if it exists there
+    final roomAssetIndex =
+        _allRoomAssets.indexWhere((item) => item.assetCode == assetCode);
+    if (roomAssetIndex != -1) {
+      _allRoomAssets[roomAssetIndex] =
+          _allRoomAssets[roomAssetIndex].copyWith(notes: notes);
+      LoggerUtil.d('Updated notes in allRoomAssets list');
+    }
+
+    // Notify listeners about the change
+    notifyListeners();
+    LoggerUtil.d('Notified listeners of notes update');
   }
 }

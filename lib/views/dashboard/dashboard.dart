@@ -18,6 +18,7 @@ import 'package:no_screenshot/no_screenshot.dart';
 import '../../utils/logger_util.dart';
 import '../../services/socket/socket_service.dart'
     as SocketApi; // Import untuk ApiService dari socket
+import '../../utils/snackbar_util.dart';
 
 // Route observer for tracking navigation
 final RouteObserver<PageRoute> routeObserver = RouteObserver<PageRoute>();
@@ -200,30 +201,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
     _dashboardController.showError(message);
 
     // Tampilkan snackbar dengan pesan error yang tidak mengganggu tab bar
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
-          message,
-          style: GoogleFonts.poppins(fontSize: 14),
-        ),
-        backgroundColor: Colors.red[900],
-        duration: const Duration(seconds: 3),
-        // Gunakan margin dan floating behavior agar tidak mengganggu tab bar
-        margin: const EdgeInsets.only(
-          bottom: 70.0, // Margin agar tidak menutupi tab bar
-          left: 20.0,
-          right: 20.0,
-        ),
-        behavior: SnackBarBehavior.floating,
-        action: SnackBarAction(
-          label: 'Tutup',
-          textColor: Colors.white,
-          onPressed: () {
-            ScaffoldMessenger.of(context).hideCurrentSnackBar();
-          },
-        ),
-      ),
-    );
+    SnackbarUtil.showError(context, message);
   }
 
   // Update the _onWillPop method to handle hierarchical navigation
@@ -254,21 +232,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
     } else {
       // Update the last back press time
       _lastBackPressTime = DateTime.now();
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            'Tekan sekali lagi untuk keluar',
-            style: GoogleFonts.poppins(fontSize: 14),
-          ),
-          duration: const Duration(seconds: 2),
-          margin: const EdgeInsets.only(
-            bottom: 70.0,
-            left: 20.0,
-            right: 20.0,
-          ),
-          behavior: SnackBarBehavior.floating,
-          backgroundColor: const Color(0xFF213268),
-        ),
+      SnackbarUtil.showSnackbar(
+        context,
+        'Tekan sekali lagi untuk keluar',
+        duration: const Duration(seconds: 2),
       );
       return false;
     }

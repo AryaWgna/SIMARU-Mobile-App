@@ -34,6 +34,15 @@ class ProfileController extends ChangeNotifier {
       try {
         final userData = await ApiService.getProfile(context);
         _profile = userData;
+
+        // Also save employee_name to secure storage if available
+        if (userData['employee_name'] != null) {
+          await _storage.write(
+              key: 'employee_name', value: userData['employee_name']);
+          LoggerUtil.d(
+              'Employee name saved to secure storage: ${userData['employee_name']}');
+        }
+
         _isLoading = false;
         _errorMessage = null; // Make sure to clear any previous errors
         notifyListeners();
@@ -44,12 +53,14 @@ class ProfileController extends ChangeNotifier {
         // If API fails, try to get from secure storage
         try {
           final userId = await _storage.read(key: 'user_id');
+          final employeeName = await _storage.read(key: 'employee_name');
           final employeeNumber = await _storage.read(key: 'employee_number');
           final rolesString = await _storage.read(key: 'roles');
 
           if (employeeNumber != null) {
             final Map<String, dynamic> userData = {
               'user_id': userId,
+              'employee_name': employeeName,
               'employee_number': employeeNumber,
               'roles': rolesString != null ? json.decode(rolesString) : [],
             };
@@ -92,7 +103,7 @@ class ProfileController extends ChangeNotifier {
       notifyListeners();
 
       // Perform logout with API
-      final result = await ApiService.logout(context);
+      await ApiService.logout(context);
 
       _isLoading = false;
       notifyListeners();

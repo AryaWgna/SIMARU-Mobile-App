@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
-import 'dart:convert';
 import '../../core/config/api_config.dart';
 import 'complain_detail_screen.dart';
 import '../../controllers/complaint/complaint_controller.dart';
@@ -27,7 +26,7 @@ class _ComplainListScreenState extends State<ComplainListScreen>
   final RefreshController _refreshController =
       RefreshController(initialRefresh: false);
   late ComplaintController _complaintController;
-  String? _employeeNumber;
+  String? _employeeName;
 
   @override
   void initState() {
@@ -35,7 +34,7 @@ class _ComplainListScreenState extends State<ComplainListScreen>
     _complaintController =
         Provider.of<ComplaintController>(context, listen: false);
     _loadComplaints();
-    _loadEmployeeNumber();
+    _loadEmployeeName();
   }
 
   @override
@@ -64,11 +63,20 @@ class _ComplainListScreenState extends State<ComplainListScreen>
     _loadComplaints();
   }
 
-  Future<void> _loadEmployeeNumber() async {
-    final employeeNumber = await ApiService.getEmployeeNumber();
+  Future<void> _loadEmployeeName() async {
+    String? employeeName = await ApiService.getEmployeeName();
+    LoggerUtil.d('Loaded employee name: $employeeName');
+
+    // Fallback to employee number if name is not available
+    if (employeeName == null || employeeName.isEmpty) {
+      final employeeNumber = await ApiService.getEmployeeNumber();
+      employeeName = employeeNumber;
+      LoggerUtil.d('Using employee number as fallback: $employeeNumber');
+    }
+
     if (mounted) {
       setState(() {
-        _employeeNumber = employeeNumber;
+        _employeeName = employeeName;
       });
     }
   }
@@ -656,7 +664,7 @@ class _ComplainListScreenState extends State<ComplainListScreen>
                             ),
                             const SizedBox(height: 4),
                             Text(
-                              'Pegawai: ${_employeeNumber ?? '-'}',
+                              'Pegawai: ${_employeeName ?? '-'}',
                               style: GoogleFonts.poppins(
                                 fontSize: 12,
                                 color: Colors.grey,

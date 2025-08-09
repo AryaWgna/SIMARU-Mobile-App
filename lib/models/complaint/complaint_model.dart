@@ -18,6 +18,8 @@ class ComplaintModel {
   final String? complaintPicturePath;
   final String? reporterNumber;
   final String? complaintDate;
+  final String? technicianName;
+  final String? approverName;
 
   ComplaintModel({
     required this.id,
@@ -37,6 +39,8 @@ class ComplaintModel {
     this.complaintPicturePath,
     this.reporterNumber,
     this.complaintDate,
+    this.technicianName,
+    this.approverName,
   });
 
   factory ComplaintModel.fromJson(Map<String, dynamic> json) {
@@ -62,6 +66,8 @@ class ComplaintModel {
       complaintPicturePath: json['complaint_picture_path'],
       reporterNumber: json['reporter_number'],
       complaintDate: json['complaint_date'],
+      technicianName: json['technician_name'],
+      approverName: json['approver_name'],
     );
   }
 
@@ -83,6 +89,8 @@ class ComplaintModel {
       'repair': repair,
       'reporter_number': reporterNumber,
       'complaint_date': complaintDate,
+      'technician_name': technicianName,
+      'approver_name': approverName,
     };
   }
 

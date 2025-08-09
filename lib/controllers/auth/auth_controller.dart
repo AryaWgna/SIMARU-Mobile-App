@@ -745,6 +745,19 @@ class ApiService {
     }
   }
 
+  // Helper method to get employee name
+  static Future<String?> getEmployeeName() async {
+    try {
+      // Try to get the employee name from secure storage
+      final employeeName = await _secureStorage.read(key: 'employee_name');
+      return employeeName;
+    } catch (e) {
+      LoggerUtil.e('Error getting employee name from Secure Storage', e,
+          StackTrace.current);
+      return null;
+    }
+  }
+
   // Metode-metode HTTP yang menggunakan _requestWithAuth
 
   static Future<http.Response> get(String endpoint,
@@ -820,6 +833,13 @@ class ApiService {
               key: 'employee_number',
               value: responseData['data']['employee_number'],
             );
+            // Save employee_name if available
+            if (responseData['data']['employee_name'] != null) {
+              await _secureStorage.write(
+                key: 'employee_name',
+                value: responseData['data']['employee_name'],
+              );
+            }
             await _secureStorage.write(
               key: 'roles',
               value: json.encode(responseData['data']['roles']),

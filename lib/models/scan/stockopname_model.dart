@@ -52,6 +52,7 @@ class StockOpnameModel {
 
 class StockOpnameItem {
   final int? assetId;
+  final int? detailId; // Add detailId for notes API endpoint compatibility
   final String assetCode;
   final String assetName;
   final String location;
@@ -111,6 +112,7 @@ class StockOpnameItem {
 
   StockOpnameItem({
     this.assetId,
+    this.detailId,
     required this.assetCode,
     required this.assetName,
     required this.location,
@@ -164,6 +166,7 @@ class StockOpnameItem {
   factory StockOpnameItem.fromJson(Map<String, dynamic> json) {
     return StockOpnameItem(
       assetId: json['asset_id'],
+      detailId: json['detail_id'], // Parse detailId from API response
       assetCode: json['asset_code'] ?? '',
       assetName: json['asset_name'] ?? json['asset_master_name'] ?? '',
       location: json['location'] ?? json['room_name'] ?? '',
@@ -220,6 +223,7 @@ class StockOpnameItem {
   Map<String, dynamic> toJson() {
     return {
       'asset_id': assetId,
+      'detail_id': detailId,
       'asset_code': assetCode,
       'asset_name': assetName,
       'location': location,
@@ -274,6 +278,7 @@ class StockOpnameItem {
   // Add copyWith method to create a new instance with updated fields
   StockOpnameItem copyWith({
     int? assetId,
+    int? detailId,
     String? assetCode,
     String? assetName,
     String? location,
@@ -325,6 +330,7 @@ class StockOpnameItem {
   }) {
     return StockOpnameItem(
       assetId: assetId ?? this.assetId,
+      detailId: detailId ?? this.detailId,
       assetCode: assetCode ?? this.assetCode,
       assetName: assetName ?? this.assetName,
       location: location ?? this.location,

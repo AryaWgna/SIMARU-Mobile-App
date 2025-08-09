@@ -360,8 +360,12 @@ class _HistoryScreenState extends State<HistoryScreen> {
       case 'perbaikan':
       case 'dalam':
       case 'in repair':
+      case 'under repair':
+      case 'under_repair':
+      case 'underrepair':
       case 'rusak':
       case 'damaged':
+      case 'under':
         return "PERBAIKAN";
       case 'dihapuskan':
       case 'disposed':

@@ -3,6 +3,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 import '../../core/config/api_config.dart';
 import '../../controllers/complaint/complaint_controller.dart';
+import '../../controllers/auth/auth_controller.dart';
 import 'package:skeletonizer/skeletonizer.dart';
 import 'package:pull_to_refresh_flutter3/pull_to_refresh_flutter3.dart';
 
@@ -21,11 +22,12 @@ class ComplainDetailScreen extends StatefulWidget {
 class _ComplainDetailScreenState extends State<ComplainDetailScreen> {
   final RefreshController _refreshController =
       RefreshController(initialRefresh: false);
-  int _refreshCount = 0;
+  String? _currentEmployeeName;
 
   @override
   void initState() {
     super.initState();
+    _loadCurrentEmployeeName();
     // Ambil controller dan load data
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       final controller =
@@ -39,6 +41,31 @@ class _ComplainDetailScreenState extends State<ComplainDetailScreen> {
     });
   }
 
+  Future<void> _loadCurrentEmployeeName() async {
+    try {
+      String? employeeName = await ApiService.getEmployeeName();
+      print('ComplainDetailScreen - Loaded employee name: $employeeName');
+
+      // Fallback to employee number if name is not available
+      if (employeeName == null || employeeName.isEmpty) {
+        final employeeNumber = await ApiService.getEmployeeNumber();
+        employeeName = employeeNumber;
+        print(
+            'ComplainDetailScreen - Using employee number as fallback: $employeeNumber');
+      }
+
+      if (mounted) {
+        setState(() {
+          _currentEmployeeName = employeeName;
+        });
+        print(
+            'ComplainDetailScreen - Set current employee name: $_currentEmployeeName');
+      }
+    } catch (e) {
+      print('Error loading current employee name: $e');
+    }
+  }
+
   @override
   void dispose() {
     _refreshController.dispose();
@@ -48,6 +75,7 @@ class _ComplainDetailScreenState extends State<ComplainDetailScreen> {
   Future<void> _onRefresh() async {
     final controller = Provider.of<ComplaintController>(context, listen: false);
     await controller.fetchComplaintDetail(widget.complaint['id']);
+    await _loadCurrentEmployeeName(); // Reload employee name on refresh
     _refreshController.refreshCompleted();
 
     // Langsung rebuild tanpa delay
@@ -470,7 +498,7 @@ class _ComplainDetailScreenState extends State<ComplainDetailScreen> {
           _buildDetailItem('Kode Aset', complaintDetail.assetCode),
           _buildDetailItem('Nama Aset', complaintDetail.assetName),
           _buildDetailItem('Keluhan', complaintDetail.description),
-          _buildDetailItem('Pelapor', complaintDetail.reporterNumber ?? "-"),
+          _buildDetailItem('Pelapor', complaintDetail.reporterName),
 
           // Repair Information
           if (complaintDetail.repair != null) ...[
@@ -512,14 +540,17 @@ class _ComplainDetailScreenState extends State<ComplainDetailScreen> {
                 complaintDetail.repair!['repair_description'] ?? '-'),
             _buildDetailItem('Biaya Perbaikan',
                 'Rp ${complaintDetail.repair!['repair_cost'] ?? '0'}'),
-            _buildDetailItem('Teknisi',
-                'ID: ${complaintDetail.repair!['technician_number'] ?? '-'}'),
+            _buildDetailItem(
+                'Teknisi',
+                complaintDetail.repair!['technician_name'] ??
+                    complaintDetail.technicianName ??
+                    '-'),
             _buildDetailItem('Part yang Diganti',
                 complaintDetail.repair!['parts_replaced'] ?? '-'),
             _buildDetailItem('Tanggal Selesai',
                 _formatDate(complaintDetail.repair!['completion_date'])),
-            _buildDetailItem('Disetujui Oleh',
-                'ID: ${complaintDetail.repair!['approver_number'] ?? '-'}'),
+            _buildDetailItem(
+                'Disetujui Oleh', _getApproverName(complaintDetail)),
             _buildDetailItem('Tanggal Persetujuan',
                 _formatDate(complaintDetail.repair!['approval_date'])),
           ],
@@ -542,11 +573,15 @@ class _ComplainDetailScreenState extends State<ComplainDetailScreen> {
                       : () async {
                           final success = await controller.approveRepair();
                           if (success && mounted) {
+                            // Reload current employee name after approval
+                            await _loadCurrentEmployeeName();
                             ScaffoldMessenger.of(context).showSnackBar(
                               const SnackBar(
                                   content:
                                       Text('Perbaikan berhasil disetujui')),
                             );
+                            // Force UI refresh to show approver name
+                            setState(() {});
                           }
                         },
                   style: ElevatedButton.styleFrom(
@@ -575,5 +610,23 @@ class _ComplainDetailScreenState extends State<ComplainDetailScreen> {
         ],
       ),
     );
+  }
+
+  String _getApproverName(dynamic complaintDetail) {
+    // Check if repair has been approved
+    if (complaintDetail.repair != null &&
+        (complaintDetail.repair!['approval_by'] != null &&
+            complaintDetail.repair!['approval_by'].toString() != "null" &&
+            complaintDetail.repair!['approval_by'].toString() != "")) {
+      // If approved, show current logged in employee name
+      final approverName = _currentEmployeeName ?? '-';
+      print(
+          'ComplainDetailScreen - Showing approver name: $approverName (current employee: $_currentEmployeeName)');
+      return approverName;
+    }
+
+    // If not approved yet, show dash
+    print('ComplainDetailScreen - Repair not approved yet, showing dash');
+    return '-';
   }
 }

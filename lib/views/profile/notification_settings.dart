@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../services/firebase/firebase_messaging_service.dart';
 import '../../controllers/notification/notification_settings_controller.dart';
+import '../../utils/snackbar_util.dart';
 
 class NotificationSettingsScreen extends StatefulWidget {
   const NotificationSettingsScreen({super.key});
@@ -91,13 +92,14 @@ class _NotificationSettingsScreenState
                         context, messagingService, authToken);
 
                     if (success) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                            content: Text('Token berhasil dikirim ke server')),
+                      SnackbarUtil.showSuccess(
+                        context,
+                        'Token berhasil dikirim ke server',
                       );
                     } else if (controller.errorMessage != null) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(content: Text(controller.errorMessage!)),
+                      SnackbarUtil.showError(
+                        context,
+                        controller.errorMessage!,
                       );
                     }
                   },
@@ -113,9 +115,9 @@ class _NotificationSettingsScreenState
                   onPressed: () {
                     if (controller.fcmToken != null) {
                       // Copy to clipboard logic here
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                            content: Text('Token disalin ke clipboard')),
+                      SnackbarUtil.showSuccess(
+                        context,
+                        'Token disalin ke clipboard',
                       );
                     }
                   },

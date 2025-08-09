@@ -7,9 +7,7 @@ import '../../models/notification/notification_types.dart';
 import '../../controllers/notification/notification_controller.dart';
 import '../../controllers/notification/notification_badge_controller.dart';
 import '../../controllers/auth/auth_controller.dart';
-import '../../widgets/custom_app_bar.dart';
 import 'notification_detail_screen.dart';
-import 'package:intl/intl.dart';
 import '../../utils/logger_util.dart';
 
 class NotificationScreen extends StatefulWidget {
@@ -167,32 +165,6 @@ class _NotificationScreenState extends State<NotificationScreen> {
     }
   }
 
-  // Tandai semua notifikasi sebagai telah dibaca
-  Future<void> _markAllAsRead() async {
-    final success = await _notificationController.markAllAsRead(context);
-
-    if (success) {
-      // Perbarui jumlah notifikasi yang belum dibaca
-      final badgeController =
-          Provider.of<NotificationBadgeController>(context, listen: false);
-      badgeController.loadUnreadNotificationCount(context: context);
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Semua notifikasi ditandai sebagai telah dibaca'),
-          backgroundColor: Color(0xFF213268),
-        ),
-      );
-    } else {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Gagal menandai semua notifikasi sebagai telah dibaca'),
-          backgroundColor: Colors.red,
-        ),
-      );
-    }
-  }
-
   // Widget for empty notification message
   Widget _buildEmptyNotificationMessage() {
     return Column(
@@ -338,44 +310,6 @@ class _NotificationScreenState extends State<NotificationScreen> {
               Navigator.pop(context);
             },
           ),
-          actions: [
-            IconButton(
-              icon: const Icon(Icons.more_vert, color: Colors.white),
-              onPressed: () {
-                showModalBottomSheet(
-                  context: context,
-                  shape: const RoundedRectangleBorder(
-                    borderRadius: BorderRadius.vertical(
-                      top: Radius.circular(20),
-                    ),
-                  ),
-                  builder: (context) => Padding(
-                    padding: const EdgeInsets.symmetric(
-                        vertical: 20, horizontal: 16),
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        ListTile(
-                          leading: const Icon(Icons.mark_email_read),
-                          title: const Text(
-                            'Tandai semua sebagai telah dibaca',
-                            style: TextStyle(
-                              fontFamily: 'Poppins',
-                              fontWeight: FontWeight.w500,
-                            ),
-                          ),
-                          onTap: () {
-                            Navigator.pop(context);
-                            _markAllAsRead();
-                          },
-                        ),
-                      ],
-                    ),
-                  ),
-                );
-              },
-            ),
-          ],
         ),
         body: Column(
           children: [

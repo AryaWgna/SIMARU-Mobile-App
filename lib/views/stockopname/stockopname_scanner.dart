@@ -672,8 +672,7 @@ class _StockopnameScannerState extends State<StockopnameScanner>
                                         fontSize: 14,
                                         color: Colors.grey[600],
                                       ),
-                                      overflow: TextOverflow.ellipsis,
-                                      maxLines: 1,
+                                      // Removed overflow and maxLines to allow wrapping
                                     ),
                                   ),
                                 ],
@@ -1580,6 +1579,10 @@ class _StockopnameScannerState extends State<StockopnameScanner>
     final TextEditingController _notesController = TextEditingController();
     _notesController.text = asset.notes ?? '';
 
+    // State untuk menyimpan detail asset yang sudah di-fetch
+    StockOpnameItem? _detailedAsset;
+    bool _isLoadingDetails = false;
+
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -1587,372 +1590,405 @@ class _StockopnameScannerState extends State<StockopnameScanner>
       builder: (context) {
         return StatefulBuilder(
           builder: (context, setModalState) {
-            return Container(
-              height: MediaQuery.of(context).size.height * 0.85,
-              decoration: const BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.only(
-                  topLeft: Radius.circular(20),
-                  topRight: Radius.circular(20),
-                ),
+            return Padding(
+              padding: EdgeInsets.only(
+                bottom: MediaQuery.of(context).viewInsets.bottom,
               ),
-              child: Column(
-                children: [
-                  // Header with special indicator for newly scanned assets
-                  Container(
-                    padding: const EdgeInsets.all(16),
-                    decoration: BoxDecoration(
-                      color: isNewlyScanned
-                          ? const Color(0xFF213268)
-                          : Colors.white,
-                      borderRadius: const BorderRadius.only(
-                        topLeft: Radius.circular(20),
-                        topRight: Radius.circular(20),
+              child: Container(
+                constraints: BoxConstraints(
+                  maxHeight: MediaQuery.of(context).size.height * 0.85,
+                  minHeight: MediaQuery.of(context).size.height * 0.4,
+                ),
+                decoration: const BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.only(
+                    topLeft: Radius.circular(20),
+                    topRight: Radius.circular(20),
+                  ),
+                ),
+                child: Column(
+                  children: [
+                    // Header with special indicator for newly scanned assets
+                    Container(
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: isNewlyScanned
+                            ? const Color(0xFF213268)
+                            : Colors.white,
+                        borderRadius: const BorderRadius.only(
+                          topLeft: Radius.circular(20),
+                          topRight: Radius.circular(20),
+                        ),
                       ),
-                    ),
-                    child: Row(
-                      children: [
-                        if (isNewlyScanned) ...[
-                          const Icon(
-                            Icons.check_circle,
-                            color: Colors.white,
-                            size: 24,
-                          ),
-                          const SizedBox(width: 8),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  'Aset Baru Dipindai',
-                                  style: GoogleFonts.poppins(
-                                    fontSize: 16,
-                                    fontWeight: FontWeight.w600,
-                                    color: Colors.white,
-                                  ),
-                                ),
-                                Text(
-                                  'Scan berhasil - ${asset.assetCode}',
-                                  style: GoogleFonts.poppins(
-                                    fontSize: 12,
-                                    color: Colors.white.withOpacity(0.8),
-                                  ),
-                                ),
-                              ],
+                      child: Row(
+                        children: [
+                          if (isNewlyScanned) ...[
+                            const Icon(
+                              Icons.check_circle,
+                              color: Colors.white,
+                              size: 24,
                             ),
-                          ),
-                        ] else ...[
-                          Expanded(
-                            child: Text(
-                              'Detail Aset',
-                              style: GoogleFonts.poppins(
-                                fontSize: 18,
-                                fontWeight: FontWeight.w600,
-                                color: const Color(0xFF213268),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    'Aset Baru Dipindai',
+                                    style: GoogleFonts.poppins(
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.w600,
+                                      color: Colors.white,
+                                    ),
+                                  ),
+                                  Text(
+                                    'Scan berhasil - ${asset.assetCode}',
+                                    style: GoogleFonts.poppins(
+                                      fontSize: 12,
+                                      color: Colors.white.withOpacity(0.8),
+                                    ),
+                                  ),
+                                ],
                               ),
+                            ),
+                          ] else ...[
+                            Expanded(
+                              child: Text(
+                                'Detail Aset',
+                                style: GoogleFonts.poppins(
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.w600,
+                                  color: const Color(0xFF213268),
+                                ),
+                              ),
+                            ),
+                          ],
+                          IconButton(
+                            onPressed: () => Navigator.pop(context),
+                            icon: Icon(
+                              Icons.close,
+                              color: isNewlyScanned
+                                  ? Colors.white
+                                  : const Color(0xFF213268),
                             ),
                           ),
                         ],
-                        IconButton(
-                          onPressed: () => Navigator.pop(context),
-                          icon: Icon(
-                            Icons.close,
-                            color: isNewlyScanned
-                                ? Colors.white
-                                : const Color(0xFF213268),
-                          ),
-                        ),
-                      ],
+                      ),
                     ),
-                  ),
 
-                  // Content with detailed asset information
-                  Expanded(
-                    child: FutureBuilder<StockOpnameItem?>(
-                      future: _stockOpnameController.fetchAssetDetails(
-                          asset.assetCode, context),
-                      builder: (context, snapshot) {
-                        if (snapshot.connectionState ==
-                            ConnectionState.waiting) {
-                          return const Center(
+                    // Content with detailed asset information
+                    Expanded(
+                      child: Builder(
+                        builder: (context) {
+                          // Fetch details only once when the bottom sheet is first shown
+                          if (_detailedAsset == null && !_isLoadingDetails) {
+                            _isLoadingDetails = true;
+                            // Use post-frame callback to avoid setState during build
+                            WidgetsBinding.instance.addPostFrameCallback((_) {
+                              _stockOpnameController
+                                  .fetchAssetDetails(asset.assetCode, context)
+                                  .then((result) {
+                                if (mounted) {
+                                  setModalState(() {
+                                    _detailedAsset = result;
+                                    _isLoadingDetails = false;
+                                  });
+                                }
+                              }).catchError((error) {
+                                if (mounted) {
+                                  setModalState(() {
+                                    _isLoadingDetails = false;
+                                  });
+                                }
+                              });
+                            });
+                          }
+
+                          // Show loading state
+                          if (_isLoadingDetails && _detailedAsset == null) {
+                            return const Center(
+                              child: Column(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  CircularProgressIndicator(
+                                    color: Color(0xFF213268),
+                                  ),
+                                  SizedBox(height: 16),
+                                  Text(
+                                    'Memuat detail aset...',
+                                    style: TextStyle(
+                                      color: Colors.grey,
+                                      fontSize: 14,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            );
+                          }
+
+                          // Use detailed data if available, otherwise fallback to original asset data
+                          final displayAsset = _detailedAsset ?? asset;
+
+                          return SingleChildScrollView(
+                            padding: const EdgeInsets.all(16),
                             child: Column(
-                              mainAxisAlignment: MainAxisAlignment.center,
+                              crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                CircularProgressIndicator(
-                                  color: Color(0xFF213268),
-                                ),
-                                SizedBox(height: 16),
-                                Text(
-                                  'Memuat detail aset...',
-                                  style: TextStyle(
-                                    color: Colors.grey,
-                                    fontSize: 14,
+                                // Asset Image - Always show container for consistency
+                                Container(
+                                  width: double.infinity,
+                                  height: 200,
+                                  margin: const EdgeInsets.only(bottom: 16),
+                                  decoration: BoxDecoration(
+                                    color: Colors.grey[100],
+                                    borderRadius: BorderRadius.circular(8),
+                                    border:
+                                        Border.all(color: Colors.grey[300]!),
+                                  ),
+                                  child: ClipRRect(
+                                    borderRadius: BorderRadius.circular(8),
+                                    child: _buildAssetImage(displayAsset),
                                   ),
                                 ),
+
+                                // Asset Basic Information
+                                _buildDetailSection(
+                                  'Informasi Dasar',
+                                  [
+                                    _buildDetailRow(Icons.qr_code, 'Kode Aset:',
+                                        displayAsset.assetCode),
+                                    _buildDetailRow(Icons.inventory,
+                                        'Nama Aset:', displayAsset.assetName),
+                                    if (displayAsset.description != null &&
+                                        displayAsset.description!.isNotEmpty)
+                                      _buildDetailRow(
+                                          Icons.description,
+                                          'Deskripsi:',
+                                          displayAsset.description!),
+                                    if (displayAsset.assetType != null)
+                                      _buildDetailRow(
+                                          Icons.category,
+                                          'Tipe Aset:',
+                                          _getAssetTypeDisplay(
+                                              displayAsset.assetType!)),
+                                    if (displayAsset.category != null)
+                                      _buildDetailRow(Icons.label, 'Kategori:',
+                                          displayAsset.category!),
+                                    if (displayAsset.subcategoryName != null)
+                                      _buildDetailRow(
+                                          Icons.label_outline,
+                                          'Kategori:',
+                                          displayAsset.subcategoryName!),
+                                    _buildDetailRow(
+                                        Icons.build,
+                                        'Kondisi:',
+                                        _getConditionDisplay(
+                                            displayAsset.condition)),
+                                    _buildDetailRow(
+                                        Icons.info,
+                                        'Status:',
+                                        _getAssetStatusDisplay(
+                                            displayAsset.currentStatus)),
+                                  ],
+                                ),
+
+                                const SizedBox(height: 16),
+
+                                // Physical Details
+                                if (displayAsset.brandName != null ||
+                                    displayAsset.model != null ||
+                                    displayAsset.serialNumber != null)
+                                  _buildDetailSection(
+                                    'Detail Fisik',
+                                    [
+                                      if (displayAsset.brandName != null)
+                                        _buildDetailRow(Icons.business, 'Merk:',
+                                            displayAsset.brandName!),
+                                      if (displayAsset.model != null)
+                                        _buildDetailRow(Icons.settings,
+                                            'Model:', displayAsset.model!),
+                                      if (displayAsset.serialNumber != null)
+                                        _buildDetailRow(
+                                            Icons.confirmation_number,
+                                            'Serial Number:',
+                                            displayAsset.serialNumber!),
+                                    ],
+                                  ),
+
+                                const SizedBox(height: 16),
+
+                                // Location Information
+                                _buildDetailSection(
+                                  'Informasi Lokasi',
+                                  [
+                                    // Show actual location data from scan process (ruangan sampai lokasi aktual dari proses scan)
+                                    _buildDetailRow(Icons.room, 'Ruangan:',
+                                        widget.roomName),
+                                    if (widget.buildingName != null &&
+                                        widget.buildingName!.isNotEmpty)
+                                      _buildDetailRow(Icons.apartment,
+                                          'Gedung:', widget.buildingName!),
+                                    if (widget.floorNumber != null &&
+                                        widget.floorNumber!.isNotEmpty)
+                                      _buildDetailRow(Icons.layers, 'Lantai:',
+                                          widget.floorNumber!),
+                                    // Fallback building from asset data if widget building is empty
+                                    if (displayAsset.buildingName != null &&
+                                        displayAsset.buildingName!.isNotEmpty &&
+                                        (widget.buildingName == null ||
+                                            widget.buildingName!.isEmpty))
+                                      _buildDetailRow(
+                                          Icons.apartment,
+                                          'Gedung:',
+                                          displayAsset.buildingName!),
+                                    if (displayAsset.floorNumber != null &&
+                                        displayAsset.floorNumber!.isNotEmpty &&
+                                        (widget.floorNumber == null ||
+                                            widget.floorNumber!.isEmpty))
+                                      _buildDetailRow(Icons.layers, 'Lantai:',
+                                          displayAsset.floorNumber!),
+                                    _buildDetailRow(Icons.location_on,
+                                        'Lokasi Aktual:', widget.roomName),
+
+                                    // Show expected location with complete information (lengkap dengan gedung dan lantai)
+                                    if (displayAsset.expectedLocationName !=
+                                            null &&
+                                        displayAsset
+                                            .expectedLocationName!.isNotEmpty)
+                                      _buildDetailRow(
+                                          Icons.location_searching,
+                                          'Lokasi Diharapkan:',
+                                          _buildExpectedLocationText(
+                                              displayAsset)),
+                                  ],
+                                ),
+
+                                const SizedBox(height: 16),
+
+                                // Employee/PIC Information
+                                if (displayAsset.pic != null ||
+                                    displayAsset.employeeName != null)
+                                  _buildDetailSection(
+                                    'Penanggung Jawab',
+                                    [
+                                      if (displayAsset.pic != null)
+                                        _buildDetailRow(Icons.person, 'PIC:',
+                                            displayAsset.pic!),
+                                      if (displayAsset.employeeName != null)
+                                        _buildDetailRow(
+                                            Icons.person_outline,
+                                            'Nama Karyawan:',
+                                            displayAsset.employeeName!),
+                                      if (displayAsset.employeeNumber != null)
+                                        _buildDetailRow(
+                                            Icons.badge,
+                                            'No. Karyawan:',
+                                            displayAsset.employeeNumber!),
+                                    ],
+                                  ),
+
+                                const SizedBox(height: 16),
+
+                                // Purchase Information
+                                if (displayAsset.purchaseDate != null ||
+                                    displayAsset.purchaseCost != null ||
+                                    displayAsset.warrantyEndDate != null)
+                                  _buildDetailSection(
+                                    'Informasi Pembelian',
+                                    [
+                                      if (displayAsset.purchaseDate != null)
+                                        _buildDetailRow(
+                                            Icons.calendar_today,
+                                            'Tanggal Beli:',
+                                            _formatDate(
+                                                displayAsset.purchaseDate!)),
+                                      if (displayAsset.purchaseCost != null)
+                                        _buildDetailRow(
+                                            Icons.attach_money,
+                                            'Harga Beli:',
+                                            _formatCurrency(
+                                                displayAsset.purchaseCost!)),
+                                      if (displayAsset.warrantyEndDate != null)
+                                        _buildDetailRow(
+                                            Icons.shield,
+                                            'Berakhir Garansi:',
+                                            _formatDate(
+                                                displayAsset.warrantyEndDate!)),
+                                    ],
+                                  ),
+
+                                const SizedBox(height: 16),
+
+                                // Asset Master Information
+                                if (displayAsset.assetMasterCode != null ||
+                                    displayAsset.isDepreciable != null ||
+                                    displayAsset.needsCalibration != null)
+                                  _buildDetailSection(
+                                    'Informasi Master',
+                                    [
+                                      if (displayAsset.assetMasterCode != null)
+                                        _buildDetailRow(
+                                            Icons.qr_code_2,
+                                            'Kode Master:',
+                                            displayAsset.assetMasterCode!),
+                                      if (displayAsset.isDepreciable != null)
+                                        _buildDetailRow(
+                                            Icons.trending_down,
+                                            'Dapat Disusutkan:',
+                                            displayAsset.isDepreciable!
+                                                ? 'Ya'
+                                                : 'Tidak'),
+                                      if (displayAsset.needsCalibration != null)
+                                        _buildDetailRow(
+                                            Icons.tune,
+                                            'Perlu Kalibrasi:',
+                                            displayAsset.needsCalibration!
+                                                ? 'Ya'
+                                                : 'Tidak'),
+                                    ],
+                                  ),
+
+                                const SizedBox(height: 16),
+
+                                // Timestamps
+                                if (displayAsset.createdAt != null ||
+                                    displayAsset.updatedAt != null)
+                                  _buildDetailSection(
+                                    'Riwayat',
+                                    [
+                                      if (displayAsset.createdAt != null)
+                                        _buildDetailRow(
+                                            Icons.add_circle,
+                                            'Dibuat:',
+                                            _formatDateTime(
+                                                displayAsset.createdAt!)),
+                                      if (displayAsset.updatedAt != null)
+                                        _buildDetailRow(
+                                            Icons.update,
+                                            'Diperbarui:',
+                                            _formatDateTime(
+                                                displayAsset.updatedAt!)),
+                                      _buildDetailRow(
+                                          Icons.access_time,
+                                          'Waktu Scan:',
+                                          _formatDateTime(displayAsset.scanTime
+                                              .toIso8601String())),
+                                    ],
+                                  ),
+
+                                const SizedBox(height: 16),
+
+                                // Notes Section with Edit Capability
+                                _buildNotesSection(displayAsset,
+                                    _notesController, setModalState),
                               ],
                             ),
                           );
-                        }
-
-                        // Use fetched data if available, otherwise fallback to original asset data
-                        final displayAsset = snapshot.data ?? asset;
-
-                        return SingleChildScrollView(
-                          padding: const EdgeInsets.all(16),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              // Asset Image - Always show container for consistency
-                              Container(
-                                width: double.infinity,
-                                height: 200,
-                                margin: const EdgeInsets.only(bottom: 16),
-                                decoration: BoxDecoration(
-                                  color: Colors.grey[100],
-                                  borderRadius: BorderRadius.circular(8),
-                                  border: Border.all(color: Colors.grey[300]!),
-                                ),
-                                child: ClipRRect(
-                                  borderRadius: BorderRadius.circular(8),
-                                  child: _buildAssetImage(displayAsset),
-                                ),
-                              ),
-
-                              // Asset Basic Information
-                              _buildDetailSection(
-                                'Informasi Dasar',
-                                [
-                                  _buildDetailRow(Icons.qr_code, 'Kode Aset:',
-                                      displayAsset.assetCode),
-                                  _buildDetailRow(Icons.inventory, 'Nama Aset:',
-                                      displayAsset.assetName),
-                                  if (displayAsset.description != null &&
-                                      displayAsset.description!.isNotEmpty)
-                                    _buildDetailRow(
-                                        Icons.description,
-                                        'Deskripsi:',
-                                        displayAsset.description!),
-                                  if (displayAsset.assetType != null)
-                                    _buildDetailRow(
-                                        Icons.category,
-                                        'Tipe Aset:',
-                                        _getAssetTypeDisplay(
-                                            displayAsset.assetType!)),
-                                  if (displayAsset.category != null)
-                                    _buildDetailRow(Icons.label, 'Kategori:',
-                                        displayAsset.category!),
-                                  if (displayAsset.subcategoryName != null)
-                                    _buildDetailRow(
-                                        Icons.label_outline,
-                                        'Kategori:',
-                                        displayAsset.subcategoryName!),
-                                  _buildDetailRow(
-                                      Icons.build,
-                                      'Kondisi:',
-                                      _getConditionDisplay(
-                                          displayAsset.condition)),
-                                  _buildDetailRow(
-                                      Icons.info,
-                                      'Status:',
-                                      _getAssetStatusDisplay(
-                                          displayAsset.currentStatus)),
-                                ],
-                              ),
-
-                              const SizedBox(height: 16),
-
-                              // Physical Details
-                              if (displayAsset.brandName != null ||
-                                  displayAsset.model != null ||
-                                  displayAsset.serialNumber != null)
-                                _buildDetailSection(
-                                  'Detail Fisik',
-                                  [
-                                    if (displayAsset.brandName != null)
-                                      _buildDetailRow(Icons.business, 'Merk:',
-                                          displayAsset.brandName!),
-                                    if (displayAsset.model != null)
-                                      _buildDetailRow(Icons.settings, 'Model:',
-                                          displayAsset.model!),
-                                    if (displayAsset.serialNumber != null)
-                                      _buildDetailRow(
-                                          Icons.confirmation_number,
-                                          'Serial Number:',
-                                          displayAsset.serialNumber!),
-                                  ],
-                                ),
-
-                              const SizedBox(height: 16),
-
-                              // Location Information
-                              _buildDetailSection(
-                                'Informasi Lokasi',
-                                [
-                                  // Show actual location data from scan process (ruangan sampai lokasi aktual dari proses scan)
-                                  _buildDetailRow(
-                                      Icons.room, 'Ruangan:', widget.roomName),
-                                  if (widget.buildingName != null &&
-                                      widget.buildingName!.isNotEmpty)
-                                    _buildDetailRow(Icons.apartment, 'Gedung:',
-                                        widget.buildingName!),
-                                  if (widget.floorNumber != null &&
-                                      widget.floorNumber!.isNotEmpty)
-                                    _buildDetailRow(Icons.layers, 'Lantai:',
-                                        widget.floorNumber!),
-                                  // Fallback building from asset data if widget building is empty
-                                  if (displayAsset.buildingName != null &&
-                                      displayAsset.buildingName!.isNotEmpty &&
-                                      (widget.buildingName == null ||
-                                          widget.buildingName!.isEmpty))
-                                    _buildDetailRow(Icons.apartment, 'Gedung:',
-                                        displayAsset.buildingName!),
-                                  if (displayAsset.floorNumber != null &&
-                                      displayAsset.floorNumber!.isNotEmpty &&
-                                      (widget.floorNumber == null ||
-                                          widget.floorNumber!.isEmpty))
-                                    _buildDetailRow(Icons.layers, 'Lantai:',
-                                        displayAsset.floorNumber!),
-                                  _buildDetailRow(Icons.location_on,
-                                      'Lokasi Aktual:', widget.roomName),
-
-                                  // Show expected location with complete information (lengkap dengan gedung dan lantai)
-                                  if (displayAsset.expectedLocationName !=
-                                          null &&
-                                      displayAsset
-                                          .expectedLocationName!.isNotEmpty)
-                                    _buildDetailRow(
-                                        Icons.location_searching,
-                                        'Lokasi Diharapkan:',
-                                        _buildExpectedLocationText(
-                                            displayAsset)),
-                                ],
-                              ),
-
-                              const SizedBox(height: 16),
-
-                              // Employee/PIC Information
-                              if (displayAsset.pic != null ||
-                                  displayAsset.employeeName != null)
-                                _buildDetailSection(
-                                  'Penanggung Jawab',
-                                  [
-                                    if (displayAsset.pic != null)
-                                      _buildDetailRow(Icons.person, 'PIC:',
-                                          displayAsset.pic!),
-                                    if (displayAsset.employeeName != null)
-                                      _buildDetailRow(
-                                          Icons.person_outline,
-                                          'Nama Karyawan:',
-                                          displayAsset.employeeName!),
-                                    if (displayAsset.employeeNumber != null)
-                                      _buildDetailRow(
-                                          Icons.badge,
-                                          'No. Karyawan:',
-                                          displayAsset.employeeNumber!),
-                                  ],
-                                ),
-
-                              const SizedBox(height: 16),
-
-                              // Purchase Information
-                              if (displayAsset.purchaseDate != null ||
-                                  displayAsset.purchaseCost != null ||
-                                  displayAsset.warrantyEndDate != null)
-                                _buildDetailSection(
-                                  'Informasi Pembelian',
-                                  [
-                                    if (displayAsset.purchaseDate != null)
-                                      _buildDetailRow(
-                                          Icons.calendar_today,
-                                          'Tanggal Beli:',
-                                          _formatDate(
-                                              displayAsset.purchaseDate!)),
-                                    if (displayAsset.purchaseCost != null)
-                                      _buildDetailRow(
-                                          Icons.attach_money,
-                                          'Harga Beli:',
-                                          _formatCurrency(
-                                              displayAsset.purchaseCost!)),
-                                    if (displayAsset.warrantyEndDate != null)
-                                      _buildDetailRow(
-                                          Icons.shield,
-                                          'Berakhir Garansi:',
-                                          _formatDate(
-                                              displayAsset.warrantyEndDate!)),
-                                  ],
-                                ),
-
-                              const SizedBox(height: 16),
-
-                              // Asset Master Information
-                              if (displayAsset.assetMasterCode != null ||
-                                  displayAsset.isDepreciable != null ||
-                                  displayAsset.needsCalibration != null)
-                                _buildDetailSection(
-                                  'Informasi Master',
-                                  [
-                                    if (displayAsset.assetMasterCode != null)
-                                      _buildDetailRow(
-                                          Icons.qr_code_2,
-                                          'Kode Master:',
-                                          displayAsset.assetMasterCode!),
-                                    if (displayAsset.isDepreciable != null)
-                                      _buildDetailRow(
-                                          Icons.trending_down,
-                                          'Dapat Disusutkan:',
-                                          displayAsset.isDepreciable!
-                                              ? 'Ya'
-                                              : 'Tidak'),
-                                    if (displayAsset.needsCalibration != null)
-                                      _buildDetailRow(
-                                          Icons.tune,
-                                          'Perlu Kalibrasi:',
-                                          displayAsset.needsCalibration!
-                                              ? 'Ya'
-                                              : 'Tidak'),
-                                  ],
-                                ),
-
-                              const SizedBox(height: 16),
-
-                              // Timestamps
-                              if (displayAsset.createdAt != null ||
-                                  displayAsset.updatedAt != null)
-                                _buildDetailSection(
-                                  'Riwayat',
-                                  [
-                                    if (displayAsset.createdAt != null)
-                                      _buildDetailRow(
-                                          Icons.add_circle,
-                                          'Dibuat:',
-                                          _formatDateTime(
-                                              displayAsset.createdAt!)),
-                                    if (displayAsset.updatedAt != null)
-                                      _buildDetailRow(
-                                          Icons.update,
-                                          'Diperbarui:',
-                                          _formatDateTime(
-                                              displayAsset.updatedAt!)),
-                                    _buildDetailRow(
-                                        Icons.access_time,
-                                        'Waktu Scan:',
-                                        _formatDateTime(displayAsset.scanTime
-                                            .toIso8601String())),
-                                  ],
-                                ),
-
-                              const SizedBox(height: 16),
-
-                              // Notes Section with Edit Capability
-                              _buildNotesSection(displayAsset, _notesController,
-                                  setModalState),
-                            ],
-                          ),
-                        );
-                      },
+                        },
+                      ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
             );
           },
@@ -2243,9 +2279,28 @@ class _StockopnameScannerState extends State<StockopnameScanner>
                   )
                 else
                   Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
+                      Row(
+                        children: [
+                          Icon(
+                            Icons.keyboard,
+                            size: 16,
+                            color: Colors.grey[600],
+                          ),
+                          const SizedBox(width: 4),
+                          Text(
+                            'Catatan akan ditampilkan di detail aset',
+                            style: GoogleFonts.poppins(
+                              fontSize: 12,
+                              fontStyle: FontStyle.italic,
+                              color: Colors.grey[600],
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 8),
                       Container(
-                        height: 100,
                         decoration: BoxDecoration(
                           color: Colors.grey[50],
                           borderRadius: BorderRadius.circular(8),
@@ -2253,17 +2308,21 @@ class _StockopnameScannerState extends State<StockopnameScanner>
                         ),
                         child: TextField(
                           controller: notesController,
-                          maxLines: null,
-                          expands: true,
+                          maxLines: 4,
+                          minLines: 3,
+                          autofocus: false,
+                          textInputAction: TextInputAction.newline,
+                          keyboardType: TextInputType.multiline,
                           style: GoogleFonts.poppins(
-                            fontSize: 13,
+                            fontSize: 14,
                             color: Colors.black87,
                           ),
                           decoration: InputDecoration(
-                            hintText: 'Tambahkan catatan untuk aset ini...',
+                            hintText:
+                                'Ketik catatan untuk aset ini...\n\nGunakan enter untuk baris baru',
                             hintStyle: GoogleFonts.poppins(
                               fontSize: 13,
-                              color: Colors.grey[600],
+                              color: Colors.grey[500],
                             ),
                             border: InputBorder.none,
                             focusedBorder: InputBorder.none,
@@ -2279,6 +2338,9 @@ class _StockopnameScannerState extends State<StockopnameScanner>
                         width: double.infinity,
                         child: ElevatedButton.icon(
                           onPressed: () async {
+                            // Close keyboard before processing
+                            FocusScope.of(context).unfocus();
+
                             final String notes = notesController.text;
 
                             // Show loading indicator
@@ -2936,11 +2998,15 @@ class _StockopnameScannerState extends State<StockopnameScanner>
                             children: [
                               Expanded(
                                 child: Row(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
-                                    const Icon(
-                                      Icons.qr_code_scanner,
-                                      color: Color(0xFF213268),
-                                      size: 20,
+                                    const Padding(
+                                      padding: EdgeInsets.only(top: 2),
+                                      child: Icon(
+                                        Icons.qr_code_scanner,
+                                        color: Color(0xFF213268),
+                                        size: 20,
+                                      ),
                                     ),
                                     const SizedBox(width: 8),
                                     Expanded(
@@ -2951,8 +3017,7 @@ class _StockopnameScannerState extends State<StockopnameScanner>
                                           fontWeight: FontWeight.w600,
                                           color: const Color(0xFF213268),
                                         ),
-                                        overflow: TextOverflow.ellipsis,
-                                        maxLines: 1,
+                                        // Removed overflow and maxLines to allow wrapping
                                       ),
                                     ),
                                   ],

@@ -1,9 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-import '../pages/qr_scanner_screen.dart';
-import 'dart:convert';
 import 'dart:async';
-import '../../controllers/auth/auth_controller.dart' as auth;
 import '../../controllers/dashboard/dashboard_controller.dart';
 import '../../utils/logger_util.dart';
 import 'stockopname_scanner.dart';
@@ -11,11 +8,8 @@ import 'scan_result_screen.dart';
 import 'package:pull_to_refresh_flutter3/pull_to_refresh_flutter3.dart';
 import 'package:skeletonizer/skeletonizer.dart';
 import 'package:provider/provider.dart';
-import 'package:intl/intl.dart';
 import '../../controllers/scan/stockopname_controller.dart';
 import '../../models/scan/stockopname_model.dart';
-import 'package:drop_down_list/drop_down_list.dart';
-import 'package:drop_down_list/model/selected_list_item.dart';
 import '../dashboard/dashboard.dart';
 
 class StockopnameScreen extends StatefulWidget {
@@ -26,12 +20,11 @@ class StockopnameScreen extends StatefulWidget {
 }
 
 class _StockopnameScreenState extends State<StockopnameScreen> with RouteAware {
-  final GlobalKey<ScaffoldMessengerState> _scaffoldMessengerKey =
-      GlobalKey<ScaffoldMessengerState>();
   final RefreshController _refreshController =
       RefreshController(initialRefresh: false);
   late StockOpnameController _stockOpnameController;
   bool _firstLoad = true; // Untuk track apakah ini adalah load pertama
+  bool _isRefreshing = false; // Untuk track apakah sedang refresh
   bool _isLoadingMoreBuildings = false; // Track load more state locally
   bool _isLoadingMoreRooms = false; // Track load more state for rooms
 
@@ -44,7 +37,11 @@ class _StockopnameScreenState extends State<StockopnameScreen> with RouteAware {
     super.initState();
     _stockOpnameController =
         Provider.of<StockOpnameController>(context, listen: false);
-    _loadData();
+
+    // Defer state updates until after the build cycle is complete
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _loadFreshData();
+    });
   }
 
   @override
@@ -69,8 +66,11 @@ class _StockopnameScreenState extends State<StockopnameScreen> with RouteAware {
       dashboardController.setSelectedIndex(1);
     }
 
-    // Refresh data
-    _stockOpnameController.fetchPendingOpnames(context, resetList: true);
+    // Load fresh data seperti baru klik tab
+    // Defer state updates until after the build cycle is complete
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _loadFreshData();
+    });
   }
 
   @override
@@ -121,11 +121,15 @@ class _StockopnameScreenState extends State<StockopnameScreen> with RouteAware {
     );
   }
 
-  Future<void> _loadData() async {
+  Future<void> _loadData(
+      {bool handleRefreshController = true, bool isRefresh = false}) async {
     try {
-      setState(() {
-        _firstLoad = true; // Set ke true saat mulai loading
-      });
+      if (!isRefresh) {
+        setState(() {
+          _firstLoad =
+              true; // Set ke true saat mulai loading (kecuali saat refresh)
+        });
+      }
 
       await Future.wait([
         _stockOpnameController.fetchBuildings(context),
@@ -133,25 +137,97 @@ class _StockopnameScreenState extends State<StockopnameScreen> with RouteAware {
       ]);
 
       // Setelah data dimuat, tandai first load selesai
-      setState(() {
-        _firstLoad = false;
-      });
+      if (!isRefresh) {
+        setState(() {
+          _firstLoad = false;
+        });
+      }
 
-      if (_refreshController.isRefresh) {
+      if (handleRefreshController && _refreshController.isRefresh) {
         _refreshController.refreshCompleted();
       }
     } catch (e) {
       print('Error loading data: $e');
 
-      setState(() {
-        _firstLoad =
-            false; // Pastikan _firstLoad diset false bahkan jika terjadi error
-      });
+      if (!isRefresh) {
+        setState(() {
+          _firstLoad =
+              false; // Pastikan _firstLoad diset false bahkan jika terjadi error
+        });
+      }
 
-      if (_refreshController.isRefresh) {
+      if (handleRefreshController && _refreshController.isRefresh) {
         _refreshController.refreshFailed();
       }
     }
+  }
+
+  // Method untuk load fresh data seperti baru klik tab di dashboard
+  Future<void> _loadFreshData({bool fromRefresh = false}) async {
+    try {
+      // Reset semua state seperti baru masuk ke halaman
+      if (fromRefresh) {
+        setState(() {
+          _isRefreshing = true;
+          _firstLoad = true;
+        });
+      } else {
+        setState(() {
+          _firstLoad = true;
+        });
+      }
+
+      // Reset semua controller state
+      _stockOpnameController.clearError(); // Clear error state
+      _stockOpnameController.resetSearch();
+      _stockOpnameController.resetBuildingSelection();
+      _stockOpnameController.resetRoomSelection();
+      _stockOpnameController.resetItems(); // Reset scanned items
+
+      // Clear local scanned counts cache yang mempengaruhi progress kartu
+      _stockOpnameController.localScannedCounts.clear();
+
+      // Reset pagination pending opnames ke halaman 1
+      _resetPendingOpnamesPagination();
+
+      // Load semua data dari awal
+      await Future.wait([
+        _stockOpnameController.fetchBuildings(context),
+        _stockOpnameController.fetchPendingOpnames(context, resetList: true),
+      ]);
+
+      // Reset UI state setelah loading selesai
+      setState(() {
+        _firstLoad = false;
+        if (fromRefresh) {
+          _isRefreshing = false;
+        }
+      });
+
+      if (fromRefresh) {
+        _refreshController.refreshCompleted();
+      }
+    } catch (e) {
+      print('Error loading fresh data: $e');
+
+      setState(() {
+        _firstLoad = false;
+        if (fromRefresh) {
+          _isRefreshing = false;
+        }
+      });
+
+      if (fromRefresh) {
+        _refreshController.refreshFailed();
+      }
+    }
+  }
+
+  // Method untuk reset pagination pending opnames secara eksplisit
+  void _resetPendingOpnamesPagination() {
+    // Reset pagination state manually karena ada bug di fetchPendingOpnames
+    // yang increment page bahkan saat resetList=true
+    _stockOpnameController.resetPendingOpnamesPagination();
   }
 
   // Navigasi ke halaman scanner
@@ -221,10 +297,6 @@ class _StockopnameScreenState extends State<StockopnameScreen> with RouteAware {
 
   @override
   Widget build(BuildContext context) {
-    // Hitung tinggi bottom navigation bar untuk padding
-    final bottomPadding = MediaQuery.of(context).padding.bottom;
-    final bottomNavBarHeight = bottomPadding > 0 ? 90.0 : 70.0;
-
     return Container(
       color: Colors.white,
       child: SmartRefresher(
@@ -236,9 +308,25 @@ class _StockopnameScreenState extends State<StockopnameScreen> with RouteAware {
         physics: const BouncingScrollPhysics(
           parent: AlwaysScrollableScrollPhysics(),
         ),
-        footer: ClassicFooter(
-          loadStyle: LoadStyle.ShowWhenLoading,
-          completeDuration: const Duration(milliseconds: 500),
+        footer: CustomFooter(
+          builder: (BuildContext context, LoadStatus? mode) {
+            Widget body;
+            if (mode == LoadStatus.idle) {
+              body = const SizedBox.shrink();
+            } else if (mode == LoadStatus.loading) {
+              body = const CircularProgressIndicator();
+            } else if (mode == LoadStatus.failed) {
+              body = const SizedBox.shrink();
+            } else if (mode == LoadStatus.canLoading) {
+              body = const SizedBox.shrink();
+            } else {
+              body = const SizedBox.shrink();
+            }
+            return Container(
+              height: 55.0,
+              child: Center(child: body),
+            );
+          },
         ),
         header: const WaterDropMaterialHeader(
           backgroundColor: Colors.white,
@@ -262,9 +350,7 @@ class _StockopnameScreenState extends State<StockopnameScreen> with RouteAware {
                   child: Stack(
                     children: [
                       // Main content
-                      (_firstLoad &&
-                              (controller.isLoadingBuildings ||
-                                  controller.isLoadingRooms))
+                      (_firstLoad || _isRefreshing)
                           ? Skeletonizer(
                               enabled: true,
                               effect: ShimmerEffect(
@@ -794,46 +880,6 @@ class _StockopnameScreenState extends State<StockopnameScreen> with RouteAware {
                           return _buildOpnameCard(opname, controller);
                         },
                       ),
-
-                      // Load more indicator for pending opnames
-                      if (controller.hasMorePendingOpnames ||
-                          controller.isLoadingMorePendingOpnames)
-                        Container(
-                          padding: const EdgeInsets.symmetric(vertical: 16.0),
-                          alignment: Alignment.center,
-                          child: controller.isLoadingMorePendingOpnames
-                              ? Column(
-                                  children: [
-                                    const SizedBox(
-                                      width: 24,
-                                      height: 24,
-                                      child: CircularProgressIndicator(
-                                        strokeWidth: 2,
-                                        valueColor:
-                                            AlwaysStoppedAnimation<Color>(
-                                                Color(0xFF213268)),
-                                      ),
-                                    ),
-                                    const SizedBox(height: 8),
-                                    Text(
-                                      'Memuat stock opname lainnya...',
-                                      style: GoogleFonts.poppins(
-                                        fontSize: 14,
-                                        fontWeight: FontWeight.w500,
-                                        color: Colors.grey[700],
-                                      ),
-                                    ),
-                                  ],
-                                )
-                              : Text(
-                                  'Tarik ke atas untuk memuat lebih banyak',
-                                  style: GoogleFonts.poppins(
-                                    fontSize: 12,
-                                    fontWeight: FontWeight.w400,
-                                    color: Colors.grey[600],
-                                  ),
-                                ),
-                        ),
                     ],
                   ),
               ],
@@ -2074,17 +2120,9 @@ class _StockopnameScreenState extends State<StockopnameScreen> with RouteAware {
     );
   }
 
-  // Menangani refresh dengan lebih efisien
+  // Menangani refresh dengan lebih efisien - seperti baru klik tab
   Future<void> _handleRefresh() async {
-    try {
-      // Reset pencarian terlebih dahulu
-      _stockOpnameController.resetSearch();
-
-      await _stockOpnameController.loadAllData(context);
-      _refreshController.refreshCompleted();
-    } catch (e) {
-      _refreshController.refreshFailed();
-    }
+    await _loadFreshData(fromRefresh: true);
   }
 
   Future<void> _handleLoadMore() async {

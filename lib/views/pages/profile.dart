@@ -1,16 +1,13 @@
 import 'package:flutter/material.dart';
-import '../../controllers/auth/auth_controller.dart';
 import '../../controllers/profile/profile_controller.dart';
 import '../../controllers/dashboard/dashboard_controller.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 import '../../auth/login.dart';
-import '../profile/notification_settings.dart';
 import '../../utils/logger_util.dart';
 import 'package:skeletonizer/skeletonizer.dart';
 import 'package:pull_to_refresh_flutter3/pull_to_refresh_flutter3.dart';
 import '../dashboard/dashboard.dart';
-import '../webview/web_view_screen.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -222,6 +219,7 @@ class _ProfileScreenState extends State<ProfileScreen> with RouteAware {
             ),
           ),
           const SizedBox(height: 32),
+          _buildSkeletonField(label: 'Nama Karyawan'),
           _buildSkeletonField(label: 'Nomor Karyawan'),
           _buildSkeletonField(label: 'Role'),
           const SizedBox(height: 24),
@@ -352,54 +350,59 @@ class _ProfileScreenState extends State<ProfileScreen> with RouteAware {
                               ),
                               const SizedBox(height: 32),
                               _buildProfileField(
+                                label: 'Nama Karyawan',
+                                value:
+                                    controller.profile?['employee_name'] ?? '',
+                              ),
+                              _buildProfileField(
                                 label: 'Nomor Karyawan',
                                 value: controller.profile?['employee_number'] ??
                                     '',
                               ),
                               _buildProfileField(
-                                label: 'Role',
+                                label: 'Peran',
                                 value: _getRoleNameFromRoles(
                                     controller.profile?['roles']),
                               ),
                               const SizedBox(height: 24),
-                              SizedBox(
-                                width: double.infinity,
-                                child: ElevatedButton.icon(
-                                  onPressed: () {
-                                    Navigator.push(
-                                      context,
-                                      MaterialPageRoute(
-                                        builder: (context) =>
-                                            const WebViewScreen(
-                                          initialUrl:
-                                              'https://web-magangunbin2025.rsummi.co.id/',
-                                          title: 'Web Portal SIMARU',
-                                        ),
-                                      ),
-                                    );
-                                  },
-                                  icon: const Icon(Icons.web),
-                                  label: Text(
-                                    'Buka Web Portal',
-                                    style: GoogleFonts.poppins(
-                                      fontSize: 16,
-                                      fontWeight: FontWeight.bold,
-                                      color: Colors.white,
-                                    ),
-                                  ),
-                                  style: ElevatedButton.styleFrom(
-                                    backgroundColor: const Color(0xFF213268),
-                                    foregroundColor: Colors.white,
-                                    padding: const EdgeInsets.symmetric(
-                                        vertical: 16),
-                                    shape: RoundedRectangleBorder(
-                                      borderRadius: BorderRadius.circular(8),
-                                    ),
-                                    elevation: 2,
-                                  ),
-                                ),
-                              ),
-                              const SizedBox(height: 16),
+                              // SizedBox(
+                              //   width: double.infinity,
+                              //   child: ElevatedButton.icon(
+                              //     onPressed: () {
+                              //       Navigator.push(
+                              //         context,
+                              //         MaterialPageRoute(
+                              //           builder: (context) =>
+                              //               const WebViewScreen(
+                              //             initialUrl:
+                              //                 'https://web-magangunbin2025.rsummi.co.id/',
+                              //             title: 'Web Portal SIMARU',
+                              //           ),
+                              //         ),
+                              //       );
+                              //     },
+                              //     icon: const Icon(Icons.web),
+                              //     label: Text(
+                              //       'Buka Web Portal',
+                              //       style: GoogleFonts.poppins(
+                              //         fontSize: 16,
+                              //         fontWeight: FontWeight.bold,
+                              //         color: Colors.white,
+                              //       ),
+                              //     ),
+                              //     style: ElevatedButton.styleFrom(
+                              //       backgroundColor: const Color(0xFF213268),
+                              //       foregroundColor: Colors.white,
+                              //       padding: const EdgeInsets.symmetric(
+                              //           vertical: 16),
+                              //       shape: RoundedRectangleBorder(
+                              //         borderRadius: BorderRadius.circular(8),
+                              //       ),
+                              //       elevation: 2,
+                              //     ),
+                              //   ),
+                              // ),
+                              // const SizedBox(height: 16),
                               SizedBox(
                                 width: double.infinity,
                                 child: ElevatedButton(

@@ -552,6 +552,7 @@ class _LoginScreenState extends State<LoginScreen> {
           onChanged: onChanged,
           decoration: InputDecoration(
             hintText: hint,
+            hintStyle: const TextStyle(fontSize: 13),
             prefixIcon: Icon(icon, color: const Color(0xFF203268)),
             suffixIcon: isPassword
                 ? IconButton(

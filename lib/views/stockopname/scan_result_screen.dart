@@ -467,8 +467,7 @@ class _ScanResultScreenState extends State<ScanResultScreen>
                       fontWeight: FontWeight.w600,
                       color: const Color(0xFF213268),
                     ),
-                    overflow: TextOverflow.ellipsis,
-                    maxLines: 2,
+                    // Removed overflow and maxLines to allow wrapping
                   ),
                 ),
                 const SizedBox(width: 8),
@@ -497,7 +496,7 @@ class _ScanResultScreenState extends State<ScanResultScreen>
                     fontSize: 12,
                     color: Colors.grey[600],
                   ),
-                  overflow: TextOverflow.ellipsis,
+                  // Removed overflow to allow wrapping
                 ),
               ),
             if (controller.opnameInfo != null)
@@ -509,7 +508,7 @@ class _ScanResultScreenState extends State<ScanResultScreen>
                     fontSize: 12,
                     color: Colors.grey[600],
                   ),
-                  overflow: TextOverflow.ellipsis,
+                  // Removed overflow to allow wrapping
                 ),
               ),
             const SizedBox(height: 12),

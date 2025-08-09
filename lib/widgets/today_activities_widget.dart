@@ -455,8 +455,12 @@ class _TodayActivitiesWidgetState extends State<TodayActivitiesWidget> {
       case 'perbaikan':
       case 'dalam':
       case 'in repair':
+      case 'under repair':
+      case 'under_repair':
+      case 'underrepair':
       case 'rusak':
       case 'damaged':
+      case 'under':
         return "PERBAIKAN";
       case 'dimusnahkan':
       case 'disposed':
@@ -472,17 +476,17 @@ class _TodayActivitiesWidgetState extends State<TodayActivitiesWidget> {
   Color _getStatusColor(String status) {
     switch (status) {
       case 'TERSEDIA':
-        return const Color(0xFF5EA004);
+        return const Color(0xFF7CB60C); // Hijau
       case 'PERBAIKAN':
-        return const Color(0xFF0277BD);
+        return const Color(0xFF25B1FF); // Biru
       case 'DIPINJAM':
-        return const Color(0xFFEF6C00);
-      case 'DIMUSNAHKAN':
-        return const Color(0xFF546E7A);
+        return const Color(0xFFDAAE0F); // Kuning
+      case 'DIHAPUSKAN':
+        return const Color(0xFFACC3EF); // Abu-abu
       case 'HILANG':
-        return const Color(0xFFD32F2F);
+        return const Color(0xFFFF4A2B); // Merah
       default:
-        return const Color(0xFF616161);
+        return Colors.grey;
     }
   }
 }
