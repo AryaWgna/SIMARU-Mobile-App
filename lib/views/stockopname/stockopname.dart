@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'dart:async';
+import 'package:intl/intl.dart';
 import '../../controllers/dashboard/dashboard_controller.dart';
 import '../../utils/logger_util.dart';
 import 'stockopname_scanner.dart';
@@ -35,6 +36,9 @@ class _StockopnameScreenState extends State<StockopnameScreen> with RouteAware {
   @override
   void initState() {
     super.initState();
+    // Set default locale for date formatting
+    Intl.defaultLocale = 'id_ID';
+
     _stockOpnameController =
         Provider.of<StockOpnameController>(context, listen: false);
 
@@ -781,17 +785,17 @@ class _StockopnameScreenState extends State<StockopnameScreen> with RouteAware {
                     height: 1, thickness: 1, color: Color(0xFFEEEEEE)),
                 const SizedBox(height: 24),
 
-                // Pending opnames section
+                // History opnames section
                 Row(
                   children: [
                     const Icon(
-                      Icons.access_time,
+                      Icons.history,
                       color: Color(0xFF213268),
                       size: 20,
                     ),
                     const SizedBox(width: 8),
                     Text(
-                      'Stock Opname Berlangsung',
+                      'Riwayat Stock Opname',
                       style: GoogleFonts.poppins(
                         fontSize: 18,
                         fontWeight: FontWeight.bold,
@@ -814,7 +818,7 @@ class _StockopnameScreenState extends State<StockopnameScreen> with RouteAware {
                     child: Column(
                       children: [
                         Text(
-                          'Gagal memuat data stock opname',
+                          'Gagal memuat Riwayat stock opname',
                           style: GoogleFonts.poppins(
                             fontSize: 14,
                             fontWeight: FontWeight.w500,
@@ -855,7 +859,7 @@ class _StockopnameScreenState extends State<StockopnameScreen> with RouteAware {
                           ),
                           const SizedBox(height: 16),
                           Text(
-                            'Tidak ada stock opname yang sedang berlangsung',
+                            'Tidak ada Riwayat stock opname',
                             textAlign: TextAlign.center,
                             style: GoogleFonts.poppins(
                               fontSize: 14,
@@ -895,7 +899,6 @@ class _StockopnameScreenState extends State<StockopnameScreen> with RouteAware {
     final localCount = controller.getLocalScannedCount(opname.opnameId);
     final progress =
         opname.totalAssets > 0 ? localCount / opname.totalAssets : 0.0;
-    final isCompleted = opname.status == 'completed';
 
     return Container(
       width: double.infinity,
@@ -908,40 +911,35 @@ class _StockopnameScreenState extends State<StockopnameScreen> with RouteAware {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          // Title without status badge
+          Text(
+            'Stock Opname ${opname.roomName}',
+            style: GoogleFonts.poppins(
+              fontSize: 16,
+              fontWeight: FontWeight.w600,
+              color: const Color(0xFF213268),
+            ),
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+          ),
+          const SizedBox(height: 8),
+          // Date and time
           Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Expanded(
-                flex: 3,
-                child: Text(
-                  'Stock Opname ${opname.roomName}',
-                  style: GoogleFonts.poppins(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w600,
-                    color: const Color(0xFF213268),
-                  ),
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                ),
+              const Icon(
+                Icons.calendar_today,
+                size: 16,
+                color: Colors.grey,
               ),
-              const SizedBox(width: 8),
-              Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-                decoration: BoxDecoration(
-                  color: isCompleted
-                      ? Colors.green.withOpacity(0.1)
-                      : Colors.blue.withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(4),
-                ),
-                child: Text(
-                  isCompleted ? 'Selesai' : 'Sedang Berlangsung',
-                  style: GoogleFonts.poppins(
-                    fontSize: 12,
-                    color: isCompleted ? Colors.green : Colors.blue,
-                    fontWeight: FontWeight.w500,
-                  ),
+              const SizedBox(width: 4),
+              Text(
+                opname.createdAt != null
+                    ? DateFormat('dd MMM yyyy • HH:mm', 'id_ID')
+                        .format(opname.createdAt!.toLocal())
+                    : 'Tanggal tidak tersedia',
+                style: GoogleFonts.poppins(
+                  fontSize: 12,
+                  color: Colors.grey[600],
                 ),
               ),
             ],
@@ -980,88 +978,45 @@ class _StockopnameScreenState extends State<StockopnameScreen> with RouteAware {
           LinearProgressIndicator(
             value: progress,
             backgroundColor: Colors.grey[200],
-            valueColor: AlwaysStoppedAnimation<Color>(
-                isCompleted ? Colors.green : const Color(0xFF213268)),
+            valueColor: const AlwaysStoppedAnimation<Color>(Color(0xFF213268)),
           ),
           const SizedBox(height: 12),
+          // Tampilan seperti Riwayat - hanya tombol "Lihat Detail"
           Row(
             children: [
               Expanded(
                 child: ElevatedButton.icon(
-                  onPressed: isCompleted
-                      ? null // Disable button if completed
-                      : () {
-                          _navigateToScanner(
-                            opname.opnameId,
-                            opname.opnameCode,
-                            opname.roomId,
-                            opname.roomName,
-                            opname.totalAssets,
-                          );
-                        },
+                  onPressed: () {
+                    // Navigasi ke ScanResultScreen untuk melihat detail Riwayat
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => ScanResultScreen(
+                          roomName: opname.roomName,
+                          opnameId: opname.opnameId,
+                          opnameCode: opname.opnameCode,
+                        ),
+                      ),
+                    );
+                  },
                   style: ElevatedButton.styleFrom(
                     backgroundColor: Colors.white,
                     foregroundColor: const Color(0xFF213268),
                     minimumSize: const Size(double.infinity, 36),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(6),
-                      side: BorderSide(
-                          color: isCompleted
-                              ? Colors.grey
-                              : const Color(0xFF213268)),
+                      side: const BorderSide(color: Color(0xFF213268)),
                     ),
                     elevation: 0,
-                    disabledForegroundColor: Colors.grey.withOpacity(0.38),
-                    disabledBackgroundColor: Colors.grey.withOpacity(0.12),
                   ),
-                  icon: const Icon(Icons.qr_code_scanner, size: 16),
+                  icon: const Icon(Icons.analytics, size: 16),
                   label: Text(
-                    isCompleted ? 'Scan Selesai' : 'Lanjutkan Scan',
+                    'Lihat Detail',
                     style: GoogleFonts.poppins(
                       fontSize: 14,
                       fontWeight: FontWeight.w500,
                     ),
                   ),
-                ),
-              ),
-              const SizedBox(width: 8),
-              ElevatedButton(
-                onPressed: () {
-                  // Navigasi langsung ke ScanResultScreen tanpa menampilkan SnackBar
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => ScanResultScreen(
-                        roomName: opname.roomName,
-                        opnameId: opname.opnameId,
-                        opnameCode: opname.opnameCode,
-                      ),
-                    ),
-                  );
-                },
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.white,
-                  foregroundColor: const Color(0xFF213268),
-                  minimumSize: const Size(100, 36),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(6),
-                    side: const BorderSide(color: Color(0xFF213268)),
-                  ),
-                  elevation: 0,
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    const Icon(Icons.analytics, size: 16),
-                    const SizedBox(width: 4),
-                    Text(
-                      'Lihat Detail',
-                      style: GoogleFonts.poppins(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
-                  ],
                 ),
               ),
             ],

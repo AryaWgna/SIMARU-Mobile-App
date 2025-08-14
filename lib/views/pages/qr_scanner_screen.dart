@@ -190,7 +190,7 @@ class _QRScannerScreenState extends State<QRScannerScreen>
                 }, (mobileController) {
                   // Simpan controller
                   _mobileScannerController = mobileController;
-                  
+
                   // Defer state changes to avoid setState during build
                   WidgetsBinding.instance.addPostFrameCallback((_) {
                     controller.setQRViewController(mobileController);

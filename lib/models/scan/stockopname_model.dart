@@ -539,6 +539,7 @@ class StockOpname {
   final int totalAssets;
   final int scannedAssets;
   final String status;
+  final DateTime? createdAt;
 
   StockOpname({
     required this.opnameId,
@@ -548,6 +549,7 @@ class StockOpname {
     required this.totalAssets,
     required this.scannedAssets,
     this.status = 'pending',
+    this.createdAt,
   });
 
   factory StockOpname.fromJson(Map<String, dynamic> json) {
@@ -559,6 +561,9 @@ class StockOpname {
       totalAssets: json['total_assets'] ?? 0,
       scannedAssets: json['scanned_assets'] ?? 0,
       status: json['status'] ?? 'pending',
+      createdAt: json['created_at'] != null
+          ? DateTime.parse(json['created_at'])
+          : null,
     );
   }
 
@@ -571,6 +576,7 @@ class StockOpname {
     int? totalAssets,
     int? scannedAssets,
     String? status,
+    DateTime? createdAt,
   }) {
     return StockOpname(
       opnameId: opnameId ?? this.opnameId,
@@ -580,6 +586,7 @@ class StockOpname {
       totalAssets: totalAssets ?? this.totalAssets,
       scannedAssets: scannedAssets ?? this.scannedAssets,
       status: status ?? this.status,
+      createdAt: createdAt ?? this.createdAt,
     );
   }
 }

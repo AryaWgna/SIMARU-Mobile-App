@@ -5,6 +5,7 @@ import 'package:mobile_scanner/mobile_scanner.dart';
 import 'dart:convert';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
+import 'package:http/http.dart' as http;
 import 'scan_result_screen.dart';
 import '../../controllers/scan/stockopname_controller.dart';
 import 'stockopname_scanner_stub.dart';
@@ -1727,7 +1728,31 @@ class _StockopnameScannerState extends State<StockopnameScanner>
                           }
 
                           // Use detailed data if available, otherwise fallback to original asset data
-                          final displayAsset = _detailedAsset ?? asset;
+                          // Get the most up-to-date asset data from controller
+                          StockOpnameItem? latestAsset;
+
+                          // Try to find the latest asset data from scanned items first
+                          final scannedIndex =
+                              _stockOpnameController.scannedItems.indexWhere(
+                                  (item) => item.assetCode == asset.assetCode);
+                          if (scannedIndex != -1) {
+                            latestAsset = _stockOpnameController
+                                .scannedItems[scannedIndex];
+                          } else {
+                            // Try to find in all room assets
+                            final roomIndex = _stockOpnameController
+                                .allRoomAssets
+                                .indexWhere((item) =>
+                                    item.assetCode == asset.assetCode);
+                            if (roomIndex != -1) {
+                              latestAsset = _stockOpnameController
+                                  .allRoomAssets[roomIndex];
+                            }
+                          }
+
+                          // Use the most up-to-date asset data
+                          final displayAsset =
+                              latestAsset ?? _detailedAsset ?? asset;
 
                           return SingleChildScrollView(
                             padding: const EdgeInsets.all(16),
@@ -1779,11 +1804,8 @@ class _StockopnameScannerState extends State<StockopnameScanner>
                                           Icons.label_outline,
                                           'Kategori:',
                                           displayAsset.subcategoryName!),
-                                    _buildDetailRow(
-                                        Icons.build,
-                                        'Kondisi:',
-                                        _getConditionDisplay(
-                                            displayAsset.condition)),
+                                    _buildEditableConditionRow(
+                                        displayAsset, setModalState),
                                     _buildDetailRow(
                                         Icons.info,
                                         'Status:',
@@ -2110,20 +2132,447 @@ class _StockopnameScannerState extends State<StockopnameScanner>
         return 'Baik';
       case 'damaged':
         return 'Rusak';
-      case 'broken':
-        return 'Rusak Parah';
-      case 'lost':
-        return 'Hilang';
-      case 'new':
-        return 'Baru';
-      case 'used':
-        return 'Bekas';
-      case 'under_repair':
-        return 'Dalam Perbaikan';
-      case 'retired':
-        return 'Pensiun';
       default:
         return condition;
+    }
+  }
+
+  // Build editable condition row for asset details bottomsheet - konsisten dengan UI lainnya
+  Widget _buildEditableConditionRow(
+      StockOpnameItem asset, StateSetter setModalState) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(
+            width: 24,
+            child: Icon(
+              Icons.build,
+              size: 20,
+              color: Colors.grey[600],
+            ),
+          ),
+          const SizedBox(width: 12),
+          SizedBox(
+            width: 100,
+            child: Text(
+              'Kondisi:',
+              style: GoogleFonts.poppins(
+                fontSize: 13,
+                color: Colors.grey[600],
+              ),
+            ),
+          ),
+          Expanded(
+            child: InkWell(
+              onTap: () => _showConditionSelector(asset, setModalState),
+              borderRadius: BorderRadius.circular(6),
+              child: Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                decoration: BoxDecoration(
+                  border: Border.all(color: Colors.grey[300]!),
+                  borderRadius: BorderRadius.circular(6),
+                  color: Colors.grey[50],
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      _getConditionDisplay(asset.condition),
+                      style: GoogleFonts.poppins(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w500,
+                        color: _getConditionColor(asset.condition),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Icon(
+                      Icons.edit,
+                      color: Colors.grey[600],
+                      size: 16,
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // Get color for condition display
+  Color _getConditionColor(String condition) {
+    switch (condition.toLowerCase()) {
+      case 'good':
+        return Colors.green;
+      case 'damaged':
+        return Colors.red;
+      default:
+        return Colors.blue;
+    }
+  }
+
+  // Show condition selector dialog
+  void _showConditionSelector(
+      StockOpnameItem asset, StateSetter setModalState) {
+    final List<Map<String, String>> conditions = [
+      {'value': 'good', 'label': 'Baik'},
+      {'value': 'damaged', 'label': 'Rusak'},
+    ];
+
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: Text(
+            'Pilih Kondisi Aset',
+            style: GoogleFonts.poppins(
+              fontSize: 18,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: conditions.map((condition) {
+              final isSelected =
+                  condition['value'] == asset.condition.toLowerCase();
+              return ListTile(
+                leading: Container(
+                  width: 20,
+                  height: 20,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: isSelected
+                        ? const Color(0xFF213268)
+                        : Colors.transparent,
+                    border: Border.all(
+                      color: isSelected ? const Color(0xFF213268) : Colors.grey,
+                      width: 2,
+                    ),
+                  ),
+                  child: isSelected
+                      ? const Icon(
+                          Icons.check,
+                          size: 14,
+                          color: Colors.white,
+                        )
+                      : null,
+                ),
+                title: Text(
+                  condition['label']!,
+                  style: GoogleFonts.poppins(
+                    fontSize: 14,
+                    fontWeight:
+                        isSelected ? FontWeight.w600 : FontWeight.normal,
+                    color:
+                        isSelected ? const Color(0xFF213268) : Colors.black87,
+                  ),
+                ),
+                onTap: () {
+                  Navigator.pop(context);
+                  _updateAssetCondition(
+                      asset, condition['value']!, setModalState);
+                },
+              );
+            }).toList(),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: Text(
+                'Batal',
+                style: GoogleFonts.poppins(
+                  color: Colors.grey[600],
+                ),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  // Update asset condition to server
+  Future<void> _updateAssetCondition(StockOpnameItem asset, String newCondition,
+      StateSetter setModalState) async {
+    try {
+      // Show loading indicator
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Row(
+            children: [
+              const SizedBox(
+                width: 20,
+                height: 20,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2,
+                  valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Text(
+                'Mengubah kondisi aset...',
+                style: GoogleFonts.poppins(fontSize: 14),
+              ),
+            ],
+          ),
+          duration: const Duration(seconds: 2),
+          backgroundColor: const Color(0xFF213268),
+        ),
+      );
+
+      LoggerUtil.d(
+          'Updating asset condition: ${asset.assetCode} to $newCondition');
+      LoggerUtil.d('Asset detailId: ${asset.detailId}');
+
+      // Check if asset has detailId (for scanned assets)
+      if (asset.detailId != null) {
+        // Try multiple endpoints to find the correct one for updating condition
+        http.Response? response;
+        bool success = false;
+
+        // Get required parameters for the correct endpoint
+        final opnameId = widget.opnameId;
+        final roomId = widget.roomId;
+
+        // Use the correct endpoint format based on server specification
+        final requestBody = {
+          'opname_id': opnameId,
+          'actual_location_id': roomId,
+          'asset_code': asset.assetCode,
+          'condition': newCondition, // 'good' or 'damaged'
+        };
+
+        // Add notes if asset has existing notes
+        if (asset.notes != null && asset.notes!.isNotEmpty) {
+          requestBody['notes'] = asset.notes!;
+        }
+
+        final attempts = [
+          {
+            'endpoint': '/asset-opname-details',
+            'method': 'post',
+            'body': requestBody,
+            'description': 'Correct server endpoint with POST',
+          },
+        ];
+
+        for (final attempt in attempts) {
+          try {
+            LoggerUtil.d('Trying: ${attempt['description']}');
+            LoggerUtil.d('Endpoint: ${attempt['endpoint']}');
+            LoggerUtil.d('Method: ${attempt['method']}');
+            LoggerUtil.d('Body: ${attempt['body']}');
+
+            // Use appropriate HTTP method
+            if (attempt['method'] == 'post') {
+              response = await auth.ApiService.post(
+                attempt['endpoint'] as String,
+                body: attempt['body'] as Map<String, dynamic>,
+                context: context,
+              );
+            } else {
+              response = await auth.ApiService.put(
+                attempt['endpoint'] as String,
+                body: attempt['body'] as Map<String, dynamic>,
+                context: context,
+              );
+            }
+
+            LoggerUtil.d('Response status: ${response.statusCode}');
+            LoggerUtil.d('Response body: ${response.body}');
+
+            if (response.statusCode == 200 || response.statusCode == 201) {
+              final data = jsonDecode(response.body);
+              if (data['success'] == true) {
+                LoggerUtil.i('Success with: ${attempt['description']}');
+                success = true;
+                break;
+              }
+            }
+          } catch (e) {
+            LoggerUtil.d('Failed with ${attempt['description']}: $e');
+            continue;
+          }
+        }
+
+        if (!success) {
+          LoggerUtil.w('All API update methods failed, updating locally only');
+          // Update locally if all API methods fail
+          _updateLocalAssetCondition(asset.assetCode, newCondition);
+
+          setModalState(() {
+            // Force rebuild of the modal content with updated condition
+          });
+
+          ScaffoldMessenger.of(context).hideCurrentSnackBar();
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                'Kondisi aset diubah secara lokal. Server update gagal.',
+                style: GoogleFonts.poppins(fontSize: 14),
+              ),
+              backgroundColor: Colors.orange,
+              duration: const Duration(seconds: 3),
+            ),
+          );
+          return; // Exit early since we handled it locally
+        }
+
+        // If we reach here, one of the attempts was successful
+        // Update local asset condition
+        _updateLocalAssetCondition(asset.assetCode, newCondition);
+
+        // Update the modal state to reflect changes
+        setModalState(() {
+          // Force rebuild of the modal content with updated condition
+        });
+
+        // Show success message
+        ScaffoldMessenger.of(context).hideCurrentSnackBar();
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'Kondisi aset berhasil diubah menjadi ${_getConditionDisplay(newCondition)}',
+              style: GoogleFonts.poppins(fontSize: 14),
+            ),
+            backgroundColor: Colors.green,
+            duration: const Duration(seconds: 2),
+          ),
+        );
+      } else {
+        LoggerUtil.d(
+            'Asset has no detailId, trying to update via server endpoint');
+
+        // For non-scanned assets, try the same server endpoint
+        final opnameId = widget.opnameId;
+        final roomId = widget.roomId;
+
+        try {
+          final requestBody = {
+            'opname_id': opnameId,
+            'actual_location_id': roomId,
+            'asset_code': asset.assetCode,
+            'condition': newCondition,
+          };
+
+          // Add notes if asset has existing notes
+          if (asset.notes != null && asset.notes!.isNotEmpty) {
+            requestBody['notes'] = asset.notes!;
+          }
+
+          LoggerUtil.d('Updating non-scanned asset via server: $requestBody');
+
+          final response = await auth.ApiService.post(
+            '/asset-opname-details',
+            body: requestBody,
+            context: context,
+          );
+
+          LoggerUtil.d('Response status: ${response.statusCode}');
+          LoggerUtil.d('Response body: ${response.body}');
+
+          if (response.statusCode == 200 || response.statusCode == 201) {
+            final data = jsonDecode(response.body);
+            if (data['success'] == true) {
+              // Server update successful
+              _updateLocalAssetCondition(asset.assetCode, newCondition);
+
+              setModalState(() {
+                // Force rebuild of the modal content with updated condition
+              });
+
+              ScaffoldMessenger.of(context).hideCurrentSnackBar();
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text(
+                    'Kondisi aset berhasil diubah menjadi ${_getConditionDisplay(newCondition)}',
+                    style: GoogleFonts.poppins(fontSize: 14),
+                  ),
+                  backgroundColor: Colors.green,
+                  duration: const Duration(seconds: 2),
+                ),
+              );
+              return;
+            }
+          }
+        } catch (e) {
+          LoggerUtil.w('Server update failed for non-scanned asset: $e');
+        }
+
+        // Fallback to local update if server fails
+        LoggerUtil.d('Fallback: updating locally only');
+        _updateLocalAssetCondition(asset.assetCode, newCondition);
+
+        setModalState(() {
+          // Force rebuild of the modal content with updated condition
+        });
+
+        ScaffoldMessenger.of(context).hideCurrentSnackBar();
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'Kondisi aset diubah secara lokal: ${_getConditionDisplay(newCondition)}',
+              style: GoogleFonts.poppins(fontSize: 14),
+            ),
+            backgroundColor: Colors.orange,
+            duration: const Duration(seconds: 3),
+          ),
+        );
+      }
+    } catch (e) {
+      LoggerUtil.e('Error updating asset condition', e, StackTrace.current);
+
+      ScaffoldMessenger.of(context).hideCurrentSnackBar();
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Gagal mengubah kondisi aset: ${e.toString()}',
+            style: GoogleFonts.poppins(fontSize: 14),
+          ),
+          backgroundColor: Colors.red,
+          duration: const Duration(seconds: 3),
+        ),
+      );
+    }
+  }
+
+  // Update local asset condition in all relevant lists
+  void _updateLocalAssetCondition(String assetCode, String newCondition) {
+    LoggerUtil.d(
+        'Updating local asset condition for $assetCode to $newCondition');
+
+    bool updated = false;
+
+    // Update in scanned items
+    final scannedIndex = _stockOpnameController.scannedItems
+        .indexWhere((item) => item.assetCode == assetCode);
+    if (scannedIndex != -1) {
+      final updatedItem = _stockOpnameController.scannedItems[scannedIndex]
+          .copyWith(condition: newCondition);
+      _stockOpnameController.scannedItems[scannedIndex] = updatedItem;
+      LoggerUtil.d('Updated asset in scannedItems list');
+      updated = true;
+    }
+
+    // Update in all room assets
+    final allRoomIndex = _stockOpnameController.allRoomAssets
+        .indexWhere((item) => item.assetCode == assetCode);
+    if (allRoomIndex != -1) {
+      final updatedItem = _stockOpnameController.allRoomAssets[allRoomIndex]
+          .copyWith(condition: newCondition);
+      _stockOpnameController.allRoomAssets[allRoomIndex] = updatedItem;
+      LoggerUtil.d('Updated asset in allRoomAssets list');
+      updated = true;
+    }
+
+    if (updated) {
+      LoggerUtil.d('Successfully updated asset condition locally');
+    } else {
+      LoggerUtil.w('Asset $assetCode not found in any list for update');
     }
   }
 
