@@ -217,6 +217,77 @@ class ScanResultController extends ChangeNotifier {
     LoggerUtil.d('Notified listeners of notes update');
   }
 
+  // Update kondisi aset berdasarkan asset code
+  void updateAssetCondition(String assetCode, String newCondition) {
+    LoggerUtil.d('Updating condition for asset: $assetCode to $newCondition');
+
+    bool updated = false;
+
+    // Update di found assets
+    for (int i = 0; i < _foundAssets.length; i++) {
+      if (_foundAssets[i].assetCode == assetCode) {
+        // Preserve original condition if not already set
+        String? originalCondition = _foundAssets[i].originalCondition;
+        if (originalCondition == null || originalCondition.isEmpty) {
+          originalCondition = _foundAssets[i].condition;
+        }
+
+        _foundAssets[i] = _foundAssets[i].copyWith(
+          condition: newCondition,
+          originalCondition: originalCondition,
+        );
+        LoggerUtil.d('Updated condition in foundAssets list');
+        updated = true;
+        break;
+      }
+    }
+
+    // Update di missing assets
+    for (int i = 0; i < _missingAssets.length; i++) {
+      if (_missingAssets[i].assetCode == assetCode) {
+        // Preserve original condition if not already set
+        String? originalCondition = _missingAssets[i].originalCondition;
+        if (originalCondition == null || originalCondition.isEmpty) {
+          originalCondition = _missingAssets[i].condition;
+        }
+
+        _missingAssets[i] = _missingAssets[i].copyWith(
+          condition: newCondition,
+          originalCondition: originalCondition,
+        );
+        LoggerUtil.d('Updated condition in missingAssets list');
+        updated = true;
+        break;
+      }
+    }
+
+    // Update di misplaced assets
+    for (int i = 0; i < _misplacedAssets.length; i++) {
+      if (_misplacedAssets[i].assetCode == assetCode) {
+        // Preserve original condition if not already set
+        String? originalCondition = _misplacedAssets[i].originalCondition;
+        if (originalCondition == null || originalCondition.isEmpty) {
+          originalCondition = _misplacedAssets[i].condition;
+        }
+
+        _misplacedAssets[i] = _misplacedAssets[i].copyWith(
+          condition: newCondition,
+          originalCondition: originalCondition,
+        );
+        LoggerUtil.d('Updated condition in misplacedAssets list');
+        updated = true;
+        break;
+      }
+    }
+
+    if (updated) {
+      notifyListeners();
+      LoggerUtil.d('Notified listeners of condition update');
+    } else {
+      LoggerUtil.w('Asset with code $assetCode not found for condition update');
+    }
+  }
+
   // Helper methods
   void setLoading(bool loading) {
     _isLoading = loading;

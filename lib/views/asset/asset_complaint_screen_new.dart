@@ -477,7 +477,7 @@ class _AssetComplaintScreenState extends State<AssetComplaintScreen> {
                               ),
                               SizedBox(width: 8),
                               Text(
-                                '(Opsional)',
+                                '(Wajib)',
                                 style: TextStyle(
                                   fontFamily: 'Poppins',
                                   fontSize: 14,

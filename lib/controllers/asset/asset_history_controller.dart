@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'dart:convert';
+import 'package:http/http.dart' as http;
 import '../auth/auth_controller.dart' as auth;
 import '../../models/asset/asset_history_item_model.dart';
 import '../../utils/logger_util.dart';
@@ -41,10 +42,23 @@ class AssetHistoryController extends ChangeNotifier {
   bool _hasMoreData = true;
   final int _limit = 10;
   DateTime _selectedDate = DateTime.now();
+  bool _hasFilteredOnce =
+      false; // Track apakah filtering sudah pernah dilakukan
 
-  // Getters
-  List<AssetHistoryItem> get histories =>
-      _filteredHistories.isNotEmpty ? _filteredHistories : _histories;
+  // Getters - FIXED: Always return filtered results, even if empty
+  List<AssetHistoryItem> get histories {
+    // Jika sudah pernah melakukan filtering, selalu return hasil filter (bahkan jika kosong)
+    // Jika belum pernah filtering, return semua data
+    final shouldReturnFiltered =
+        _filteredHistories.isNotEmpty || _hasFilteredOnce;
+    final result = shouldReturnFiltered ? _filteredHistories : _histories;
+
+    LoggerUtil.d(
+        '🔍 GETTER DEBUG: _hasFilteredOnce=$_hasFilteredOnce, _filteredHistories.length=${_filteredHistories.length}, _histories.length=${_histories.length}, returning ${result.length} items');
+
+    return result;
+  }
+
   bool get isLoading => _isLoading;
   String? get error => _error;
   Map<String, dynamic>? get pagination => _pagination;
@@ -86,32 +100,133 @@ class AssetHistoryController extends ChangeNotifier {
     notifyListeners();
   }
 
-  // Method untuk memfilter riwayat berdasarkan tanggal yang dipilih
+  // Method untuk memfilter riwayat berdasarkan tanggal yang dipilih (STRICT VERSION)
   void filterHistoriesByDate() {
     final selectedDateStr = formatDateForComparison(_selectedDate);
 
+    LoggerUtil.d('=== MULAI STRICT DATE FILTER DEBUG ===');
+    LoggerUtil.d('Tanggal yang dipilih: $_selectedDate');
+    LoggerUtil.d('Tanggal terpilih (formatted): $selectedDateStr');
+    LoggerUtil.d('Total riwayat sebelum filter: ${_histories.length}');
+
+    // Mark bahwa filtering sudah pernah dilakukan
+    _hasFilteredOnce = true;
+
     _filteredHistories = _histories.where((history) {
+      // Multiple validation untuk memastikan akurasi
       final historyDateStr = formatDateForComparison(history.actionDate);
-      return historyDateStr == selectedDateStr;
+
+      // Validation 1: String comparison
+      final stringMatch = historyDateStr == selectedDateStr;
+
+      // Validation 2: Component-wise comparison untuk extra safety
+      final componentMatch = _selectedDate.year == history.actionDate.year &&
+          _selectedDate.month == history.actionDate.month &&
+          _selectedDate.day == history.actionDate.day;
+
+      // Validation 3: DateTime comparison (normalize ke date-only)
+      final selectedDateOnly =
+          DateTime(_selectedDate.year, _selectedDate.month, _selectedDate.day);
+      final historyDateOnly = DateTime(history.actionDate.year,
+          history.actionDate.month, history.actionDate.day);
+      final dateTimeMatch = selectedDateOnly.isAtSameMomentAs(historyDateOnly);
+
+      // SEMUA validation harus TRUE untuk lolos filter
+      final isMatch = stringMatch && componentMatch && dateTimeMatch;
+
+      // Log hanya untuk item yang tidak match atau yang bermasalah
+      if (!isMatch ||
+          (stringMatch != componentMatch || componentMatch != dateTimeMatch)) {
+        LoggerUtil.d(
+            '=== ITEM VALIDATION (${isMatch ? 'FAILED VALIDATION' : 'NO MATCH'}) ===');
+        LoggerUtil.d('History: ${history.actionDate} -> $historyDateStr');
+        LoggerUtil.d('Selected: $_selectedDate -> $selectedDateStr');
+        LoggerUtil.d(
+            'String match: $stringMatch, Component match: $componentMatch, DateTime match: $dateTimeMatch');
+        LoggerUtil.d('Final result: $isMatch');
+      }
+
+      // Alert jika ada inconsistency dalam validation
+      if (stringMatch != componentMatch ||
+          componentMatch != dateTimeMatch ||
+          stringMatch != dateTimeMatch) {
+        LoggerUtil.e(
+            'VALIDATION INCONSISTENCY! String: $stringMatch, Component: $componentMatch, DateTime: $dateTimeMatch');
+        LoggerUtil.e(
+            'History date: ${history.actionDate}, Selected date: $_selectedDate');
+      }
+
+      return isMatch;
     }).toList();
 
-    LoggerUtil.d('Tanggal terpilih: $selectedDateStr');
-    LoggerUtil.d('Total riwayat: ${_histories.length}');
-    LoggerUtil.d('Riwayat terfilter: ${_filteredHistories.length}');
+    LoggerUtil.d('Riwayat setelah STRICT filter: ${_filteredHistories.length}');
+
+    // Improved result validation
+    if (_filteredHistories.isEmpty) {
+      LoggerUtil.i('✓ CORRECT: Tidak ada data untuk tanggal $selectedDateStr');
+
+      // Show available dates for reference
+      LoggerUtil.d('Available dates (first 5):');
+      for (int i = 0; i < _histories.length && i < 5; i++) {
+        final historyDateStr =
+            formatDateForComparison(_histories[i].actionDate);
+        LoggerUtil.d('  [$i] ${_histories[i].actionDate} -> $historyDateStr');
+      }
+    } else {
+      LoggerUtil.i(
+          '✓ FOUND: ${_filteredHistories.length} item(s) untuk tanggal $selectedDateStr');
+
+      // Double-check: Pastikan semua hasil filter benar-benar sesuai tanggal
+      bool hasWrongData = false;
+      for (int i = 0; i < _filteredHistories.length; i++) {
+        final item = _filteredHistories[i];
+        final itemDateStr = formatDateForComparison(item.actionDate);
+        if (itemDateStr != selectedDateStr) {
+          LoggerUtil.e(
+              '❌ ERROR: Item [$i] has WRONG DATE: ${item.actionDate} -> $itemDateStr (expected: $selectedDateStr)');
+          hasWrongData = true;
+        }
+      }
+
+      if (!hasWrongData) {
+        LoggerUtil.i(
+            '✓ VALIDATION PASSED: All filtered items have correct date');
+      }
+    }
+
+    LoggerUtil.d('=== SELESAI STRICT DATE FILTER DEBUG ===');
 
     // Pastikan notifyListeners dipanggil agar UI diperbarui
     notifyListeners();
   }
 
-  // Helper untuk format tanggal untuk perbandingan (YYYY-MM-DD)
+  // Helper untuk format tanggal untuk perbandingan (YYYY-MM-DD) - STRICT VERSION
   String formatDateForComparison(DateTime date) {
-    return '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
+    // Handle timezone issues: convert ke local time dulu
+    final localTime = date.toLocal();
+
+    // Extract hanya komponen tanggal, ignore waktu
+    final dateOnly = DateTime(localTime.year, localTime.month, localTime.day);
+
+    // Format ke string dengan padding zero
+    final formatted =
+        '${dateOnly.year}-${dateOnly.month.toString().padLeft(2, '0')}-${dateOnly.day.toString().padLeft(2, '0')}';
+
+    // Debug logging untuk konversi timezone (hanya jika ada perbedaan signifikan)
+    if ((date.timeZoneOffset.inHours.abs() > 0 &&
+            (date.hour != 0 || date.minute != 0)) ||
+        (localTime.day != date.day)) {
+      LoggerUtil.d(
+          'Timezone conversion: $date -> Local: $localTime -> DateOnly: $dateOnly -> Formatted: $formatted');
+    }
+
+    return formatted;
   }
 
   // Format tanggal untuk parameter API
   String formatAPIDateParam(DateTime date) {
-    // Format tanggal yang diharapkan API: DD-MM-YYYY
-    return '${date.day.toString().padLeft(2, '0')}-${date.month.toString().padLeft(2, '0')}-${date.year}';
+    // Format tanggal yang diharapkan API: YYYY-MM-DD (format ISO standar)
+    return '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
   }
 
   // Format tanggal dari API ke format lokal
@@ -146,20 +261,24 @@ class AssetHistoryController extends ChangeNotifier {
       // Convert assetId ke string jika perlu
       String assetIdStr = assetId.toString();
 
-      // Format tanggal untuk parameter API: DD-MM-YYYY
+      // Format tanggal untuk parameter API: YYYY-MM-DD
       final selectedDateStr = formatAPIDateParam(_selectedDate);
 
-      // Menggunakan endpoint dengan parameter tanggal
-      final endpoint = '/asset-histories/$assetIdStr?date=$selectedDateStr';
+      // Langsung gunakan endpoint tanpa parameter date (karena API tidak support date filter)
+      // Kita akan lakukan filtering di client-side
+      String endpoint = '/asset-histories/$assetIdStr';
       LoggerUtil.d('Memanggil API endpoint: $endpoint');
-      LoggerUtil.d('Tanggal yang dipilih: $selectedDateStr');
+      LoggerUtil.d(
+          'Tanggal yang dipilih untuk filter client-side: $selectedDateStr');
 
-      final response = await auth.ApiService.get(endpoint, context: context);
+      http.Response response =
+          await auth.ApiService.get(endpoint, context: context);
       LoggerUtil.d('Response status: ${response.statusCode}');
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
         LoggerUtil.d('Response data received');
+        LoggerUtil.d('Full response: ${jsonEncode(data)}');
 
         if (data['success'] == true) {
           List<dynamic> allHistories = [];
@@ -175,10 +294,21 @@ class AssetHistoryController extends ChangeNotifier {
             } else if (data['data']['items'] != null) {
               // Alternatif: data.items
               allHistories = data['data']['items'];
+            } else {
+              // Cek key lain yang mungkin
+              LoggerUtil.d(
+                  'Struktur data tidak dikenal, keys: ${data['data'].keys}');
+              // Ambil semua values yang berupa List
+              for (var value in data['data'].values) {
+                if (value is List) {
+                  allHistories = value;
+                  break;
+                }
+              }
             }
           }
 
-          LoggerUtil.d('Jumlah riwayat dari API: ${allHistories.length}');
+          LoggerUtil.d('Jumlah total riwayat dari API: ${allHistories.length}');
 
           // Konversi ke model AssetHistoryItem
           _histories = allHistories
@@ -188,11 +318,13 @@ class AssetHistoryController extends ChangeNotifier {
           // Urutkan riwayat berdasarkan waktu terbaru
           _histories.sort((a, b) => b.actionDate.compareTo(a.actionDate));
 
-          // Tidak perlu filter lagi karena API sudah mengembalikan data sesuai tanggal
-          _filteredHistories = _histories;
+          // Selalu lakukan filter di client-side karena API tidak support date filtering
+          filterHistoriesByDate();
+          LoggerUtil.d(
+              'Filter client-side selesai, hasil: ${_filteredHistories.length} dari ${_histories.length} item');
 
           LoggerUtil.i(
-              'Berhasil mendapatkan ${_histories.length} riwayat aset');
+              'Berhasil mendapatkan ${_histories.length} total riwayat, ${_filteredHistories.length} sesuai tanggal');
         } else {
           _error = data['message'] ?? 'Gagal mengambil riwayat aset';
           LoggerUtil.w('Error dari API: $_error');
@@ -265,13 +397,53 @@ class AssetHistoryController extends ChangeNotifier {
     notifyListeners();
   }
 
+  // Debug utility untuk memeriksa data filtering
+  void debugFilteringData() {
+    LoggerUtil.d('=== FILTERING DATA DEBUG ===');
+    LoggerUtil.d('Selected date: $_selectedDate');
+    LoggerUtil.d('Has filtered once: $_hasFilteredOnce');
+    LoggerUtil.d('Total histories: ${_histories.length}');
+    LoggerUtil.d('Filtered histories: ${_filteredHistories.length}');
+    LoggerUtil.d('Getter will return: ${histories.length} items');
+
+    // Group data by date untuk melihat distribusi
+    final Map<String, int> dateDistribution = {};
+    for (var history in _histories) {
+      final dateStr = formatDateForComparison(history.actionDate);
+      dateDistribution[dateStr] = (dateDistribution[dateStr] ?? 0) + 1;
+    }
+
+    LoggerUtil.d('Date distribution in _histories:');
+    dateDistribution.entries.forEach((entry) {
+      LoggerUtil.d('  ${entry.key}: ${entry.value} items');
+    });
+
+    LoggerUtil.d('==========================');
+  }
+
   // Method untuk memperbarui UI ketika halaman dibuka kembali
   void refreshUI() {
     // Pastikan UI diperbarui
     notifyListeners();
   }
 
-  // Method untuk mengubah tanggal terpilih dan langsung mengambil data baru
+  // Method untuk mengubah tanggal terpilih dan filter ulang (optimized - tidak memanggil API)
+  void updateSelectedDateAndFilter(DateTime date) {
+    final oldDate = _selectedDate;
+    _selectedDate = date;
+    LoggerUtil.d('🗓️ PILIH TANGGAL: $oldDate → $_selectedDate');
+
+    // Jika sudah ada data, langsung filter ulang tanpa memanggil API
+    if (_histories.isNotEmpty) {
+      filterHistoriesByDate();
+    } else {
+      // Jika belum ada data, set loading state
+      _isLoading = true;
+      notifyListeners();
+    }
+  }
+
+  // Method untuk mengubah tanggal terpilih dan langsung mengambil data baru (fallback method)
   Future<void> updateSelectedDateAndFetch(
       DateTime date, int assetId, BuildContext context) async {
     _selectedDate = date;
@@ -282,14 +454,40 @@ class AssetHistoryController extends ChangeNotifier {
     await fetchAssetHistory(assetId, context);
   }
 
-  // Method untuk mengubah hari (+/-) dan langsung mengambil data baru
-  Future<void> changeDayAndFetch(
-      int days, int assetId, BuildContext context) async {
-    _selectedDate = _selectedDate.add(Duration(days: days));
+  // Method untuk fetch data tanpa mengubah tanggal (untuk konsistensi)
+  Future<void> updateSelectedDateAndFetchOnly(
+      int assetId, BuildContext context) async {
     _isLoading = true;
     notifyListeners();
 
-    // Langsung ambil data baru dengan tanggal yang dipilih
+    // Langsung ambil data baru dengan tanggal yang SUDAH diubah sebelumnya
+    await fetchAssetHistory(assetId, context);
+  }
+
+  // Method untuk mengubah hari (+/-) dan filter ulang (optimized)
+  void changeDayAndFilter(int days) {
+    final oldDate = _selectedDate;
+    _selectedDate = _selectedDate.add(Duration(days: days));
+    LoggerUtil.d(
+        '🗓️ NAVIGASI HARI: $oldDate → $_selectedDate (${days > 0 ? '+' : ''}$days hari)');
+
+    // Jika sudah ada data, langsung filter ulang tanpa memanggil API
+    if (_histories.isNotEmpty) {
+      filterHistoriesByDate();
+    } else {
+      // Jika belum ada data, set loading state
+      _isLoading = true;
+      notifyListeners();
+    }
+  }
+
+  // Method untuk mengubah hari (+/-) dan langsung mengambil data baru (fallback method)
+  // PENTING: Tanggal sudah diubah di changeDayAndFilter, jangan ubah lagi di sini!
+  Future<void> changeDayAndFetchOnly(int assetId, BuildContext context) async {
+    _isLoading = true;
+    notifyListeners();
+
+    // Langsung ambil data baru dengan tanggal yang SUDAH diubah sebelumnya
     await fetchAssetHistory(assetId, context);
   }
 
@@ -301,6 +499,7 @@ class AssetHistoryController extends ChangeNotifier {
     _currentPage = 1;
     _hasMoreData = true;
     _isLoading = false;
+    _hasFilteredOnce = false; // Reset filtering flag
     notifyListeners();
   }
 

@@ -3,7 +3,6 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 import '../../controllers/scan/scan_result_controller.dart';
 import '../../models/scan/scan_result_model.dart';
-import '../../controllers/auth/auth_controller.dart' as auth;
 import '../../core/config/api_config.dart';
 
 class ScanResultScreen extends StatefulWidget {
@@ -878,6 +877,33 @@ class _ScanResultScreenState extends State<ScanResultScreen>
                     ),
                   ),
 
+                // Condition information
+                if (asset.condition != null)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 2),
+                    child: Row(
+                      children: [
+                        Icon(
+                          Icons.build,
+                          size: 12,
+                          color: Colors.grey[500],
+                        ),
+                        const SizedBox(width: 4),
+                        Expanded(
+                          child: Text(
+                            'Kondisi: ${_getConditionDisplay(asset.condition)}',
+                            style: GoogleFonts.poppins(
+                              fontSize: 10,
+                              color: _getConditionColor(asset.condition),
+                              fontWeight: FontWeight.w500,
+                            ),
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+
                 const SizedBox(height: 4),
                 Row(
                   children: [
@@ -1032,6 +1058,154 @@ class _ScanResultScreenState extends State<ScanResultScreen>
             ),
           ),
 
+          // Tampilkan informasi kondisi untuk found assets
+          if (asset.originalCondition != null || asset.condition != null)
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+              child: Column(
+                children: [
+                  // Kondisi sebelumnya
+                  if (asset.originalCondition != null)
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        SizedBox(
+                          width: 24,
+                          child: Icon(
+                            Icons.history,
+                            size: 16,
+                            color: Colors.grey[600],
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        SizedBox(
+                          width: 70,
+                          child: Text(
+                            "Kondisi Awal:",
+                            style: GoogleFonts.poppins(
+                              fontSize: 12,
+                              color: Colors.grey[600],
+                            ),
+                          ),
+                        ),
+                        Expanded(
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 6, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: _getConditionColor(asset.originalCondition)
+                                  .withOpacity(0.1),
+                              borderRadius: BorderRadius.circular(4),
+                              border: Border.all(
+                                color:
+                                    _getConditionColor(asset.originalCondition)
+                                        .withOpacity(0.3),
+                                width: 0.5,
+                              ),
+                            ),
+                            child: Text(
+                              _getConditionDisplay(asset.originalCondition),
+                              style: GoogleFonts.poppins(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w500,
+                                color:
+                                    _getConditionColor(asset.originalCondition),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+
+                  // Kondisi sekarang
+                  if (asset.condition != null)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 4),
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          SizedBox(
+                            width: 24,
+                            child: Icon(
+                              Icons.build,
+                              size: 16,
+                              color: Colors.grey[600],
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          SizedBox(
+                            width: 70,
+                            child: Text(
+                              "Kondisi Saat Ini:",
+                              style: GoogleFonts.poppins(
+                                fontSize: 12,
+                                color: Colors.grey[600],
+                              ),
+                            ),
+                          ),
+                          Expanded(
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 6, vertical: 2),
+                              decoration: BoxDecoration(
+                                color: _getConditionColor(asset.condition)
+                                    .withOpacity(0.15),
+                                borderRadius: BorderRadius.circular(4),
+                                border: Border.all(
+                                  color: _getConditionColor(asset.condition),
+                                  width: 1,
+                                ),
+                              ),
+                              child: Text(
+                                _getConditionDisplay(asset.condition),
+                                style: GoogleFonts.poppins(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w600,
+                                  color: _getConditionColor(asset.condition),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+
+                  // Status perubahan kondisi
+                  if (asset.originalCondition != null &&
+                      asset.condition != null &&
+                      asset.originalCondition!.toLowerCase() !=
+                          asset.condition!.toLowerCase())
+                    Padding(
+                      padding: const EdgeInsets.only(top: 4),
+                      child: Row(
+                        children: [
+                          SizedBox(
+                            width: 24,
+                            child: Icon(
+                              Icons.info_outline,
+                              size: 16,
+                              color: Colors.orange[600],
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Text(
+                              "Kondisi telah diubah dari ${_getConditionDisplay(asset.originalCondition)} menjadi ${_getConditionDisplay(asset.condition)}",
+                              style: GoogleFonts.poppins(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w500,
+                                color: Colors.orange[700],
+                                fontStyle: FontStyle.italic,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                ],
+              ),
+            ),
+
           // Tampilkan catatan dalam format yang sama dengan detail
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
@@ -1179,12 +1353,30 @@ class _ScanResultScreenState extends State<ScanResultScreen>
               if (asset.subcategoryName != null)
                 _buildDetailRow(Icons.label_outline, 'Sub Kategori:',
                     asset.subcategoryName!),
-              if (asset.condition != null)
-                _buildDetailRow(Icons.build, 'Kondisi:',
-                    _getConditionDisplay(asset.condition!)),
               if (asset.currentStatus != null)
                 _buildDetailRow(Icons.info, 'Status:',
                     _getAssetStatusDisplay(asset.currentStatus!)),
+            ],
+          ),
+
+          const SizedBox(height: 16),
+
+          // Condition Information Section
+          _buildDetailSection(
+            'Informasi Kondisi',
+            [
+              if (asset.originalCondition != null)
+                _buildConditionDetailRow(Icons.history, 'Kondisi Sebelumnya:',
+                    asset.originalCondition!),
+              if (asset.condition != null)
+                _buildConditionDetailRow(
+                    Icons.build, 'Kondisi Sekarang:', asset.condition!),
+              if (asset.originalCondition != null &&
+                  asset.condition != null &&
+                  asset.originalCondition!.toLowerCase() !=
+                      asset.condition!.toLowerCase())
+                _buildDetailRow(Icons.info_outline, 'Status Perubahan:',
+                    'Kondisi telah diubah'),
             ],
           ),
 
@@ -1419,6 +1611,59 @@ class _ScanResultScreenState extends State<ScanResultScreen>
               ),
               overflow: TextOverflow.ellipsis,
               maxLines: isNoteRow ? 5 : 2,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // Build detail row specifically for condition display with color
+  Widget _buildConditionDetailRow(
+      IconData icon, String label, String condition) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(
+            width: 24,
+            child: Icon(
+              icon,
+              size: 20,
+              color: Colors.grey[600],
+            ),
+          ),
+          const SizedBox(width: 12),
+          SizedBox(
+            width: 100,
+            child: Text(
+              label,
+              style: GoogleFonts.poppins(
+                fontSize: 13,
+                color: Colors.grey[600],
+              ),
+            ),
+          ),
+          Expanded(
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              decoration: BoxDecoration(
+                color: _getConditionColor(condition).withOpacity(0.1),
+                borderRadius: BorderRadius.circular(6),
+                border: Border.all(
+                  color: _getConditionColor(condition).withOpacity(0.3),
+                  width: 1,
+                ),
+              ),
+              child: Text(
+                _getConditionDisplay(condition),
+                style: GoogleFonts.poppins(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                  color: _getConditionColor(condition),
+                ),
+              ),
             ),
           ),
         ],
@@ -1711,27 +1956,29 @@ class _ScanResultScreenState extends State<ScanResultScreen>
   }
 
   String _getConditionDisplay(String? condition) {
-    if (condition == null) return 'Unknown';
+    if (condition == null) return 'Tidak Diketahui';
 
     switch (condition.toLowerCase()) {
       case 'good':
         return 'Baik';
       case 'damaged':
         return 'Rusak';
-      case 'broken':
-        return 'Rusak Parah';
-      case 'lost':
-        return 'Hilang';
-      case 'new':
-        return 'Baru';
-      case 'used':
-        return 'Bekas';
-      case 'under_repair':
-        return 'Dalam Perbaikan';
-      case 'retired':
-        return 'Pensiun';
       default:
-        return condition;
+        return 'Tidak Diketahui';
+    }
+  }
+
+  // Get color for condition display
+  Color _getConditionColor(String? condition) {
+    if (condition == null) return Colors.grey;
+
+    switch (condition.toLowerCase()) {
+      case 'good':
+        return Colors.green;
+      case 'damaged':
+        return Colors.red;
+      default:
+        return Colors.grey;
     }
   }
 

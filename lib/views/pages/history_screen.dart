@@ -617,8 +617,8 @@ class _HistoryScreenState extends State<HistoryScreen> {
             child: Consumer<RecentActivityController>(
               builder: (context, controller, child) {
                 return Text(
-                  controller.employeeNumber != null
-                      ? 'Menampilkan aktivitas untuk Pegawai ${controller.employeeNumber}'
+                  controller.employeeName != null
+                      ? 'Menampilkan aktivitas untuk ${controller.employeeName}'
                       : 'Menampilkan semua aktivitas Anda',
                   style: GoogleFonts.poppins(
                     fontSize: 16,

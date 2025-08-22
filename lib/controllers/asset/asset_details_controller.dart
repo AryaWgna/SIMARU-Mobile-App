@@ -30,8 +30,9 @@ class AssetDetailsController extends ChangeNotifier {
       String assetType =
           _getSimplifiedAssetType(data['asset_master']['asset_type'] ?? '-');
 
-      // Get brand name from various possible sources
-      String brandName = data['asset_master']['brands']?['brand_name'] ??
+      // Get brand name from various possible sources - prioritize root level
+      String brandName = data['brand_name'] ??
+          data['asset_master']['brands']?['brand_name'] ??
           data['asset_master']['brand']?['brand_name'] ??
           data['asset_master']['brand_name'] ??
           '-';
@@ -137,11 +138,20 @@ class AssetDetailsController extends ChangeNotifier {
                   fullAssetData['asset_master']?['asset_type'] ?? '-')
             },
             'brands': {
-              'brand_name': fullAssetData['asset_master']?['brands']
-                      ?['brand_name'] ??
-                  fullAssetData['asset_master']?['brand']?['brand_name'] ??
-                  fullAssetData['asset_master']?['brand_name'] ??
-                  '-'
+              'brand_name': () {
+                // Debug brand mapping
+                // Brand ada di level root response API, bukan dalam asset_master
+                String mappedBrandName = fullAssetData['brand_name'] ??
+                    fullAssetData['asset_master']?['brands']?['brand_name'] ??
+                    fullAssetData['asset_master']?['brand']?['brand_name'] ??
+                    fullAssetData['asset_master']?['brand_name'] ??
+                    '-';
+                print(
+                    '[CONTROLLER DEBUG] Root level brand_name: ${fullAssetData['brand_name']}');
+                print(
+                    '[CONTROLLER DEBUG] Mapped brand name for assetData: $mappedBrandName');
+                return mappedBrandName;
+              }()
             },
             'room': {
               'room_name': fullAssetData['room_name'] ?? '-',
@@ -166,12 +176,28 @@ class AssetDetailsController extends ChangeNotifier {
             String assetType = _getSimplifiedAssetType(
                 fullAssetData['asset_master']['asset_type'] ?? '-');
 
-            // Get brand name from various possible sources
-            String brandName = fullAssetData['asset_master']['brands']
-                    ?['brand_name'] ??
+            // Get brand name from various possible sources with detailed logging
+            print(
+                '[CONTROLLER DEBUG] Full asset_master data: ${fullAssetData['asset_master']}');
+            print('[CONTROLLER DEBUG] Checking brand paths:');
+            print(
+                '[CONTROLLER DEBUG] brands path: ${fullAssetData['asset_master']['brands']}');
+            print(
+                '[CONTROLLER DEBUG] brand path: ${fullAssetData['asset_master']['brand']}');
+            print(
+                '[CONTROLLER DEBUG] direct brand_name: ${fullAssetData['asset_master']['brand_name']}');
+            print(
+                '[CONTROLLER DEBUG] Root level brand_name in API: ${fullAssetData['brand_name']}');
+
+            // Brand seharusnya ada di level root, bukan dalam asset_master berdasarkan API docs
+            String brandName = fullAssetData['brand_name'] ??
+                fullAssetData['asset_master']['brands']?['brand_name'] ??
                 fullAssetData['asset_master']['brand']?['brand_name'] ??
                 fullAssetData['asset_master']['brand_name'] ??
                 '-';
+
+            print(
+                '[CONTROLLER DEBUG] Final brandName for masterAssetData: $brandName');
 
             _masterAssetData = {
               'asset_master_code':
@@ -442,7 +468,7 @@ class AssetDetailsController extends ChangeNotifier {
 
   // Format tanggal
   String formatDate(String date) {
-    if (date == '-' || date == null || date.isEmpty) {
+    if (date == '-' || date.isEmpty) {
       return '-';
     }
 

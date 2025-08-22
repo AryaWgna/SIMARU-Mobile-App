@@ -3,7 +3,7 @@ import 'package:SIMARU/views/asset/asset_complaint_screen_new.dart';
 import 'asset_document.dart';
 import 'asset_history.dart';
 import 'asset_mutation.dart';
-import 'lost.dart';
+
 import 'checkout.dart';
 import 'checkin.dart';
 import '../dashboard/dashboard.dart';
@@ -233,6 +233,25 @@ class _AssetDetailsState extends State<AssetDetails> with RouteAware {
         print(
             '[DETAIL DEBUG] Current status dari API: ${assetData['current_status']}');
 
+        // Debugging khusus untuk brand data
+        print('[BRAND DEBUG] Checking brand data paths:');
+        print(
+            '[BRAND DEBUG] assetData[\'brand_name\'] (ROOT LEVEL): ${assetData['brand_name']}');
+        print(
+            '[BRAND DEBUG] assetData[\'asset_master\']?[\'brands\']?[\'brand_name\']: ${assetData['asset_master']?['brands']?['brand_name']}');
+        print(
+            '[BRAND DEBUG] assetData[\'asset_master\']?[\'brand\']?[\'brand_name\']: ${assetData['asset_master']?['brand']?['brand_name']}');
+        print(
+            '[BRAND DEBUG] assetData[\'brands\']?[\'brand_name\']: ${assetData['brands']?['brand_name']}');
+        print(
+            '[BRAND DEBUG] assetData[\'brand\']?[\'brand_name\']: ${assetData['brand']?['brand_name']}');
+        print(
+            '[BRAND DEBUG] controller.masterAssetData?[\'brand_name\']: ${controller.masterAssetData?['brand_name']}');
+        print(
+            '[BRAND DEBUG] Full asset_master data: ${assetData['asset_master']}');
+        print(
+            '[BRAND DEBUG] Full controller.masterAssetData: ${controller.masterAssetData}');
+
         final assetCode = assetData['asset_code'] ?? widget.qrData;
 
         // Perbaikan untuk mengambil nama aset dari berbagai sumber yang mungkin
@@ -266,12 +285,17 @@ class _AssetDetailsState extends State<AssetDetails> with RouteAware {
         final condition = controller.getIndonesianCondition(conditionRaw);
 
         // Perbaikan untuk mengambil data brand dengan benar dari berbagai sumber yang mungkin
-        final brand = assetData['asset_master']?['brands']?['brand_name'] ??
-            assetData['asset_master']?['brand']?['brand_name'] ??
+        // Prioritas berdasarkan struktur API sebenarnya: root level brand_name terlebih dahulu
+        String brand = controller.masterAssetData?['brand_name'] ??
+            assetData['brand_name'] ?? // ROOT LEVEL - sesuai dokumentasi API
             assetData['brands']?['brand_name'] ??
+            assetData['asset_master']?['brands']?['brand_name'] ??
+            assetData['asset_master']?['brand']?['brand_name'] ??
+            assetData['asset_master']?['brand_name'] ??
             assetData['brand']?['brand_name'] ??
-            controller.masterAssetData?['brand_name'] ??
             '-';
+
+        print('[BRAND DEBUG] Final brand value: $brand');
 
         final modelNumber = assetData['model_number'] ?? '-';
         final warrantyDate = assetData['warranty_end_date'] ?? '-';
@@ -567,22 +591,6 @@ class _AssetDetailsState extends State<AssetDetails> with RouteAware {
                                                   assetData: assetData,
                                                   assetCode: assetCode,
                                                 )),
-                                      );
-                                      if (result != null &&
-                                          result is Map<String, dynamic>) {
-                                        controller.setAssetData(result);
-                                      }
-                                    },
-                                  ),
-                                  _buildActionButton(
-                                    icon: Icons.help_outline,
-                                    label: 'Hilang',
-                                    onTap: () async {
-                                      final result = await Navigator.push(
-                                        context,
-                                        MaterialPageRoute(
-                                            builder: (context) => LostScreen(
-                                                assetData: assetData)),
                                       );
                                       if (result != null &&
                                           result is Map<String, dynamic>) {
@@ -890,7 +898,7 @@ class _AssetDetailsState extends State<AssetDetails> with RouteAware {
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceEvenly,
               children: List.generate(
-                3,
+                2,
                 (index) => Column(
                   children: [
                     Container(

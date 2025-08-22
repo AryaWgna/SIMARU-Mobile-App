@@ -26,6 +26,8 @@ class AssetScanDetail {
   final String? pic;
   final String? category;
   final String? condition;
+  final String?
+      originalCondition; // Kondisi awal/sebelumnya sebelum ada perubahan
   final String? createdAt;
   final String? updatedAt;
 
@@ -93,6 +95,7 @@ class AssetScanDetail {
     this.pic,
     this.category,
     this.condition,
+    this.originalCondition,
     this.createdAt,
     this.updatedAt,
     // Asset Master information (expanded)
@@ -154,6 +157,7 @@ class AssetScanDetail {
     String? pic,
     String? category,
     String? condition,
+    String? originalCondition,
     String? createdAt,
     String? updatedAt,
     // Asset Master information (expanded)
@@ -213,6 +217,7 @@ class AssetScanDetail {
       pic: pic ?? this.pic,
       category: category ?? this.category,
       condition: condition ?? this.condition,
+      originalCondition: originalCondition ?? this.originalCondition,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
       // Asset Master information (expanded)
@@ -278,6 +283,9 @@ class AssetScanDetail {
       pic: json['pic'],
       category: json['category'],
       condition: json['condition'],
+      originalCondition: json['original_condition'] ??
+          json[
+              'condition'], // Fallback to current condition if original not available
       createdAt: json['created_at'],
       updatedAt: json['updated_at'],
       // Asset Master information (expanded)

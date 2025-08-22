@@ -154,6 +154,36 @@ class _AssetMutationState extends State<AssetMutation> {
     return _mutationController.formatAPIDate(dateString);
   }
 
+  // Helper method to extract actor/performer information
+  String _getActorName(Map<String, dynamic> history) {
+    // Try to get actor from different sources
+    Map<String, dynamic>? actor;
+
+    // Check detail_info.actor first (for specific operations)
+    final detailInfo = history['detail_info'] as Map<String, dynamic>?;
+    if (detailInfo != null && detailInfo['actor'] is Map<String, dynamic>) {
+      actor = detailInfo['actor'] as Map<String, dynamic>;
+    }
+    // Fall back to main actor field
+    else if (history['actor'] is Map<String, dynamic>) {
+      actor = history['actor'] as Map<String, dynamic>;
+    }
+
+    if (actor != null) {
+      // Prefer employee_name, fallback to employee_number, then 'Unknown'
+      final employeeName = actor['employee_name']?.toString();
+      final employeeNumber = actor['employee_number']?.toString();
+
+      if (employeeName != null && employeeName.isNotEmpty) {
+        return employeeName;
+      } else if (employeeNumber != null && employeeNumber.isNotEmpty) {
+        return employeeNumber;
+      }
+    }
+
+    return 'Unknown';
+  }
+
   Widget _buildSkeletonLayout() {
     return SingleChildScrollView(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
@@ -401,21 +431,8 @@ class _AssetMutationState extends State<AssetMutation> {
     final checkoutDate =
         formatAPIDate(detailInfo?['checkout_date']?.toString());
 
-    String locationInfo = '-';
-    if (location != null) {
-      final roomName = location['room_name']?.toString() ?? '';
-      final floorNumber = location['floor_number']?.toString() ?? '';
-      final buildingName = location['building_name']?.toString() ?? '';
-
-      List<String> locationParts = [];
-      if (buildingName.isNotEmpty) locationParts.add(buildingName);
-      if (roomName.isNotEmpty) locationParts.add(roomName);
-      if (floorNumber.isNotEmpty) locationParts.add('Lantai $floorNumber');
-
-      locationInfo = locationParts.isNotEmpty ? locationParts.join(', ') : '-';
-    }
-
     final notes = detailInfo?['checkout_notes']?.toString() ?? '-';
+    final actorName = _getActorName(history);
 
     return _buildStatusCard(
       title: 'DIPINJAM KE LOKASI',
@@ -434,6 +451,8 @@ class _AssetMutationState extends State<AssetMutation> {
                 ? 'Lantai ${location?['floor_number']}'
                 : '-'),
         const SizedBox(height: 12),
+        _buildInfoRow('Dilakukan oleh:', actorName),
+        const SizedBox(height: 12),
         _buildInfoRow('Catatan:', notes),
       ],
     );
@@ -442,6 +461,7 @@ class _AssetMutationState extends State<AssetMutation> {
   Widget _buildReturnCard(Map<String, dynamic> history) {
     final returnDate = formatAPIDate(history['return_date']?.toString());
     final notes = history['return_notes']?.toString() ?? '-';
+    final actorName = _getActorName(history);
 
     return _buildStatusCard(
       title: 'DIKEMBALIKAN',
@@ -460,6 +480,8 @@ class _AssetMutationState extends State<AssetMutation> {
       children: [
         _buildInfoRow('Tanggal Kembali:', returnDate),
         const SizedBox(height: 12),
+        _buildInfoRow('Dilakukan oleh:', actorName),
+        const SizedBox(height: 12),
         _buildInfoRow('Catatan:', notes),
       ],
     );
@@ -468,6 +490,7 @@ class _AssetMutationState extends State<AssetMutation> {
   Widget _buildLossCard(Map<String, dynamic> history) {
     final lossDate = formatAPIDate(history['loss_date']?.toString());
     final notes = history['loss_notes']?.toString() ?? '-';
+    final actorName = _getActorName(history);
 
     return _buildStatusCard(
       title: 'HILANG',
@@ -475,6 +498,8 @@ class _AssetMutationState extends State<AssetMutation> {
       color: _mutationController.getStatusColor('LOSS'),
       children: [
         _buildInfoRow('Tanggal Hilang:', lossDate),
+        const SizedBox(height: 12),
+        _buildInfoRow('Dilaporkan oleh:', actorName),
         const SizedBox(height: 12),
         _buildInfoRow('Catatan:', notes),
       ],
@@ -484,6 +509,7 @@ class _AssetMutationState extends State<AssetMutation> {
   Widget _buildFoundCard(Map<String, dynamic> history) {
     final foundDate = formatAPIDate(history['found_date']?.toString());
     final notes = history['found_notes']?.toString() ?? '-';
+    final actorName = _getActorName(history);
 
     return _buildStatusCard(
       title: 'DITEMUKAN',
@@ -491,6 +517,8 @@ class _AssetMutationState extends State<AssetMutation> {
       color: _mutationController.getStatusColor('FOUND'),
       children: [
         _buildInfoRow('Tanggal Ditemukan:', foundDate),
+        const SizedBox(height: 12),
+        _buildInfoRow('Ditemukan oleh:', actorName),
         const SizedBox(height: 12),
         _buildInfoRow('Catatan:', notes),
       ],
@@ -500,6 +528,7 @@ class _AssetMutationState extends State<AssetMutation> {
   Widget _buildDisposeCard(Map<String, dynamic> history) {
     final disposeDate = formatAPIDate(history['dispose_date']?.toString());
     final notes = history['dispose_notes']?.toString() ?? '-';
+    final actorName = _getActorName(history);
 
     return _buildStatusCard(
       title: 'DIHAPUSKAN',
@@ -513,6 +542,8 @@ class _AssetMutationState extends State<AssetMutation> {
       children: [
         _buildInfoRow('Tanggal Penghapusan:', disposeDate),
         const SizedBox(height: 12),
+        _buildInfoRow('Dihapuskan oleh:', actorName),
+        const SizedBox(height: 12),
         _buildInfoRow('Catatan:', notes),
       ],
     );
@@ -525,8 +556,10 @@ class _AssetMutationState extends State<AssetMutation> {
     final checkoutDate =
         formatAPIDate(detailInfo?['checkout_date']?.toString());
 
+    final employeeName = user?['employee_name']?.toString() ?? '-';
     final employeeNumber = user?['employee_number']?.toString() ?? '-';
     final notes = detailInfo?['checkout_notes']?.toString() ?? '-';
+    final actorName = _getActorName(history);
 
     return _buildStatusCard(
       title: 'DIPINJAM KE KARYAWAN',
@@ -535,9 +568,11 @@ class _AssetMutationState extends State<AssetMutation> {
       children: [
         _buildInfoRow('Tanggal:', checkoutDate),
         const SizedBox(height: 12),
-        _buildInfoRow('Dipinjam kepada:', employeeNumber),
+        _buildInfoRow('Dipinjam kepada:', employeeName),
         const SizedBox(height: 12),
         _buildInfoRow('No. Karyawan:', employeeNumber),
+        const SizedBox(height: 12),
+        _buildInfoRow('Dilakukan oleh:', actorName),
         const SizedBox(height: 12),
         _buildInfoRow('Catatan:', notes),
       ],

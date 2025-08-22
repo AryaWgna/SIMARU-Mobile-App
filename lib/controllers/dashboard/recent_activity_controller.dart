@@ -21,6 +21,7 @@ class RecentActivityController extends ChangeNotifier {
   final _secureStorage = const FlutterSecureStorage();
   String? _userId;
   String? _employeeNumber;
+  String? _employeeName;
 
   List<HistoryModel> get activities => _activities;
   Map<String, List<HistoryModel>> get activitiesByMonth => _activitiesByMonth;
@@ -32,13 +33,15 @@ class RecentActivityController extends ChangeNotifier {
   bool get isSuccess => _isSuccess;
   ScrollController get scrollController => _scrollController;
   String? get employeeNumber => _employeeNumber;
+  String? get employeeName => _employeeName;
 
   // Method to get the current user ID and employee number
   Future<Map<String, String?>> _getCurrentUserInfo() async {
-    if (_userId != null && _employeeNumber != null) {
+    if (_userId != null && _employeeNumber != null && _employeeName != null) {
       return {
         'userId': _userId,
         'employeeNumber': _employeeNumber,
+        'employeeName': _employeeName,
       };
     }
 
@@ -46,9 +49,10 @@ class RecentActivityController extends ChangeNotifier {
       // Try to get the user ID and employee number from secure storage
       _userId = await _secureStorage.read(key: 'user_id');
       _employeeNumber = await ApiService.getEmployeeNumber();
+      _employeeName = await ApiService.getEmployeeName();
 
       LoggerUtil.d(
-          'Retrieved user info from storage: ID: $_userId, Employee Number: $_employeeNumber');
+          'Retrieved user info from storage: ID: $_userId, Employee Number: $_employeeNumber, Employee Name: $_employeeName');
 
       if (_userId == null || _employeeNumber == null) {
         // Try to get the information from the JWT token
@@ -89,12 +93,14 @@ class RecentActivityController extends ChangeNotifier {
       return {
         'userId': _userId,
         'employeeNumber': _employeeNumber,
+        'employeeName': _employeeName,
       };
     } catch (e) {
       LoggerUtil.e('Error retrieving user info', e, StackTrace.current);
       return {
         'userId': null,
         'employeeNumber': null,
+        'employeeName': null,
       };
     }
   }
@@ -156,7 +162,7 @@ class RecentActivityController extends ChangeNotifier {
       }
 
       LoggerUtil.d(
-          'Loading activities for user $userId (${userInfo['employeeNumber']}) - page $_currentPage, refresh: $refresh');
+          'Loading activities for user $userId (${userInfo['employeeNumber']} - ${userInfo['employeeName']}) - page $_currentPage, refresh: $refresh');
       final response = await ApiService.get(
         '/asset-histories/activities/user/$userId?limit=$_limit&page=$_currentPage',
       );
@@ -422,6 +428,7 @@ class RecentActivityController extends ChangeNotifier {
     LoggerUtil.d('=== RecentActivityController State ===');
     LoggerUtil.d('User ID: $_userId');
     LoggerUtil.d('Employee Number: $_employeeNumber');
+    LoggerUtil.d('Employee Name: $_employeeName');
     LoggerUtil.d('Activities count: ${_activities.length}');
     LoggerUtil.d('Activities by month count: ${_activitiesByMonth.length}');
     LoggerUtil.d('Current page: $_currentPage');
@@ -443,8 +450,7 @@ class RecentActivityController extends ChangeNotifier {
     LoggerUtil.d('====================================');
   }
 
-  // Override the reset state method to ensure the scroll controller is properly initialized
-  @override
+  // Reset state method to ensure the scroll controller is properly initialized
   void resetState() {
     LoggerUtil.d("Resetting RecentActivityController state");
     _activities = [];
@@ -457,6 +463,7 @@ class RecentActivityController extends ChangeNotifier {
     _isSuccess = false;
     _userId = null; // Reset the user ID to force re-fetching it
     _employeeNumber = null; // Reset the employee number too
+    _employeeName = null; // Reset the employee name too
 
     // Re-initialize the scroll controller if needed
     if (_scrollController.hasClients) {

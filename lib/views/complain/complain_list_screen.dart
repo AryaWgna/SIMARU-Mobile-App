@@ -146,13 +146,13 @@ class _ComplainListScreenState extends State<ComplainListScreen>
     // Mengadaptasi logika status dari kode Laravel
     switch (status.toLowerCase()) {
       case 'new':
-        backgroundColor = const Color(0xFFFEF9C3); // bg-yellow-100
-        textColor = const Color(0xFF854D0E); // text-yellow-800
+        backgroundColor = const Color(0xFFDDEDFE); // bg-blue-100
+        textColor = const Color(0xFF1E429F); // text-blue-800
         statusText = 'Baru';
         break;
       case 'in progress':
-        backgroundColor = const Color(0xFFDDEDFE); // bg-blue-100
-        textColor = const Color(0xFF1E429F); // text-blue-800
+        backgroundColor = const Color(0xFFFEF9C3); // bg-yellow-100
+        textColor = const Color(0xFF854D0E); // text-yellow-800
         statusText = 'Sedang Diproses';
         break;
       case 'finished':

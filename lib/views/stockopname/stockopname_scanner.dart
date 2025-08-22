@@ -8,6 +8,7 @@ import 'package:provider/provider.dart';
 import 'package:http/http.dart' as http;
 import 'scan_result_screen.dart';
 import '../../controllers/scan/stockopname_controller.dart';
+import '../../controllers/scan/scan_result_controller.dart';
 import 'stockopname_scanner_stub.dart';
 import '../../utils/logger_util.dart';
 import '../../models/scan/stockopname_model.dart';
@@ -2404,6 +2405,9 @@ class _StockopnameScannerState extends State<StockopnameScanner>
           // Update locally if all API methods fail
           _updateLocalAssetCondition(asset.assetCode, newCondition);
 
+          // Also update scan result controller if available
+          _updateScanResultController(asset.assetCode, newCondition);
+
           setModalState(() {
             // Force rebuild of the modal content with updated condition
           });
@@ -2425,6 +2429,9 @@ class _StockopnameScannerState extends State<StockopnameScanner>
         // If we reach here, one of the attempts was successful
         // Update local asset condition
         _updateLocalAssetCondition(asset.assetCode, newCondition);
+
+        // Also update scan result controller if available
+        _updateScanResultController(asset.assetCode, newCondition);
 
         // Update the modal state to reflect changes
         setModalState(() {
@@ -2481,6 +2488,9 @@ class _StockopnameScannerState extends State<StockopnameScanner>
               // Server update successful
               _updateLocalAssetCondition(asset.assetCode, newCondition);
 
+              // Also update scan result controller if available
+              _updateScanResultController(asset.assetCode, newCondition);
+
               setModalState(() {
                 // Force rebuild of the modal content with updated condition
               });
@@ -2506,6 +2516,9 @@ class _StockopnameScannerState extends State<StockopnameScanner>
         // Fallback to local update if server fails
         LoggerUtil.d('Fallback: updating locally only');
         _updateLocalAssetCondition(asset.assetCode, newCondition);
+
+        // Also update scan result controller if available
+        _updateScanResultController(asset.assetCode, newCondition);
 
         setModalState(() {
           // Force rebuild of the modal content with updated condition
@@ -2573,6 +2586,24 @@ class _StockopnameScannerState extends State<StockopnameScanner>
       LoggerUtil.d('Successfully updated asset condition locally');
     } else {
       LoggerUtil.w('Asset $assetCode not found in any list for update');
+    }
+  }
+
+  // Update scan result controller with new condition
+  void _updateScanResultController(String assetCode, String newCondition) {
+    try {
+      // Get scan result controller instance
+      final scanResultController =
+          Provider.of<ScanResultController>(context, listen: false);
+
+      // Update the condition in scan result controller
+      scanResultController.updateAssetCondition(assetCode, newCondition);
+
+      LoggerUtil.d(
+          'Updated scan result controller for asset: $assetCode with condition: $newCondition');
+    } catch (e) {
+      LoggerUtil.w('Failed to update scan result controller: $e');
+      // This is not critical, so we don't show error to user
     }
   }
 

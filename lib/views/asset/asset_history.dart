@@ -1,8 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'dart:convert';
 import '../../controllers/asset/asset_history_controller.dart';
-import '../../controllers/auth/auth_controller.dart' as auth;
 import '../../models/asset/asset_history_item_model.dart';
 import 'asset_document.dart';
 import 'asset_mutation.dart';
@@ -120,12 +118,6 @@ class _AssetHistoryState extends State<AssetHistory> {
     _historyController.setError(message);
   }
 
-  // Format tanggal API
-  String formatAPIDateParam(DateTime date) {
-    // Format tanggal yang diharapkan API: YYYY-MM-DD
-    return '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
-  }
-
   DateTime selectedDate = DateTime.now();
   bool isLoading = true;
   String? errorMessage;
@@ -168,7 +160,7 @@ class _AssetHistoryState extends State<AssetHistory> {
 
   // Format tanggal dari API
   String formatAPIDate(String dateString) {
-    if (dateString == null || dateString.isEmpty) return '-';
+    if (dateString.isEmpty) return '-';
     return _historyController.formatAPIDate(dateString);
   }
 
@@ -220,19 +212,31 @@ class _AssetHistoryState extends State<AssetHistory> {
     );
 
     if (picked != null && picked != _historyController.selectedDate) {
-      // Gunakan fungsi baru yang langsung mengambil data
-      if (_assetId != null) {
-        await _historyController.updateSelectedDateAndFetch(
-            picked, _assetId!, context);
+      // Gunakan fungsi optimized yang hanya memfilter ulang data yang sudah ada
+      _historyController.updateSelectedDateAndFilter(picked);
+
+      // Debug: tampilkan distribusi data untuk troubleshooting
+      _historyController.debugFilteringData();
+
+      // Jika belum ada data, fetch dari API (tanggal sudah diubah di updateSelectedDateAndFilter)
+      if (_historyController.histories.isEmpty && _assetId != null) {
+        await _historyController.updateSelectedDateAndFetchOnly(
+            _assetId!, context);
       }
     }
   }
 
   // Fungsi untuk navigasi hari
   void _changeDay(int days) async {
-    // Gunakan fungsi baru yang langsung mengambil data
-    if (_assetId != null) {
-      await _historyController.changeDayAndFetch(days, _assetId!, context);
+    // Gunakan fungsi optimized yang hanya memfilter ulang data yang sudah ada
+    _historyController.changeDayAndFilter(days);
+
+    // Debug: tampilkan distribusi data untuk troubleshooting
+    _historyController.debugFilteringData();
+
+    // Jika belum ada data, fetch dari API (tanggal sudah diubah di changeDayAndFilter)
+    if (_historyController.histories.isEmpty && _assetId != null) {
+      await _historyController.changeDayAndFetchOnly(_assetId!, context);
     }
   }
 
