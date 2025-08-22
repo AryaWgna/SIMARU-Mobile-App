@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:SIMARU/views/asset/asset_complaint_screen_new.dart';
+import 'asset_complaint_screen_new.dart';
 import 'asset_document.dart';
 import 'asset_history.dart';
 import 'asset_mutation.dart';

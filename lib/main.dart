@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:SIMARU/auth/login.dart';
+import 'auth/login.dart';
 import 'package:provider/provider.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'views/dashboard/dashboard.dart';
